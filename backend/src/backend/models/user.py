@@ -13,7 +13,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.core.database import Base
+from backend.db.base import Base, TimestampMixin
 
 
 class OAuthProvider(str, enum.Enum):
@@ -21,7 +21,7 @@ class OAuthProvider(str, enum.Enum):
     GOOGLE = "GOOGLE"
 
 
-class User(Base):
+class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(
@@ -94,16 +94,4 @@ class User(Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP,
         nullable=True,
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
-        server_default=func.now(),
-        nullable=False,
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
     )

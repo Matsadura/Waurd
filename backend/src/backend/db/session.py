@@ -1,9 +1,7 @@
 from collections.abc import AsyncGenerator  # I001
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
-
 from backend.core.config import settings
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 engine = create_async_engine(
     settings.DATABASE_URL,
@@ -22,9 +20,6 @@ async_session_maker = async_sessionmaker(
 )
 
 
-class Base(DeclarativeBase):
-    """Base class for all SQLAlchemy entities."""
-
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI route dependency yielding an async database session."""
@@ -35,3 +30,5 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+        finally:
+            await session.close()

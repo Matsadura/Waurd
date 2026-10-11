@@ -76,6 +76,11 @@ class User(Base):
         default=0,
         nullable=False,
     )
+    elo: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+        nullable=False,
+    )
     level: Mapped[int] = mapped_column(
         Integer,
         default=1,

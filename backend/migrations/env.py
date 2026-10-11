@@ -3,9 +3,10 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
+import backend.models  # noqa: F401
 from alembic import context
 from backend.core.config import settings
-from backend.models import Base
+from backend.core.database import Base
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -15,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 config = context.config
 
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

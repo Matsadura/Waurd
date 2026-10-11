@@ -6,7 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.config import settings
-from backend.core.database import get_db
+from backend.db.session import get_db
 
 
 @asynccontextmanager

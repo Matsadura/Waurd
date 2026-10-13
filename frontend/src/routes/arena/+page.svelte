@@ -1,101 +1,139 @@
 <script lang="ts">
-	let x = $state(0);
-	let y = $state(0);
-	let GlyphState = $state('idle');
+	type Glyph = {
+		id: string;
+		letter: string;
+	};
 
-	let pointerId: Number = -1;
-	let startPointerX = 0;
-	let startPointerY = 0;
-	let startX = 0;
-	let startY = 0;
+	const EASE = 'cubic-bezier(0.2, 0.85, 0.2, 1)';
 
-	function startDrag(event: PointerEvent) {
-		if (event.isPrimary && event.button === 0 && GlyphState === 'idle') {
-			event.preventDefault();
+	const FEEL = {
+		// Card
+		cardWidth: 144,
+		cardHeight: 216,
+		cardBottom: -12,
 
-			pointerId = event.pointerId;
+		// Resting hand
+		spacing: 62,
+		curvature: 3.2,
+		rotation: 3.5,
+		maxFan: 12,
+		edgePadding: 16,
 
-			startPointerX = event.clientX;
-			startPointerY = event.clientY;
+		// Focused glyph
+		lift: 15,
+		scale: 1.06,
 
-			startX = x;
-			startY = y;
+		// Neighbors of the focused glyph
+		neighborPush: 68,
 
-			const element = event.currentTarget;
+		// Shadows
+		shadow: '0 6px 14px #0007',
+		focusShadow: '0 18px 35px #0009, 0 0 16px #e8b86655',
 
-			if (element instanceof HTMLElement) {
-				element.setPointerCapture(event.pointerId);
-				GlyphState = 'dragging';
-				updateTarget(event.clientX, event.clientY);
+		// Motion profiles
+		motion: {
+			idle: { duration: 460, easing: EASE },
+			focus: { duration: 460, easing: EASE },
+			neighbor: { duration: 460, easing: EASE }
+		}
+	};
+
+	let hand = $state<Glyph[]>([
+		{ id: 'g1', letter: 'C' },
+		{ id: 'g2', letter: 'A' },
+		{ id: 'g3', letter: 'A' },
+		{ id: 'g4', letter: 'A' },
+		{ id: 'g5', letter: 'A' },
+		{ id: 'g6', letter: 'A' },
+		{ id: 'g7', letter: 'A' },
+		{ id: 'g8', letter: 'A' },
+		{ id: 'g9', letter: 'A' },
+		{ id: 'g10', letter: 'A' },
+		{ id: 'g11', letter: 'A' },
+		{ id: 'g12', letter: 'A' }
+	]);
+
+	let focusedIndex = $state<number>(-1);
+
+	type Pose = 'idle' | 'focus' | 'before' | 'after';
+
+	function poseOf(index: number): Pose {
+		if (focusedIndex === -1) return 'idle';
+		if (index === focusedIndex) return 'focus';
+		return index < focusedIndex ? 'before' : 'after';
+	}
+
+	function hover(glyphIndex: number, event: PointerEvent) {
+		if (event.pointerType !== 'touch') {
+			if (glyphIndex !== hand.length - 1) {
+				focusedIndex = glyphIndex;
+			} else {
+				// const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+				// const isInLeftHalf = event.clientX < rect.left + rect.width / 3*2;
+				// console.log('isInLeftHalf', isInLeftHalf, event.clientX, rect.left + rect.width / 2);
+				// if (isInLeftHalf) {
+				//     focusedIndex = glyphIndex;
+				// }
+				focusedIndex = glyphIndex;
 			}
 		}
 	}
 
-	function moveDrag(event: PointerEvent) {
-		if (GlyphState === 'dragging' && event.pointerId === pointerId) {
-			let dx = event.clientX - startPointerX;
-			let dy = event.clientY - startPointerY;
+	const motionVars = Object.entries(FEEL.motion)
+		.map(([pose, m]) => `--${pose}-duration: ${m.duration}ms; --${pose}-ease: ${m.easing};`)
+		.join('\n');
 
-			x = startX + dx;
-			y = startY + dy;
-			updateTarget(event.clientX, event.clientY);
-		}
-	}
-
-	function endDrag(event: PointerEvent) {
-		if (event.pointerId === pointerId) {
-			moveDrag(event);
-
-			GlyphState = 'idle';
-			pointerId = -1;
-		}
-	}
-
-	function cancelDrag(event: PointerEvent) {
-		if (event.pointerId === pointerId) {
-			x = startX;
-			y = startY;
-
-			GlyphState = 'idle';
-			pointerId = -1;
-		}
-	}
-
-	let dropTarget = $state<HTMLDivElement>();
-	let isOverTarget = $state(false);
-
-	function updateTarget(pointerX: number, pointerY: number) {
-		if (dropTarget) {
-			const rect = dropTarget.getBoundingClientRect();
-
-			isOverTarget =
-				pointerX >= rect.left &&
-				pointerX <= rect.right &&
-				pointerY >= rect.top &&
-				pointerY <= rect.bottom;
-		}
-	}
+	const feelVars = `
+        --card-w: ${FEEL.cardWidth}px;
+        --card-h: ${FEEL.cardHeight}px;
+        --card-bottom: ${FEEL.cardBottom}px;
+        --spacing: ${FEEL.spacing}px;
+        --edge: ${FEEL.edgePadding}px;
+        --curvature: ${FEEL.curvature}px;
+        --rotation: ${FEEL.rotation}deg;
+        --max-fan: ${FEEL.maxFan}deg;
+        --lift: ${FEEL.lift}px;
+        --scale: ${FEEL.scale};
+        --push: ${FEEL.neighborPush}px;
+        --shadow-rest: ${FEEL.shadow};
+        --shadow-focus: ${FEEL.focusShadow};
+        ${motionVars}
+    `;
 </script>
 
 <div class="arena">
-	<button
-		type="button"
-		class="glyph"
-		class:dragging={GlyphState === 'dragging'}
-		style:transform={`translate(${x}px, ${y}px)`}
-		onpointerdown={startDrag}
-		onpointermove={moveDrag}
-		onpointerup={endDrag}
-		onpointercancel={cancelDrag}
-		onlostpointercapture={cancelDrag}
-	>
-		<span class="bg-gray-400 p-4">
-			{GlyphState}
-		</span>
-	</button>
+	<div class="word">
+		<div class="word-slot"></div>
+		<div class="word-slot"></div>
+		<div class="word-slot"></div>
+		<div class="word-slot"></div>
+		<div class="word-slot"></div>
+		<div class="word-slot"></div>
+		<div class="word-slot"></div>
+		<div class="word-slot"></div>
+		<div class="word-slot"></div>
+		<div class="word-slot"></div>
+	</div>
 
-	<div bind:this={dropTarget} class="drop-target" class:highlighted={isOverTarget}>
-		{isOverTarget ? 'Release here' : 'Word slot'}
+	<div
+		class="hand"
+		role="group"
+		aria-label="Glyph hand"
+		style={feelVars}
+		style:--n={hand.length}
+		onpointerleave={() => (focusedIndex = -1)}
+	>
+		{#each hand as glyph, i (glyph.id)}
+			<div
+				class="card"
+				role="presentation"
+				data-pose={poseOf(i)}
+				style:--o={i - (hand.length - 1) / 2}
+				onpointerenter={(event) => hover(i, event)}
+			>
+				{glyph.letter}
+			</div>
+		{/each}
 	</div>
 </div>
 
@@ -103,60 +141,110 @@
 	.arena {
 		position: relative;
 		height: 100vh;
-		border: 1px dashed #888;
-		overflow: hidden;
 	}
 
-	.glyph {
+	.word {
 		position: absolute;
-		left: 204px;
-		top: 24px;
-		width: 80px;
-		height: 110px;
-		border: 2px solid #355c44;
-		border-radius: 12px;
-		background: #dcebdc;
-		color: #183322;
-		font-size: 10px;
-		cursor: grab;
+		margin: 0;
+		padding: 0;
+
+		transform: translate(-50%, 50%);
+		bottom: 60%;
+		left: 50%;
+
+		display: flex;
+		justify-content: center;
+	}
+
+	.word-slot {
+		display: inline-block;
+		--by: 1.3;
+		width: calc(144px / var(--by));
+		height: calc(216px / var(--by));
+		margin: 0 4px;
+		border: 2px solid #b68c43;
+		border-radius: 4px;
+		background-color: #272b35;
+	}
+
+	.hand {
+		position: fixed;
+		inset: auto 0 0;
+		margin-inline: auto;
+		width: min(95vw, 800px);
+		height: 0;
 		user-select: none;
-		touch-action: none;
-		transition: transform 40ms ease-in-out;
+		--step: max(
+			0px,
+			min(var(--spacing), (100cqw - var(--card-w) - 2 * var(--edge)) / max(var(--n) - 1, 1))
+		);
+		--angle-step: min(var(--rotation), var(--max-fan) / max((var(--n) - 1) / 2, 1));
 	}
 
-	.glyph.dragging {
-		cursor: grabbing;
-		background: #b8d8b8;
-	}
-
-	.drop-target {
+	.card {
 		position: absolute;
-		right: 24px;
-		top: 180px;
-		width: 140px;
-		height: 120px;
-		box-sizing: border-box;
+		bottom: var(--card-bottom);
+		left: calc(50% + var(--o) * var(--step) - var(--card-w) / 2);
+		width: var(--card-w);
+		height: var(--card-h);
+		z-index: var(--z);
+		pointer-events: auto;
 
 		display: grid;
 		place-items: center;
-
-		border: 2px dashed #888;
+		box-sizing: border-box;
+		border: 3px solid #b68c43;
 		border-radius: 12px;
-		background: #eeeeee;
-		color: #333;
+		background: #272b35;
+		color: #f5e8c8;
+		font-size: 64px;
+		font-weight: 700;
 
-		transition:
-			background-color 120ms,
-			border-color 120ms;
+		transform-origin: center bottom;
+		translate: var(--x) var(--y);
+		rotate: var(--a);
+		scale: var(--s);
+		box-shadow: var(--shadow);
+
+		transition-property: translate, rotate, scale, box-shadow;
+		transition-duration: var(--duration);
+		transition-timing-function: var(--ease);
+
+		--x: 0px;
+		--y: calc(var(--o) * var(--o) * var(--curvature));
+		--a: calc(var(--o) * var(--angle-step));
+		--s: 1;
+		--z: 0;
+		--shadow: var(--shadow-rest);
+		--duration: var(--idle-duration);
+		--ease: var(--idle-ease);
 	}
 
-	.drop-target.highlighted {
-		border-color: #287344;
-		background: #c8e8d0;
+	.card[data-pose='focus'] {
+		--y: calc(var(--lift) * -1);
+		--a: 0deg; /* this causes to move in buggy way when hovere in its edge */
+		--s: calc(var(--scale) * 1.2);
+		--z: 10;
+		--shadow: var(--shadow-focus);
+		--duration: var(--focus-duration);
+		--ease: var(--focus-ease);
 	}
 
-	/* Keep the dragged Glyph above the target. */
-	.glyph {
-		z-index: 1;
+	.card[data-pose='before'] {
+		--x: calc(var(--push) * -1);
+		--duration: var(--neighbor-duration);
+		--ease: var(--neighbor-ease);
+	}
+
+	.card[data-pose='after'] {
+		--x: var(--push);
+		--duration: var(--neighbor-duration);
+		--ease: var(--neighbor-ease);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.card {
+			transition-duration: 0ms;
+		}
 	}
 </style>

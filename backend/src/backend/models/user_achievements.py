@@ -7,8 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.db.base import Base
 
 if TYPE_CHECKING:
+    from backend.models.achievements import Achievement
     from backend.models.user import User
-    from backend.src.backend.models.achievements import Achievement
 
 class UserAchievement(Base):
     """

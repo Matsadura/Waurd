@@ -6,11 +6,9 @@ from typing import Optional
 from sqlalchemy import (
     TIMESTAMP,
     Boolean,
-    DateTame,
     Enum,
     Integer,
     String,
-    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

@@ -1,19 +1,22 @@
 import enum
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import (
     TIMESTAMP,
     Boolean,
-    DateTime,
+    DateTame,
     Enum,
     Integer,
     String,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base, TimestampMixin
+from backend.models.user_achievements import UserAchievement
+from backend.models.user_stats import UserStats
 
 
 class OAuthProvider(str, enum.Enum):
@@ -94,4 +97,11 @@ class User(Base, TimestampMixin):
     last_seen_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP,
         nullable=True,
+    )
+    # relationships stats and achievements
+    stats: Mapped[Optional["UserStats"]] = relationship(
+        "UserStats", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+    achievements: Mapped[list["UserAchievement"]] = relationship(
+        "UserAchievement", back_populates="user", cascade="all, delete-orphan"
     )

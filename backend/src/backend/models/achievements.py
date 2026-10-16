@@ -1,4 +1,3 @@
-
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Integer, String
@@ -9,10 +8,12 @@ from backend.db.base import Base
 if TYPE_CHECKING:
     from backend.models.user_achievements import UserAchievement
 
+
 class Achievement(Base):
     """
     represents an achievement that can be unlocked by users.
     """
+
     __tablename__ = "achievements"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)

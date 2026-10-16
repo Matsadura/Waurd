@@ -4,246 +4,267 @@
 		letter: string;
 	};
 
-	const EASE = 'cubic-bezier(0.2, 0.85, 0.2, 1)';
+	type Kind = 'idle' | 'focus' | 'before' | 'after';
+
+	type Pose = {
+		kind: Kind;
+		offsetX: number;
+		offsetY: number;
+		rotationAngle: number;
+		scale: number;
+		zIndex: number;
+	};
+
+	function clamp(v: number, lo: number, hi: number) {
+		return Math.min(hi, Math.max(lo, v));
+	}
 
 	const FEEL = {
-		// Card
 		cardWidth: 144,
 		cardHeight: 216,
 		cardBottom: -12,
-
-		// Resting hand
 		spacing: 62,
 		curvature: 3.2,
 		rotation: 3.5,
 		maxFan: 12,
-		edgePadding: 16,
-
-		// Focused glyph
-		lift: 15,
-		scale: 1.06,
-
-		// Neighbors of the focused glyph
-		neighborPush: 68,
-
-		// Shadows
-		shadow: '0 6px 14px #0007',
-		focusShadow: '0 18px 35px #0009, 0 0 16px #e8b86655',
-
-		// Motion profiles
-		motion: {
-			idle: { duration: 460, easing: EASE },
-			focus: { duration: 460, easing: EASE },
-			neighbor: { duration: 460, easing: EASE }
-		}
+		scale: 1.25,
+		neighborPush: 70,
+		tilt: 9
 	};
 
-	let hand = $state<Glyph[]>([
-		{ id: 'g1', letter: 'C' },
-		{ id: 'g2', letter: 'A' },
-		{ id: 'g3', letter: 'A' },
-		{ id: 'g4', letter: 'A' },
-		{ id: 'g5', letter: 'A' },
-		{ id: 'g6', letter: 'A' },
-		{ id: 'g7', letter: 'A' },
-		{ id: 'g8', letter: 'A' },
-		{ id: 'g9', letter: 'A' },
-		{ id: 'g10', letter: 'A' },
-		{ id: 'g11', letter: 'A' },
-		{ id: 'g12', letter: 'A' }
-	]);
+	const glyphs: Glyph[] = 'GLYPHWORDSAT'.split('').map((letter, i) => ({
+		id: `g${i + 1}`,
+		letter
+	}));
 
-	let focusedIndex = $state<number>(-1);
+	let focusedId = $state<string | null>(null);
+	let focusedIndex = $derived(focusedId ? glyphs.findIndex((g) => g.id === focusedId) : -1);
 
-	type Pose = 'idle' | 'focus' | 'before' | 'after';
+	function handPose(i: number, n: number, focusIdx: number): Pose {
+		const outer = (n - 1) / 2;
+		const offset = i - outer;
 
-	function poseOf(index: number): Pose {
-		if (focusedIndex === -1) return 'idle';
-		if (index === focusedIndex) return 'focus';
-		return index < focusedIndex ? 'before' : 'after';
-	}
+		const step = FEEL.spacing;
+		const angle = Math.min(FEEL.rotation, FEEL.maxFan / Math.max(outer, 1));
 
-	function hover(glyphIndex: number, event: PointerEvent) {
-		if (event.pointerType !== 'touch') {
-			if (glyphIndex !== hand.length - 1) {
-				focusedIndex = glyphIndex;
-			} else {
-				// const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-				// const isInLeftHalf = event.clientX < rect.left + rect.width / 3*2;
-				// console.log('isInLeftHalf', isInLeftHalf, event.clientX, rect.left + rect.width / 2);
-				// if (isInLeftHalf) {
-				//     focusedIndex = glyphIndex;
-				// }
-				focusedIndex = glyphIndex;
-			}
+		const rest: Pose = {
+			kind: 'idle',
+			offsetX: offset * step,
+			offsetY: -FEEL.cardBottom + offset * offset * FEEL.curvature,
+			rotationAngle: offset * angle,
+			scale: 1,
+			zIndex: 1 + i
+		};
+
+		if (i === focusIdx) {
+			return {
+				...rest,
+				kind: 'focus',
+				rotationAngle: 0,
+				offsetY: 0,
+				offsetX: rest.offsetX + 5 * offset,
+				scale: FEEL.scale,
+				zIndex: 50
+			};
 		}
+
+		if (focusIdx === -1) {
+			return rest;
+		}
+
+		const side = i < focusIdx ? -1 : 1;
+		return {
+			...rest,
+			kind: side < 0 ? 'before' : 'after',
+			offsetX: rest.offsetX + side * FEEL.neighborPush
+		};
 	}
 
-	const motionVars = Object.entries(FEEL.motion)
-		.map(([pose, m]) => `--${pose}-duration: ${m.duration}ms; --${pose}-ease: ${m.easing};`)
-		.join('\n');
+	function enter(e: PointerEvent, id: string) {
+		if (e.pointerType === 'touch') return;
+		focusedId = id;
+	}
 
-	const feelVars = `
+	function leave(e: PointerEvent, id: string) {
+		if (focusedId === id) focusedId = null;
+		setLean(e.currentTarget as HTMLElement, null);
+	}
+
+	function setLean(el: HTMLElement, at: { u: number; v: number } | null) {
+		const { u, v } = at ?? { u: 0.5, v: 0.5 };
+
+		el.style.setProperty('--ry', `${(u - 0.5) * 2 * FEEL.tilt}deg`);
+		el.style.setProperty('--rx', `${(0.5 - v) * 2 * FEEL.tilt}deg`);
+		el.style.setProperty('--gx', `${u * 100}%`);
+		el.style.setProperty('--gy', `${v * 100}%`);
+	}
+
+	function move(e: PointerEvent, id: string) {
+		if (id !== focusedId) return;
+
+		setLean(e.currentTarget as HTMLElement, {
+			u: clamp(e.offsetX / FEEL.cardWidth, 0, 1),
+			v: clamp(e.offsetY / FEEL.cardHeight, 0, 1)
+		});
+	}
+
+	const rootVars = `
         --card-w: ${FEEL.cardWidth}px;
         --card-h: ${FEEL.cardHeight}px;
-        --card-bottom: ${FEEL.cardBottom}px;
-        --spacing: ${FEEL.spacing}px;
-        --edge: ${FEEL.edgePadding}px;
-        --curvature: ${FEEL.curvature}px;
-        --rotation: ${FEEL.rotation}deg;
-        --max-fan: ${FEEL.maxFan}deg;
-        --lift: ${FEEL.lift}px;
-        --scale: ${FEEL.scale};
-        --push: ${FEEL.neighborPush}px;
-        --shadow-rest: ${FEEL.shadow};
-        --shadow-focus: ${FEEL.focusShadow};
-        ${motionVars}
     `;
 </script>
 
-<div class="arena">
-	<div class="word">
-		<div class="word-slot"></div>
-		<div class="word-slot"></div>
-		<div class="word-slot"></div>
-		<div class="word-slot"></div>
-		<div class="word-slot"></div>
-		<div class="word-slot"></div>
-		<div class="word-slot"></div>
-		<div class="word-slot"></div>
-		<div class="word-slot"></div>
-		<div class="word-slot"></div>
-	</div>
+<div class="arena" style={rootVars}>
+	{#each glyphs as glyph, i (glyph.id)}
+		{@const pose = handPose(i, glyphs.length, focusedIndex)}
 
-	<div
-		class="hand"
-		role="group"
-		aria-label="Glyph hand"
-		style={feelVars}
-		style:--n={hand.length}
-		onpointerleave={() => (focusedIndex = -1)}
-	>
-		{#each hand as glyph, i (glyph.id)}
-			<div
-				class="card"
-				role="presentation"
-				data-pose={poseOf(i)}
-				style:--o={i - (hand.length - 1) / 2}
-				onpointerenter={(event) => hover(i, event)}
-			>
-				{glyph.letter}
+		<div
+			class="card"
+			role="presentation"
+			data-pose={pose.kind}
+			style:--x="{pose.offsetX}px"
+			style:--y="{pose.offsetY}px"
+			style:--a="{pose.rotationAngle}deg"
+			style:--s={pose.scale}
+			style:--z={pose.zIndex}
+			onpointerenter={(e) => enter(e, glyph.id)}
+			onpointerleave={(e) => leave(e, glyph.id)}
+			onpointermove={(e) => move(e, glyph.id)}
+		>
+			<div class="face">
+				<span class="letter">{glyph.letter}</span>
 			</div>
-		{/each}
-	</div>
+		</div>
+	{/each}
 </div>
 
 <style>
+	[data-pose='idle'] {
+		--duration: 700ms;
+		--ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+
+	[data-pose='focus'] {
+		--duration: 120ms;
+		--ease: cubic-bezier(0.5, 1, 0.89, 1);
+	}
+
+	[data-pose='before'],
+	[data-pose='after'] {
+		--duration: 500ms;
+		--ease: cubic-bezier(0.52, -0.39, 0.27, 1.55);
+	}
+
+	/* Arena */
 	.arena {
 		position: relative;
 		height: 100vh;
-	}
-
-	.word {
-		position: absolute;
-		margin: 0;
-		padding: 0;
-
-		transform: translate(-50%, 50%);
-		bottom: 60%;
-		left: 50%;
-
-		display: flex;
-		justify-content: center;
-	}
-
-	.word-slot {
-		display: inline-block;
-		--by: 1.3;
-		width: calc(144px / var(--by));
-		height: calc(216px / var(--by));
-		margin: 0 4px;
-		border: 2px solid #b68c43;
-		border-radius: 4px;
-		background-color: #272b35;
-	}
-
-	.hand {
-		position: fixed;
-		inset: auto 0 0;
-		margin-inline: auto;
-		width: min(95vw, 800px);
-		height: 0;
+		overflow: hidden;
 		user-select: none;
-		--step: max(
-			0px,
-			min(var(--spacing), (100cqw - var(--card-w) - 2 * var(--edge)) / max(var(--n) - 1, 1))
-		);
-		--angle-step: min(var(--rotation), var(--max-fan) / max((var(--n) - 1) / 2, 1));
+		background: #171c26;
 	}
 
+	/* Card: positioning and pointer interaction */
 	.card {
 		position: absolute;
-		bottom: var(--card-bottom);
-		left: calc(50% + var(--o) * var(--step) - var(--card-w) / 2);
+		left: 50%;
+		bottom: 0;
+
 		width: var(--card-w);
 		height: var(--card-h);
-		z-index: var(--z);
-		pointer-events: auto;
+		margin-left: calc(var(--card-w) / -2);
 
-		display: grid;
-		place-items: center;
-		box-sizing: border-box;
-		border: 3px solid #b68c43;
-		border-radius: 12px;
-		background: #272b35;
-		color: #f5e8c8;
-		font-size: 64px;
-		font-weight: 700;
+		z-index: var(--z);
+		cursor: grab;
+		touch-action: none;
 
 		transform-origin: center bottom;
 		translate: var(--x) var(--y);
 		rotate: var(--a);
 		scale: var(--s);
-		box-shadow: var(--shadow);
 
-		transition-property: translate, rotate, scale, box-shadow;
+		will-change: translate, rotate, scale;
+
+		transition-property: translate, rotate, scale;
 		transition-duration: var(--duration);
 		transition-timing-function: var(--ease);
-
-		--x: 0px;
-		--y: calc(var(--o) * var(--o) * var(--curvature));
-		--a: calc(var(--o) * var(--angle-step));
-		--s: 1;
-		--z: 0;
-		--shadow: var(--shadow-rest);
-		--duration: var(--idle-duration);
-		--ease: var(--idle-ease);
 	}
 
-	.card[data-pose='focus'] {
-		--y: calc(var(--lift) * -1);
-		--a: 0deg; /* this causes to move in buggy way when hovere in its edge */
-		--s: calc(var(--scale) * 1.2);
-		--z: 10;
-		--shadow: var(--shadow-focus);
-		--duration: var(--focus-duration);
-		--ease: var(--focus-ease);
+	/* Face: appearance and perspective */
+	.face {
+		position: absolute;
+		inset: 0;
+		display: grid;
+		place-items: center;
+		box-sizing: border-box;
+
+		border: 3px solid #b68c43;
+		border-radius: 12px;
+		background: linear-gradient(160deg, #323848, #232733);
+		color: #f5e8c8;
+
+		transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+
+		transition:
+			transform 140ms ease-out,
+			box-shadow 200ms ease;
+
+		pointer-events: none;
 	}
 
-	.card[data-pose='before'] {
-		--x: calc(var(--push) * -1);
-		--duration: var(--neighbor-duration);
-		--ease: var(--neighbor-ease);
+	/* Focus shadow */
+	.card[data-pose='focus'] .face {
+		box-shadow:
+			0 16px 20px #0009,
+			0 0 28px 2px #e8b8666b;
 	}
 
-	.card[data-pose='after'] {
-		--x: var(--push);
-		--duration: var(--neighbor-duration);
-		--ease: var(--neighbor-ease);
+	/* Inner border */
+	.face::before {
+		content: '';
+		position: absolute;
+		inset: 6px;
+		border: 1px solid #b68c4366;
+		border-radius: 7px;
 	}
 
+	/* Cursor-following light */
+	.face::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 9px;
+
+		background: radial-gradient(
+			circle at var(--gx, 50%) var(--gy, 30%),
+			#fff2cc17,
+			transparent 62%
+		);
+
+		opacity: 0;
+		transition: opacity 200ms;
+	}
+
+	.card:hover .face::after {
+		opacity: 1;
+	}
+
+	/* Letter */
+	.letter {
+		font-family: Georgia, serif;
+		font-size: 64px;
+		font-weight: 700;
+		text-shadow: 0 2px 0 #0006;
+	}
+
+	/* A11y */
 	@media (prefers-reduced-motion: reduce) {
-		.card {
+		.card,
+		.face {
+			transition-duration: 0ms;
+		}
+
+		.face::after {
 			transition-duration: 0ms;
 		}
 	}

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { Spring } from 'svelte/motion';
+
 	type Glyph = {
 		id: string;
 		letter: string;
@@ -19,6 +21,7 @@
 		return Math.min(hi, Math.max(lo, v));
 	}
 
+	// TODO(ALI): Maybe we should move this to a config file?
 	const FEEL = {
 		cardWidth: 144,
 		cardHeight: 216,
@@ -80,6 +83,22 @@
 		};
 	}
 
+	let poses = $derived(glyphs.map((_, i) => handPose(i, glyphs.length, focusedIndex)));
+
+	const movements = glyphs.map((_, i) => {
+		const pose = handPose(i, glyphs.length, -1);
+		return new Spring({ x: pose.offsetX, y: pose.offsetY }, { stiffness: 0.1, damping: 0.4 });
+	});
+
+	$effect(() => {
+		poses.forEach((pose, i) => {
+			movements[i].target = {
+				x: pose.offsetX,
+				y: pose.offsetY
+			};
+		});
+	});
+
 	function enter(e: PointerEvent, id: string) {
 		if (e.pointerType === 'touch') return;
 		focusedId = id;
@@ -116,17 +135,15 @@
 
 <div class="arena" style={rootVars}>
 	{#each glyphs as glyph, i (glyph.id)}
-		{@const pose = handPose(i, glyphs.length, focusedIndex)}
-
 		<div
 			class="card"
 			role="presentation"
-			data-pose={pose.kind}
-			style:--x="{pose.offsetX}px"
-			style:--y="{pose.offsetY}px"
-			style:--a="{pose.rotationAngle}deg"
-			style:--s={pose.scale}
-			style:--z={pose.zIndex}
+			data-pose={poses[i].kind}
+			style:--x="{movements[i].current.x}px"
+			style:--y="{movements[i].current.y}px"
+			style:--a="{poses[i].rotationAngle}deg"
+			style:--s={poses[i].scale}
+			style:--z={poses[i].zIndex}
 			onpointerenter={(e) => enter(e, glyph.id)}
 			onpointerleave={(e) => leave(e, glyph.id)}
 			onpointermove={(e) => move(e, glyph.id)}
@@ -139,21 +156,21 @@
 </div>
 
 <style>
-	[data-pose='idle'] {
+	/* [data-pose='idle'] {
 		--duration: 700ms;
 		--ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 	}
 
 	[data-pose='focus'] {
 		--duration: 120ms;
-		--ease: cubic-bezier(0.5, 1, 0.89, 1);
+		--ease: ease;
 	}
 
 	[data-pose='before'],
 	[data-pose='after'] {
 		--duration: 500ms;
 		--ease: cubic-bezier(0.52, -0.39, 0.27, 1.55);
-	}
+	} */
 
 	/* Arena */
 	.arena {

@@ -31,12 +31,12 @@
 			rotation: pose.rotation,
 			scale: pose.scale
 		}),
-		{ stiffness: 0.1, damping: 0.35 }
+		{ stiffness: 0.1, damping: 0.30 }
 	);
 </script>
 
 <button
-	class="absolute bottom-0 left-1/2 -ml-24 h-60 w-48"
+	class="absolute bottom-0 left-1/2 -ml-24 h-60 w-40"
 	style:transform-origin="center bottom"
 	style:translate="{motion.current.x}px {motion.current.y}px"
 	style:rotate="{motion.current.rotation}deg"
@@ -47,7 +47,7 @@
 >
 	<div
 		class="flex h-full w-full items-center justify-center
-           border border-amber-300 bg-amber-900"
+           border-2 text-white text-5xl border-amber-700 bg-amber-900 rounded-xl duration-1000 transition-all ease-in-out"
 	>
 		{glyph.letter}
 	</div>

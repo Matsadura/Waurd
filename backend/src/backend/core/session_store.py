@@ -17,12 +17,12 @@ class RedisSessionStore:
         return f"{self.prefix}{session_id}"
 
     async def create_session(
-        self, id: str, metadata: dict[str, Any] | None = None
+        self, user_id: str, metadata: dict[str, Any] | None = None
     ) -> str:
         """Generate a cryptographically secure 256-bit token and persist session state."""
         session_id = secrets.token_urlsafe(32)
         payload = {
-            "user_id": id,
+            "user_id": user_id,
             "metadata": metadata or {},
         }
         await self.redis.set(

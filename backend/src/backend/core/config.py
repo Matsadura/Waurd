@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     CSRF_COOKIE_NAME: str = "csrf_token"
     COOKIE_SECURE: bool = False  # Set to True in production (HTTPS)
     SESSION_TTL_SECONDS: int = 86400 * 7  # 7 days
+    SESSION_COOKIE_SAMESITE: str = "lax"  # Options: 'strict', 'lax', 'none'
 
     # CORS (Must specify exact origins when allow_credentials=True)
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]

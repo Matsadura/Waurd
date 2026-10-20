@@ -1,19 +1,20 @@
 import secrets
 
 from backend.api.dependencies.auth import (
+    cookie_scheme,
     get_current_user,
     get_session_store,
     verify_csrf,
-    cookie_scheme,
 )
 from backend.core.config import settings
-from backend.core.security import verify_password
+from backend.core.security import hash_password, verify_password
 from backend.core.session_store import RedisSessionStore
 from backend.db.session import get_db
+from backend.db.uow import UnitOfWork
 from backend.models.user import User
 from backend.repositories.user import UserRepository
 from backend.schemas.auth import LoginRequest
-from backend.schemas.user import UserResponse
+from backend.schemas.user import UserCreateRequest, UserResponse
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,7 +32,7 @@ async def login(
     user_repo = UserRepository(db)
     user = await user_repo.get_by_email(credentials.email)
 
-    if not user or not verify_password(credentials.password, user.hashed_password):
+    if not user or not verify_password(credentials.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -39,7 +40,6 @@ async def login(
 
     session_id = await session_store.create_session(
         user_id=user.id,
-        metadata={"user_agent": credentials.client_name},
     )
     response.set_cookie(
         key=settings.SESSION_COOKIE_NAME,
@@ -84,3 +84,28 @@ async def logout(
 async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
     """Retrieve the currently authenticated user's information."""
     return UserResponse.model_validate(current_user)
+
+@router.post("/register", response_model=UserResponse)
+async def register_user(
+    user_create: UserCreateRequest,
+) -> UserResponse:
+    """Register a new user"""
+    async with UnitOfWork() as uow:
+        existing_user = await uow.users.get_by_email(user_create.email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered.",
+            )
+
+        new_user = await uow.users.create(
+            User(
+                username=user_create.username,
+                email=user_create.email,
+                password_hash=hash_password(user_create.password),
+            )
+        )
+        await uow.commit()
+        await uow.session.refresh(new_user)
+
+    return UserResponse.model_validate(new_user)

@@ -23,7 +23,7 @@ class UserCreateRequest(BaseModel):
     email: EmailStr = Field(
         ...,
         description="Unique email address for the new user",
-        example=["user@example.com"],
+        example="user@example.com",
     )
     password: str = Field(
         ...,
@@ -37,7 +37,7 @@ class UserCreateRequest(BaseModel):
 class UserResponse(UserBase):
     """Response payload for user data."""
     model_config = ConfigDict(from_attributes=True)
-    id: int = Field(..., description="Unique identifier for the user", example=1)
+    id: str = Field(..., description="Unique identifier for the user")
     username: str = Field(..., description="Username of the user", example="user123")
     created_at: datetime = Field(
         ...,

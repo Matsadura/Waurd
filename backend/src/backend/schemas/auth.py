@@ -8,7 +8,7 @@ class LoginRequest(BaseModel):
     email: EmailStr = Field(
         ...,
         description="Email address of the user",
-        example=["user@example.com"],
+        example="user@example.com",
     )
     password: str = Field(
         ...,

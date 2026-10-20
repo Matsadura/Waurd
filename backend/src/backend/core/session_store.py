@@ -17,12 +17,12 @@ class RedisSessionStore:
         return f"{self.prefix}{session_id}"
 
     async def create_session(
-        self, user_id: int, metadata: dict[str, Any] | None = None
+        self, id: str, metadata: dict[str, Any] | None = None
     ) -> str:
         """Generate a cryptographically secure 256-bit token and persist session state."""
         session_id = secrets.token_urlsafe(32)
         payload = {
-            "user_id": user_id,
+            "user_id": id,
             "metadata": metadata or {},
         }
         await self.redis.set(
@@ -46,7 +46,7 @@ class RedisSessionStore:
         """Revoke a single session."""
         await self.redis.delete(self._key(session_id))
 
-    async def delete_all_user_sessions(self, user_id: int) -> None:
+    async def delete_all_user_sessions(self, user_id: str) -> None:
         """Revoke all sessions for a specific user (e.g., password reset)."""
         pattern = f"{self.prefix}*"
         async for key in self.redis.scan_iter(match=pattern):

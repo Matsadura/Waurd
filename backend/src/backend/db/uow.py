@@ -1,6 +1,6 @@
 from types import TracebackType
 
-from backend.db.session import async_session_factory
+from backend.db.session import async_session_maker
 from backend.repositories.user import UserRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 

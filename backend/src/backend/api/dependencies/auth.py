@@ -15,8 +15,8 @@ cookie_scheme = APIKeyCookie(name=settings.SESSION_COOKIE_NAME, auto_error=False
 
 
 # Shared Redis pool dependency
-async def get_redis() -> aioredis.Redis:
-    return aioredis.from_url(str(settings.REDIS_URL), decode_responses=True)
+async def get_redis(request: Request) -> aioredis.Redis:
+    return request.app.state.redis
 
 
 def get_session_store(redis: aioredis.Redis = Depends(get_redis)) -> RedisSessionStore:

@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Enum, ForeignKey, String, TIMESTAMP, UniqueConstraint
+from sqlalchemy import TIMESTAMP, BigInteger, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base
@@ -21,11 +21,14 @@ class Friendship(Base):
     """
     Represents a directional friendship/block relationship between two users.
     """
+
     __tablename__ = "friendships"
 
     # Unique constraint ensures User A can only send one friend request to User B at a time
     __table_args__ = (
-        UniqueConstraint("requester_id", "addressee_id", name="uq_friendship_requester_addressee"),
+        UniqueConstraint(
+            "requester_id", "addressee_id", name="uq_friendship_requester_addressee"
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

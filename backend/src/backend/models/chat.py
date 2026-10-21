@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BigInteger, Boolean, Enum, ForeignKey, String, Text, TIMESTAMP
+from sqlalchemy import TIMESTAMP, BigInteger, Boolean, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base
@@ -21,6 +21,7 @@ class ChatMessage(Base):
     """
     Stores direct, global, and in-match chat messages exchanged by users.
     """
+
     __tablename__ = "chat_messages"
 
     # Unique message ID (Auto-incrementing BigInteger: 1, 2, 3...)

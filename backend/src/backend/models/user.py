@@ -108,15 +108,27 @@ class User(Base, TimestampMixin):
 
     # Sent and Received Friend Requests
     sent_friend_requests: Mapped[list["Friendship"]] = relationship(
-        "Friendship", foreign_keys="[Friendship.requester_id]", back_populates="requester", cascade="all, delete-orphan"
+        "Friendship",
+        foreign_keys="[Friendship.requester_id]",
+        back_populates="requester",
+        cascade="all, delete-orphan",
     )
     received_friend_requests: Mapped[list["Friendship"]] = relationship(
-        "Friendship", foreign_keys="[Friendship.addressee_id]", back_populates="addressee", cascade="all, delete-orphan"
+        "Friendship",
+        foreign_keys="[Friendship.addressee_id]",
+        back_populates="addressee",
+        cascade="all, delete-orphan",
     )
     # Sent and Received Chat Messages
     sent_chat_messages: Mapped[list["ChatMessage"]] = relationship(
-        "ChatMessage", foreign_keys="[ChatMessage.sender_id]", back_populates="sender", cascade="all, delete-orphan"
+        "ChatMessage",
+        foreign_keys="[ChatMessage.sender_id]",
+        back_populates="sender",
+        cascade="all, delete-orphan",
     )
     received_chat_messages: Mapped[list["ChatMessage"]] = relationship(
-        "ChatMessage", foreign_keys="[ChatMessage.receiver_id]", back_populates="receiver", cascade="all, delete-orphan"
+        "ChatMessage",
+        foreign_keys="[ChatMessage.receiver_id]",
+        back_populates="receiver",
+        cascade="all, delete-orphan",
     )

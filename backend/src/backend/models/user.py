@@ -13,6 +13,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base, TimestampMixin
+from backend.models.chat import ChatMessage
+from backend.models.friendship import Friendship
 from backend.models.user_achievements import UserAchievement
 from backend.models.user_stats import UserStats
 
@@ -102,4 +104,31 @@ class User(Base, TimestampMixin):
     )
     achievements: Mapped[list["UserAchievement"]] = relationship(
         "UserAchievement", back_populates="user", cascade="all, delete-orphan"
+    )
+
+    # Sent and Received Friend Requests
+    sent_friend_requests: Mapped[list["Friendship"]] = relationship(
+        "Friendship",
+        foreign_keys="[Friendship.requester_id]",
+        back_populates="requester",
+        cascade="all, delete-orphan",
+    )
+    received_friend_requests: Mapped[list["Friendship"]] = relationship(
+        "Friendship",
+        foreign_keys="[Friendship.addressee_id]",
+        back_populates="addressee",
+        cascade="all, delete-orphan",
+    )
+    # Sent and Received Chat Messages
+    sent_chat_messages: Mapped[list["ChatMessage"]] = relationship(
+        "ChatMessage",
+        foreign_keys="[ChatMessage.sender_id]",
+        back_populates="sender",
+        cascade="all, delete-orphan",
+    )
+    received_chat_messages: Mapped[list["ChatMessage"]] = relationship(
+        "ChatMessage",
+        foreign_keys="[ChatMessage.receiver_id]",
+        back_populates="receiver",
+        cascade="all, delete-orphan",
     )

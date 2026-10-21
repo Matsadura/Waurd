@@ -36,7 +36,9 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str | None = None
     REDIS_DB: int = 0
     REDIS_POOL_SIZE: int = 20
-    REDIS_URL : str = os.getenv("REDIS_URL") or "redis://localhost:6379/0"  # Default value; will be overridden by computed property
+    REDIS_URL: str = (
+        os.getenv("REDIS_URL") or "redis://localhost:6379/0"
+    )  # Default value; will be overridden by computed property
 
     # @computed_field
     # @property

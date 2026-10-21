@@ -8,5 +8,5 @@ api_v1_router.include_router(auth.router)
 
 api_v1_router.include_router(
     users.router,
-    # dependencies=[Depends(verify_csrf)],
+    dependencies=[Depends(verify_csrf)],
 )

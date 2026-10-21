@@ -36,6 +36,7 @@ class UserCreateRequest(BaseModel):
 
 class UserResponse(UserBase):
     """Response payload for user data."""
+
     model_config = ConfigDict(from_attributes=True)
     id: str = Field(..., description="Unique identifier for the user")
     username: str = Field(..., description="Username of the user", example="user123")

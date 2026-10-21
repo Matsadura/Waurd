@@ -32,8 +32,10 @@ async def login(
     user_repo = UserRepository(db)
     user = await user_repo.get_by_email(credentials.email)
 
-    if not user or not user.password_hash or not verify_password(
-        credentials.password, user.password_hash
+    if (
+        not user
+        or not user.password_hash
+        or not verify_password(credentials.password, user.password_hash)
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -81,11 +83,6 @@ async def logout(
     response.delete_cookie(key=settings.SESSION_COOKIE_NAME, path="/")
     response.delete_cookie(key=settings.CSRF_COOKIE_NAME, path="/")
 
-
-@router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
-    """Retrieve the currently authenticated user's information."""
-    return UserResponse.model_validate(current_user)
 
 @router.post("/register", response_model=UserResponse)
 async def register_user(

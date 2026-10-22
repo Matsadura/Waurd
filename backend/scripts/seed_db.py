@@ -7,17 +7,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from backend.db.session import async_session_maker
-from backend.models import Achievement, User, UserAchievement, UserStats
 from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
+
+from backend.core.security import hash_password
+from backend.db.session import async_session_maker
+from backend.models import Achievement, User, UserAchievement, UserStats
 
 SEED_USER_IDS = (
     "00000000-0000-4000-8000-000000000001",
     "00000000-0000-4000-8000-000000000002",
     "00000000-0000-4000-8000-000000000003",
+    "00000000-0000-4000-8000-000000000004",
 )
 SEED_ACHIEVEMENT_IDS = ("first-win", "wordsmith", "streak-master")
+SEED_PASSWORD = "SecureP@ssw0rd!123"
 
 
 def build_seed_data() -> tuple[
@@ -27,8 +31,8 @@ def build_seed_data() -> tuple[
         User(
             id=SEED_USER_IDS[0],
             username="alice_wizard",
-            email="alice@example.test",
-            password_hash="$mock$alice",
+            email="alice@email.com",
+            password_hash=hash_password(SEED_PASSWORD),
             xp=2450,
             elo=1420,
             level=12,
@@ -37,8 +41,8 @@ def build_seed_data() -> tuple[
         User(
             id=SEED_USER_IDS[1],
             username="bob_builder",
-            email="bob@example.test",
-            password_hash="$mock$bob",
+            email="bob@email.com",
+            password_hash=hash_password(SEED_PASSWORD),
             xp=980,
             elo=1185,
             level=7,
@@ -47,13 +51,23 @@ def build_seed_data() -> tuple[
         User(
             id=SEED_USER_IDS[2],
             username="casey_caster",
-            email="casey@example.test",
+            email="casey@email.com",
             password_hash=None,
             oauth_provider="GOOGLE",
             oauth_id="mock-google-casey",
             xp=5200,
             elo=1675,
             level=24,
+            is_online=False,
+        ),
+        User(
+            id=SEED_USER_IDS[3],
+            username="stats_user",
+            email="stats@email.com",
+            password_hash=hash_password(SEED_PASSWORD),
+            xp=1350,
+            elo=1260,
+            level=9,
             is_online=False,
         ),
     ]
@@ -114,6 +128,17 @@ def build_seed_data() -> tuple[
             highest_word_score=312,
             total_damage_dealt=24110,
         ),
+        UserStats(
+            user_id=SEED_USER_IDS[3],
+            matches_played=25,
+            wins=14,
+            losses=9,
+            draws=2,
+            rating_elo=1260,
+            highest_scoring_word="JUMP",
+            highest_word_score=118,
+            total_damage_dealt=7640,
+        ),
     ]
     user_achievements = [
         UserAchievement(user_id=SEED_USER_IDS[0], achievement_id="first-win"),
@@ -122,6 +147,7 @@ def build_seed_data() -> tuple[
         UserAchievement(user_id=SEED_USER_IDS[2], achievement_id="first-win"),
         UserAchievement(user_id=SEED_USER_IDS[2], achievement_id="wordsmith"),
         UserAchievement(user_id=SEED_USER_IDS[2], achievement_id="streak-master"),
+        UserAchievement(user_id=SEED_USER_IDS[3], achievement_id="first-win"),
     ]
     return users, achievements, stats, user_achievements
 

@@ -56,3 +56,35 @@ class UserResponse(UserBase):
         description="Timestamp when the user was last updated",
         example="2023-01-02T12:00:00Z",
     )
+    avatar_url: str | None = Field(
+        None,
+        description="URL for the user's avatar image",
+        example="https://example.com/avatar.png",
+    )
+
+
+class UserStatsResponse(BaseModel):
+    """Response payload for user statistics."""
+
+    model_config = ConfigDict(from_attributes=True)
+    user_id: str = Field(..., description="Unique identifier for the user")
+    matches_played: int = Field(..., description="Total number of matches played")
+    wins: int = Field(..., description="Total number of wins")
+    losses: int = Field(..., description="Total number of losses")
+    draws: int = Field(..., description="Total number of draws")
+    rating_elo: int = Field(..., description="Current ELO rating of the user")
+    highest_scoring_word: str | None = Field(
+        None,
+        description="The highest scoring word played by the user",
+        example="QUIZZIFY",
+    )
+    highest_word_score: int = Field(
+        ...,
+        description="The score of the highest scoring word played by the user",
+        example=100,
+    )
+    total_damage_dealt: int = Field(
+        ...,
+        description="Total damage dealt by the user across all matches",
+        example=5000,
+    )

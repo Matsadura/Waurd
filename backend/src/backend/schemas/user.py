@@ -32,6 +32,11 @@ class UserCreateRequest(BaseModel):
         description="Password for the new user (8-128 characters)",
         example="SecureP@ssw0rd!123",
     )
+    avatar_url: str | None = Field(
+        None,
+        description="Optional URL for the user's avatar image",
+        example="https://example.com/avatar.png",
+    )
 
 
 class UserResponse(UserBase):
@@ -39,6 +44,7 @@ class UserResponse(UserBase):
 
     model_config = ConfigDict(from_attributes=True)
     id: str = Field(..., description="Unique identifier for the user")
+    email: EmailStr = Field(..., description="Email address of the user")
     username: str = Field(..., description="Username of the user", example="user123")
     created_at: datetime = Field(
         ...,

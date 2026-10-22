@@ -53,3 +53,7 @@ class RedisSessionStore:
             val = await self.redis.get(key)
             if val and json.loads(val).get("user_id") == user_id:
                 await self.redis.delete(key)
+
+    async def invalidate_session(self, user_id: str) -> None:
+        """Invalidate all sessions for a user, typically after sensitive updates."""
+        await self.delete_all_user_sessions(user_id)

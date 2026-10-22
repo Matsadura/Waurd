@@ -52,3 +52,25 @@ async def update_me(
     await session_store.invalidate_session(current_user.id)
 
     return response
+
+
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user_by_id(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(),
+) -> UserResponse:
+    """Retrieve a user's information by their unique identifier."""
+    async with uow:
+        if user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this user's information.",
+            )
+        user = await uow.users.get_by_id(user_id)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        return UserResponse.model_validate(user)

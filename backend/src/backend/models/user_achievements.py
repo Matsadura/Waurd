@@ -10,11 +10,13 @@ if TYPE_CHECKING:
     from backend.models.achievements import Achievement
     from backend.models.user import User
 
+
 class UserAchievement(Base):
     """
     Table to track which achievements have been unlocked by which users.
     Many-to-many relationship between User and Achievement.
     """
+
     __tablename__ = "user_achievements"
 
     # Primary key user_id references users.id as foreign key

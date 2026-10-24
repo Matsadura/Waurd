@@ -23,12 +23,12 @@ class Achievement(Base):
     description: Mapped[str] = mapped_column(String(255), nullable=False)
     icon_url: Mapped[str] = mapped_column(String(255), nullable=False)
     xp_reward: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    
+
     reward_perk_id: Mapped[str | None] = mapped_column(
         String(32), ForeignKey("perks.id", ondelete="SET NULL"), nullable=True
     )
     target_value: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    
+
     # Python standard datetime is used for Mapped[datetime]
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False

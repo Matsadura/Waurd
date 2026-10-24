@@ -14,6 +14,8 @@ from backend.models.user_stats import UserStats
 
 if TYPE_CHECKING:
     from backend.models.tournament import Tournament, TournamentParticipant
+
+
 class OAuthProvider(str, enum.Enum):
     LOCAL = "LOCAL"
     GOOGLE = "GOOGLE"

@@ -1,11 +1,15 @@
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from backend.api.dependencies.auth import get_current_user, get_session_store
+from backend.core.identifiers import user_id_to_bytes
 from backend.core.security import hash_password
 from backend.core.session_store import RedisSessionStore
 from backend.db.uow import UnitOfWork
 from backend.models.user import User
 from backend.models.user_stats import UserStats
 from backend.schemas.user import UserCreateRequest, UserResponse, UserStatsResponse
-from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -56,18 +60,18 @@ async def update_me(
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user_by_id(
-    user_id: str,
+    user_id: UUID,
     current_user: User = Depends(get_current_user),
     uow: UnitOfWork = Depends(),
 ) -> UserResponse:
     """Retrieve a user's information by their unique identifier."""
     async with uow:
-        if user_id != current_user.id:
+        if user_id.bytes != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to access this user's information.",
             )
-        user = await uow.users.get_by_id(user_id)
+        user = await uow.users.get_by_id(user_id_to_bytes(user_id))
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -78,18 +82,18 @@ async def get_user_by_id(
 
 @router.get("/{user_id}/stats", response_model=UserStatsResponse)
 async def get_user_stats(
-    user_id: str,
+    user_id: UUID,
     current_user: User = Depends(get_current_user),
     uow: UnitOfWork = Depends(),
 ) -> UserStatsResponse:
     """Retrieve a user's statistics by their unique identifier."""
     async with uow:
-        if user_id != current_user.id:
+        if user_id.bytes != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to access this user's statistics.",
             )
-        user_stats = await uow.user_stats.get_by_user_id(user_id)
+        user_stats = await uow.user_stats.get_by_user_id(user_id.bytes)
         if user_stats is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

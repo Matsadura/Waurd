@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import BINARY, Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base
@@ -18,8 +18,8 @@ class UserAchievement(Base):
     __tablename__ = "user_achievements"
 
     # Primary key user_id references users.id as foreign key
-    user_id: Mapped[str] = mapped_column(
-        String(36),
+    user_id: Mapped[bytes] = mapped_column(
+        BINARY(16),
         ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
     )
@@ -29,7 +29,9 @@ class UserAchievement(Base):
         ForeignKey("achievements.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    unlocked_at: Mapped[datetime] = mapped_column(
+    current_progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    unlocked_at: Mapped[DateTime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
 

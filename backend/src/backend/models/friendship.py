@@ -2,7 +2,14 @@ import enum
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import TIMESTAMP, BigInteger, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import (
+    BINARY,
+    TIMESTAMP,
+    BigInteger,
+    Enum,
+    ForeignKey,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base
@@ -33,13 +40,13 @@ class Friendship(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
 
-    requester_id: Mapped[str] = mapped_column(
-        String(36),
+    requester_id: Mapped[bytes] = mapped_column(
+        BINARY(16),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    addressee_id: Mapped[str] = mapped_column(
-        String(36),
+    addressee_id: Mapped[bytes] = mapped_column(
+        BINARY(16),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )

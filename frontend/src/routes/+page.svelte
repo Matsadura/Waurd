@@ -1,3 +1,3 @@
-<div class="bg-red-900 h-screen flex items-center justify-center">
-	<h1 class="text-4xl text-white font-mono">"You miss 100% of the shots you don't take"</h1>
+<div class="flex h-screen items-center justify-center bg-red-900">
+	<h1 class="font-mono text-4xl text-white">"You miss 100% of the shots you don't take"</h1>
 </div>

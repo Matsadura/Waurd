@@ -28,7 +28,7 @@
             />
         </div>
 
-        <div class="mt-8 flex flex-col items-center">
+        <div class="mt-6 flex flex-col items-center">
             <label
                 for="password"
                 class="mb-[0.1rem] text-center text-xl font-bold text-white"
@@ -49,12 +49,12 @@
 
         <button
             type="submit"
-            class="mx-auto mt-18 h-11 w-[90%] cursor-pointer rounded-[0.4rem] border-0 bg-[#ff8a00] text-[1.2rem] font-bold text-white shadow-[0_2px_4px_rgba(0,0,0,0.4)] transition hover:brightness-[1.08] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50"
+            class="mx-auto mt-[clamp(1.5rem,6vh,3.75rem)] h-11 w-[90%] cursor-pointer rounded-[0.4rem] border-0 bg-[#ff8a00] text-[1.2rem] font-bold text-white shadow-[0_2px_4px_rgba(0,0,0,0.4)] transition hover:brightness-[1.08] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-white"
         >
             LOGIN
         </button>
 
-        <div class="mx-auto mt-18 flex w-3/4 items-center gap-3">
+        <div class="mx-auto mt-[clamp(1.5rem,5vh,3rem)] flex w-3/4 items-center gap-3">
             <div class="h-px flex-1 bg-[#018bf6]"></div>
             <span class="text-[1.2rem] font-light text-[#018bf6]">OR</span>
             <div class="h-px flex-1 bg-[#018bf6]"></div>
@@ -63,7 +63,7 @@
         <button
             type="button"
             aria-label="Continue with Google"
-            class="mx-auto mt-12 flex size-13 cursor-pointer items-center justify-center rounded-full bg-white text-black transition hover:brightness-90 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[#ff8a00]"
+            class="mx-auto mt-[clamp(1.5rem,5vh,3rem)] flex size-13 cursor-pointer items-center justify-center rounded-full bg-white text-black transition hover:brightness-90 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[#ff8a00]"
         >
             <svg
                 viewBox="0 0 48 48"

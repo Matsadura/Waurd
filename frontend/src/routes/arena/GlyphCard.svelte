@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { FEEL } from '#lib/configs/arenaFeel.ts';
 	import { Spring } from 'svelte/motion';
 
 	type Glyph = {
@@ -17,11 +18,15 @@
 	let {
 		glyph,
 		pose,
-		onHover
+		onHover,
+		onDrag,
+		onDragEnd
 	}: {
 		glyph: Glyph;
 		pose: Pose;
 		onHover: (hovered: boolean) => void;
+		onDrag: (x: number, y: number) => void;
+		onDragEnd: () => void;
 	} = $props();
 
 	type Drag = {
@@ -50,19 +55,18 @@
 
 		el.setPointerCapture(e.pointerId);
 		onHover(false);
+		onDrag(e.clientX, e.clientY);
 	}
 
 	function move(e: PointerEvent) {
 		if (!drag || e.pointerId !== drag.pointerId) return;
 
-		motion.set(
-			{
-				...motion.current,
-				x: drag.x + e.clientX - drag.startX,
-				y: drag.y + e.clientY - drag.startY
-			},
-			{ instant: true }
-		);
+		motion.set({
+			...motion.current,
+			x: drag.x + e.clientX - drag.startX,
+			y: drag.y + e.clientY - drag.startY
+		});
+		onDrag(e.clientX, e.clientY);
 	}
 
 	function release(e: PointerEvent) {
@@ -76,6 +80,7 @@
 			rotation: pose.rotation,
 			scale: pose.scale
 		};
+		onDragEnd();
 	}
 
 	const motion = Spring.of(
@@ -90,7 +95,8 @@
 </script>
 
 <button
-	class="absolute bottom-0 left-1/2 -ml-24 h-60 w-40 card"
+	class="card absolute bottom-0 left-1/2 -ml-24 h-60"
+	style:aspect-ratio={FEEL.glyphAspectRatio}
 	style:transform-origin="center bottom"
 	style:translate="{motion.current.x}px {motion.current.y}px"
 	style:rotate="{drag ? 0 : motion.current.rotation}deg"

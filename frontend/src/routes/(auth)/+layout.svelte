@@ -22,7 +22,7 @@
     />
 </svelte:head>
 
-<div class="min-h-dvh flex flex-col items-center px-4 py-9 sm:px-6 sm:py-12 text-[#f5f3f5] font-bold font-['Rajdhani'] bg-[url('/images/background.png')] bg-cover bg-center bg-no-repeat">
+<div class="auth-page min-h-dvh flex flex-col items-center px-4 py-9 sm:px-6 sm:py-12 text-[#f5f3f5] font-bold font-['Rajdhani'] bg-[url('/images/background.png')] bg-cover bg-center bg-no-repeat">
     <header class="auth-header">
         <a href="/login" class="logo">Waurd</a>
     </header>
@@ -76,15 +76,21 @@
         font-style: normal;
     }
 
+    @media (min-width: 640px) {
+        :global(html:has(.auth-page)) {
+            font-size: clamp(0.65rem, 100svh / 72, 1rem);
+        }
+    }
+
     .auth-header {
-        margin-top: clamp(12px, 5vh, 50px);
-        margin-bottom: 20px;
+        margin-top: clamp(0.75rem, 5vh, 3.125rem);  /* was clamp(12px, 5vh, 50px) */
+        margin-bottom: 1.25rem;                      /* was 20px */
     }
 
     .logo {
         font-family: "Henny Penny", cursive;
         color: #fa8c01;
-        font-size: clamp(64px, min(12vw + 40px, 20vh), 190px);
+        font-size: clamp(4rem, min(12vw + 2.5rem, 20vh), 11.875rem);  /* was clamp(64px, min(12vw + 40px, 20vh), 190px) */
         font-weight: 400;
         letter-spacing: 2px;
         text-decoration: none;
@@ -97,30 +103,34 @@
         content: "";
         position: absolute;
         left: 50%;
-        top: -10px;
         transform: translateX(-50%);
-        border-left: 7px solid transparent;
-        border-right: 7px solid transparent;
-        border-top: 10px solid #ef4637;
+        top: -0.625rem;                              /* was -10px */
+        border-left: 0.4375rem solid transparent;    /* was 7px */
+        border-right: 0.4375rem solid transparent;
+        border-top: 0.625rem solid #ef4637;          /* was 10px */
     }
 
     .auth-content {
         width: 100%;
-        max-width: 360px;
+        max-width: 22.5rem;                          /* was 360px */
+
+        /* --auth-gap-field: 1.5rem;
+        --auth-gap-md: clamp(1.5rem, 5vh, 3rem);
+        --auth-gap-lg: clamp(1.5rem, 6vh, 3.75rem); */
     }
 
     @media (max-width: 480px) {
         .auth-header {
-            margin-bottom: 44px;
+            margin-bottom: 2.75rem;                  /* was 44px */
         }
     }
 
     @media (min-width: 640px) {
         .auth-tabs a.active::before {
-            top: -15px;
-            border-left-width: 10px;
-            border-right-width: 10px;
-            border-top-width: 15px;
+            top: -0.9375rem;                         /* was -15px */
+            border-left-width: 0.625rem;             /* was 10px */
+            border-right-width: 0.625rem;
+            border-top-width: 0.9375rem;             /* was 15px */
         }
     }
 </style>

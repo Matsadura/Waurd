@@ -15,7 +15,7 @@
     aria-label="Continue with Google"
     class="mx-auto mt-[clamp(1.5rem,5vh,3rem)] flex size-13 cursor-pointer items-center justify-center rounded-full bg-white text-black transition hover:brightness-90 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[#ff8a00]"
 >
-    <svg viewBox="0 0 48 48" width="26" height="26" aria-hidden="true">
+    <svg viewBox="0 0 48 48" class="size-6.5" aria-hidden="true">
         <path
             fill="#4285F4"
             d="M43.6 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11a9.4 9.4 0 0 1-4.1 6.2v5.1h6.6c3.9-3.6 6.1-8.9 6.1-15Z"

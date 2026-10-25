@@ -1,19 +1,9 @@
 <script lang="ts">
 	import GlyphCard from './GlyphCard.svelte';
+	import { FEEL } from '#lib/configs/arenaFeel.ts';
 
-	// TODO(ALI): Maybe we should move this to a config file?
-	const FEEL = {
-		cardWidth: 144,
-		cardHeight: 216,
-		cardBottom: -12,
-		spacing: 62,
-		curvature: 3.2,
-		rotation: 3.5,
-		maxFan: 12,
-		scale: 1.25,
-		neighborPush: 70
-	};
-    
+	const SLOT_COUNT = 8;
+
 	const glyphs = 'ALIJBAEIISMYN'.split('').map((c, i) => {
 		return {
 			id: `id-${i}`,
@@ -28,6 +18,30 @@
 		scale: number;
 		zIndex: number;
 	};
+
+	let slotEls: HTMLElement[] = $state([]);
+	let targetSlot = $state<number | null>(null);
+	const TARGET_RADIUS = 0.9;
+
+	function updateTargetSlot(x: number, y: number) {
+		let best: number | null = null;
+		let bestDist = Infinity;
+
+		for (let i = 0; i < SLOT_COUNT; i++) {
+			const slotEl = slotEls[i];
+			if (slotEl) {
+				const r = slotEl.getBoundingClientRect();
+				// TODO(ALI): Mybe we should just compare it squared without the hypot to avoid sqrt?
+				const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
+				const rect = slotEl.getBoundingClientRect();
+				if (d < r.height * TARGET_RADIUS && d < bestDist) {
+					best = i;
+					bestDist = d;
+				}
+			}
+		}
+		targetSlot = best;
+	}
 
 	function calculateLayout(i: number, n: number, focusIdx: number): Pose {
 		const outer = (n - 1) / 2;
@@ -69,11 +83,28 @@
 	let hoveredIndex = $derived(glyphs.findIndex((g) => g.id === hoveredId));
 </script>
 
-<div class="relative h-screen overflow-hidden bg-gray-950 select-none">
+<div class="relative h-dvh overflow-hidden bg-gray-950 select-none">
+	<div class="absolute inset-x-0 top-1/3 flex items-start justify-center gap-2 px-4">
+		{#each Array(SLOT_COUNT) as _, i}
+			<div
+				bind:this={slotEls[i]}
+				style:aspect-ratio={FEEL.glyphAspectRatio}
+				class={[
+					'w-36 rounded-2xl border border-dashed border-amber-800 transition-colors duration-150',
+					targetSlot === i ? 'border-amber-100' : 'border-gray-600'
+				]}
+			></div>
+		{/each}
+	</div>
+
+	<p class="absolute top-2 left-3 text-2xl text-gray-500">Target: {targetSlot ?? 'none'}</p>
+
 	{#each glyphs as glyph, i (glyph.id)}
 		<GlyphCard
 			{glyph}
 			pose={calculateLayout(i, glyphs.length, hoveredIndex)}
+			onDrag={updateTargetSlot}
+			onDragEnd={() => (targetSlot = null)}
 			onHover={(hovered) => {
 				if (hovered) {
 					hoveredId = glyph.id;

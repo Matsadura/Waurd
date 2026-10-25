@@ -1,4 +1,3 @@
-
 from typing import TYPE_CHECKING
 
 from sqlalchemy import BINARY, BigInteger, ForeignKey, Integer, String
@@ -9,11 +8,13 @@ from backend.db.base import Base
 if TYPE_CHECKING:
     from backend.models.user import User
 
+
 class UserStats(Base):
     """
     Stores game performance statistics for each user.
     1-to-1 relationship with User.
     """
+
     __tablename__ = "user_stats"
 
     # Foreign Key & Primary Key pointing to users.id
@@ -29,8 +30,9 @@ class UserStats(Base):
     rating_elo: Mapped[int] = mapped_column(Integer, default=1200, nullable=False)
     highest_scoring_word: Mapped[str | None] = mapped_column(String(32), nullable=True)
     highest_word_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    total_damage_dealt: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    total_damage_dealt: Mapped[int] = mapped_column(
+        BigInteger, default=0, nullable=False
+    )
 
     # relationship back to User
     user: Mapped["User"] = relationship("User", back_populates="stats")
-

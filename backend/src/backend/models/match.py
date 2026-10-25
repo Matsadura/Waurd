@@ -85,8 +85,9 @@ class Match(Base):
     started_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
     ended_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
 
-
-    tournament: Mapped[Optional["Tournament"]] = relationship("Tournament", back_populates="matches")
+    tournament: Mapped[Optional["Tournament"]] = relationship(
+        "Tournament", back_populates="matches"
+    )
     player1: Mapped["User"] = relationship("User", foreign_keys=[player1_id])
     player2: Mapped["User"] = relationship("User", foreign_keys=[player2_id])
     winner: Mapped[Optional["User"]] = relationship("User", foreign_keys=[winner_id])
@@ -114,11 +115,15 @@ class MatchCast(Base):
     damage_dealt: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     defense_gained: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     heal_amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    status_effects_applied: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    status_effects_applied: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True
+    )
     glyphs_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
 
     match: Mapped["Match"] = relationship("Match", back_populates="casts")
-    player: Mapped["User"] = relationship("User", )
+    player: Mapped["User"] = relationship(
+        "User",
+    )

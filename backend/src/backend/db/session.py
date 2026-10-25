@@ -20,7 +20,6 @@ async_session_maker = async_sessionmaker(
 )
 
 
-
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI route dependency yielding an async database session."""
     async with async_session_maker() as session:

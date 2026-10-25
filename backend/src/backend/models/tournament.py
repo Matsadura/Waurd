@@ -52,7 +52,9 @@ class Tournament(Base):
         "User", foreign_keys=[winner_id], back_populates="won_tournaments"
     )
     participants: Mapped[list["TournamentParticipant"]] = relationship(
-        "TournamentParticipant", back_populates="tournament", cascade="all, delete-orphan"
+        "TournamentParticipant",
+        back_populates="tournament",
+        cascade="all, delete-orphan",
     )
     matches: Mapped[list["Match"]] = relationship(
         "Match", back_populates="tournament", cascade="all, delete-orphan"
@@ -77,5 +79,9 @@ class TournamentParticipant(Base):
         DateTime, default=datetime.utcnow, nullable=False
     )
 
-    tournament: Mapped["Tournament"] = relationship("Tournament", back_populates="participants")
-    user: Mapped["User"] = relationship("User", back_populates="tournament_participations")
+    tournament: Mapped["Tournament"] = relationship(
+        "Tournament", back_populates="participants"
+    )
+    user: Mapped["User"] = relationship(
+        "User", back_populates="tournament_participations"
+    )

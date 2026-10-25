@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+from backend.core.identifiers import user_id_to_string
 
 
 class UserBase(BaseModel):
@@ -62,6 +64,11 @@ class UserResponse(UserBase):
         example="https://example.com/avatar.png",
     )
 
+    @field_validator("id", mode="before")
+    @classmethod
+    def serialize_id(cls, value: bytes | str) -> str:
+        return user_id_to_string(value)
+
 
 class UserStatsResponse(BaseModel):
     """Response payload for user statistics."""
@@ -88,3 +95,8 @@ class UserStatsResponse(BaseModel):
         description="Total damage dealt by the user across all matches",
         example=5000,
     )
+
+    @field_validator("user_id", mode="before")
+    @classmethod
+    def serialize_user_id(cls, value: bytes | str) -> str:
+        return user_id_to_string(value)

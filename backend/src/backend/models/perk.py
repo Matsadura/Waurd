@@ -28,6 +28,7 @@ class Perk(Base):
     """
     Catalog of Perks that modify Glyphs in Waurd.
     """
+
     __tablename__ = "perks"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
@@ -47,4 +48,3 @@ class Perk(Base):
     achievements: Mapped[list["Achievement"]] = relationship(
         "Achievement", back_populates="reward_perk"
     )
-    

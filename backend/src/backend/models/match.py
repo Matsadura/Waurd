@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.db.base import Base
+from backend.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from backend.models.tournament import Tournament
@@ -42,7 +42,7 @@ class MatchEndReason(str, enum.Enum):
     DISCONNECT = "DISCONNECT"
 
 
-class Match(Base):
+class Match(Base, TimestampMixin):
     __tablename__ = "matches"
 
     id: Mapped[bytes] = mapped_column(BINARY(16), primary_key=True)

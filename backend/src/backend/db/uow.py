@@ -2,6 +2,7 @@ from types import TracebackType
 from typing import Self
 
 from backend.db.session import async_session_maker
+from backend.repositories.matches import MatchRepository
 from backend.repositories.user import UserRepository
 from backend.repositories.user_stats import UserStatsRepository
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,7 @@ class UnitOfWork:
         self.session = self.session_factory()
         self.users = UserRepository(self.session)
         self.user_stats = UserStatsRepository(self.session)
+        self.matches = MatchRepository(self.session)
         return self
 
     async def __aexit__(

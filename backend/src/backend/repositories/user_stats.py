@@ -1,7 +1,6 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from backend.models.user_stats import UserStats
 from backend.repositories.base import BaseRepository
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class UserStatsRepository(BaseRepository[UserStats]):

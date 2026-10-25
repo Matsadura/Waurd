@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
-
 from backend.core.identifiers import user_id_to_string
+from backend.schemas.match import MatchResponse
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class UserBase(BaseModel):
@@ -100,3 +100,13 @@ class UserStatsResponse(BaseModel):
     @classmethod
     def serialize_user_id(cls, value: bytes | str) -> str:
         return user_id_to_string(value)
+
+
+class UserMatchesResponse(BaseModel):
+    """Response payload for user matches."""
+
+    model_config = ConfigDict(from_attributes=True)
+    matches: list["MatchResponse"] = Field(
+        ...,
+        description="List of matches associated with the user",
+    )

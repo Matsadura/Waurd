@@ -1,15 +1,9 @@
 import enum
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import (
-    TIMESTAMP,
-    Boolean,
-    Enum,
-    Integer,
-    String,
-)
+from sqlalchemy import BINARY, TIMESTAMP, Boolean, Enum, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base, TimestampMixin
@@ -17,6 +11,9 @@ from backend.models.chat import ChatMessage
 from backend.models.friendship import Friendship
 from backend.models.user_achievements import UserAchievement
 from backend.models.user_stats import UserStats
+
+if TYPE_CHECKING:
+    from backend.models.tournament import Tournament, TournamentParticipant
 
 
 class OAuthProvider(str, enum.Enum):
@@ -27,10 +24,10 @@ class OAuthProvider(str, enum.Enum):
 class User(Base, TimestampMixin):
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
+    id: Mapped[bytes] = mapped_column(
+        BINARY(16),
         primary_key=True,
-        default=lambda: str(uuid.uuid4()),
+        default=lambda: uuid.uuid4().bytes,
     )
 
     username: Mapped[str] = mapped_column(
@@ -130,5 +127,21 @@ class User(Base, TimestampMixin):
         "ChatMessage",
         foreign_keys="[ChatMessage.receiver_id]",
         back_populates="receiver",
+        cascade="all, delete-orphan",
+    )
+    created_tournaments: Mapped[list["Tournament"]] = relationship(
+        "Tournament",
+        foreign_keys="[Tournament.created_by]",
+        back_populates="creator",
+        cascade="all, delete-orphan",
+    )
+    won_tournaments: Mapped[list["Tournament"]] = relationship(
+        "Tournament",
+        foreign_keys="[Tournament.winner_id]",
+        back_populates="winner",
+    )
+    tournament_participations: Mapped[list["TournamentParticipant"]] = relationship(
+        "TournamentParticipant",
+        back_populates="user",
         cascade="all, delete-orphan",
     )

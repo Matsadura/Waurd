@@ -7,6 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy entities."""
 
+
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP,

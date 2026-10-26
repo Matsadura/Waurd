@@ -1,8 +1,8 @@
 # backend/main.py
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-import logging
 
 import redis.asyncio as aioredis
 from fastapi import Depends, FastAPI, Request, status

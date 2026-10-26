@@ -1,11 +1,8 @@
-import uuid
-from typing import Sequence
-from sqlalchemy import select, or_, and_
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from backend.models.friendship import Friendship, FriendshipStatus
 from backend.models.user import User
 from backend.repositories.base import BaseRepository
+from sqlalchemy import and_, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class FriendshipRepository(BaseRepository[Friendship]):

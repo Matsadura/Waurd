@@ -21,7 +21,7 @@ async def seed_data():
         user_definitions = [
             {
                 "username": "alice",
-                "email": "alice@waurd.game",
+                "email": "alice@gmail.game",
                 "password_hash": "$2b$12$eImiTXuWVxfM37uY4JANjO5E/xG/1/1/1/1/1/1/1/1/1/1/1",
             },
             {

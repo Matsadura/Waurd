@@ -26,7 +26,7 @@
 </script>
 
 <svelte:head>
-	<title>Register — Waurd</title>
+	<title>Register</title>
 </svelte:head>
 
 <form class="flex w-full flex-col" onsubmit={handleSubmit}>
@@ -38,7 +38,7 @@
 		type="password"
 		autocomplete="new-password"
 		bind:value={password}
-		class="mt-6"
+		class="mt-3 sm:mt-5"
 	/>
 
 	<FormField
@@ -47,11 +47,11 @@
 		type="password"
 		autocomplete="new-password"
 		bind:value={confirmPassword}
-		class="mt-6"
+		class="mt-3 sm:mt-5"
 	/>
 
 	<!-- Terms of Service -->
-	<div class="mt-8 flex items-center justify-center gap-2 text-sm">
+	<div class="mt-4 flex items-center justify-center gap-2 text-sm sm:mt-6">
 		<input
 			id="terms"
 			name="terms"
@@ -62,13 +62,13 @@
 					showTermsError = false;
 				}
 			}}
-			class="size-5 cursor-pointer accent-[#ff8a00]"
+			class="size-5 cursor-pointer accent-accent-action"
 		/>
 
 		<label for="terms" class="cursor-pointer text-white">
 			I agree to all
 			<a
-				href="/terms-of-service"
+				href="/terms"
 				target="_blank"
 				rel="noopener noreferrer"
 				class="font-bold underline"
@@ -79,22 +79,13 @@
 		</label>
 	</div>
 
-	<AuthButton class="mt-6">REGISTER</AuthButton>
+	<AuthButton class="mt-4 sm:mt-6">REGISTER</AuthButton>
 
-	<p
-        class="mt-4 min-h-5 text-center text-sm text-[#ff0000]"
-        role="alert"
-    >
-        {#if showTermsError}
-            *You must accept our Terms of Service
-        {/if}
-    </p>
-
-	<!-- {#if showTermsError}
-		<p class="mt-4 text-center text-sm text-[#ff0000]" role="alert">
+	<p class="mt-2 min-h-5 text-center text-base text-[#ff0000] sm:mt-3 sm:text-lg" role="alert">
+		{#if showTermsError}
 			*You must accept our Terms of Service
-		</p>
-	{/if} -->
+		{/if}
+	</p>
 
 	<SocialLogin ongoogle={handleGoogle} />
 </form>

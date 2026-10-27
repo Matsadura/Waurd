@@ -2,6 +2,12 @@
 	import { page } from '$app/state';
 
 	let { children } = $props();
+
+	const tabs = [
+		{ href: '/login', label: 'LOGIN' },
+		{ href: '/register', label: 'REGISTER' },
+		{ href: '/reset-password', label: 'RESET PASSWORD' }
+	];
 </script>
 
 <svelte:head>
@@ -23,44 +29,43 @@
 </svelte:head>
 
 <div
-	class="auth-page flex min-h-dvh flex-col items-center bg-[url('/images/background.png')] bg-cover bg-center bg-no-repeat px-4 py-9 font-['Rajdhani'] font-bold text-[#f5f3f5] sm:px-6 sm:py-12"
+	class="auth-page relative flex min-h-dvh w-full min-w-0 flex-col items-center overflow-x-clip bg-background
+		bg-[url('/images/background.png')] bg-cover bg-center bg-no-repeat
+		px-4 py-3 font-rajdhani font-bold text-text-primary sm:px-6 sm:py-6 lg:py-8 [@media_(min-width:640px)_and_(max-height:950px)]:py-2"
 >
-	<header class="auth-header">
-		<a href="/login" class="logo">Waurd</a>
-	</header>
-
-	<nav class="auth-tabs mb-10 flex flex-wrap justify-center gap-3">
+	<header class="auth-header mt-[clamp(0.5rem,3vh,3rem)] mb-3 sm:mb-5">
 		<a
 			href="/login"
-			class="relative rounded-md bg-[#ef4637] px-2 py-1.5 text-sm text-white no-underline shadow-[0_10px_12px_rgba(0,0,0,0.45)] transition-colors sm:px-8 sm:py-1 sm:text-2xl"
-			class:active={page.url.pathname === '/login'}
-			aria-current={page.url.pathname === '/login' ? 'page' : undefined}
+			class="auth-logo font-henny-penny text-[clamp(2.5rem,min(12vw+2.5rem,20vh),11.875rem)] font-normal tracking-[2px] text-accent no-underline [text-shadow:5px_5px_8px_rgba(115,20,20,0.8),10px_7px_16px_rgba(100,15,15,0.55)]"
 		>
-			LOGIN
+			Waurd
 		</a>
+	</header>
 
-		<a
-			href="/register"
-			class="relative rounded-md bg-[#ef4637] px-2 py-1.5 text-sm text-white no-underline shadow-[0_10px_12px_rgba(0,0,0,0.45)] transition-colors sm:px-8 sm:py-1 sm:text-2xl"
-			class:active={page.url.pathname === '/register'}
-			aria-current={page.url.pathname === '/register' ? 'page' : undefined}
+	<div class="auth-column @container w-full max-w-2xl">
+		<nav
+			class="auth-tabs mb-5 flex flex-wrap justify-center gap-2 text-[clamp(0.9rem,calc(100cqw/23),1.5rem)] sm:mb-7 sm:gap-3"
 		>
-			REGISTER
-		</a>
+			{#each tabs as tab (tab.href)}
+				<a
+					href={tab.href}
+					class="relative flex min-h-10 min-w-0 grow items-center justify-center
+							rounded-md bg-accent-red
+							px-[1.1em] py-[0.17em]
+							text-center leading-[1.33] whitespace-nowrap
+							text-white no-underline
+							shadow-[0_0.42em_0.5em_rgba(0,0,0,0.45)]"
+					aria-current={page.url.pathname === tab.href ? 'page' : undefined}
+				>
+					{tab.label}
+				</a>
+			{/each}
+		</nav>
 
-		<a
-			href="/reset-password"
-			class="relative rounded-md bg-[#ef4637] px-2 py-1.5 text-sm text-white no-underline shadow-[0_10px_12px_rgba(0,0,0,0.45)] transition-colors sm:px-8 sm:py-1 sm:text-2xl"
-			class:active={page.url.pathname === '/reset-password'}
-			aria-current={page.url.pathname === '/reset-password' ? 'page' : undefined}
-		>
-			RESET PASSWORD
-		</a>
-	</nav>
-
-	<main class="auth-content">
-		{@render children()}
-	</main>
+		<main class="mx-auto w-[max(65%,min(88%,20rem))]">
+			{@render children()}
+		</main>
+	</div>
 </div>
 
 <style>
@@ -78,65 +83,35 @@
 		font-style: normal;
 	}
 
-	@media (min-width: 640px) {
-		:global(html:has(.auth-page)) {
-			font-size: clamp(0.65rem, 100svh / 72, 1rem);
-		}
-	}
-
-	.auth-header {
-		margin-top: clamp(0.75rem, 5vh, 3.125rem); /* was clamp(12px, 5vh, 50px) */
-		margin-bottom: 1.25rem; /* was 20px */
-	}
-
-	.logo {
-		font-family: 'Henny Penny', cursive;
-		color: #fa8c01;
-		font-size: clamp(
-			4rem,
-			min(12vw + 2.5rem, 20vh),
-			11.875rem
-		); /* was clamp(64px, min(12vw + 40px, 20vh), 190px) */
-		font-weight: 400;
-		letter-spacing: 2px;
-		text-decoration: none;
-		text-shadow:
-			5px 5px 8px rgba(115, 20, 20, 0.8),
-			10px 7px 16px rgba(100, 15, 15, 0.55);
-	}
-
-	.auth-tabs a.active::before {
+	/* The small triangle above the active tab (sized in em, so it scales with the tab text) */
+	.auth-tabs a[aria-current='page']::before {
 		content: '';
 		position: absolute;
 		left: 50%;
+		top: -0.62em;
 		transform: translateX(-50%);
-		top: -0.625rem; /* was -10px */
-		border-left: 0.4375rem solid transparent; /* was 7px */
-		border-right: 0.4375rem solid transparent;
-		border-top: 0.625rem solid #ef4637; /* was 10px */
+		border-left: 0.42em solid transparent;
+		border-right: 0.42em solid transparent;
+		border-top: 0.62em solid var(--color-accent-red);
 	}
 
-	.auth-content {
-		width: 100%;
-		max-width: 22.5rem; /* was 360px */
-
-		/* --auth-gap-field: 1.5rem;
-        --auth-gap-md: clamp(1.5rem, 5vh, 3rem);
-        --auth-gap-lg: clamp(1.5rem, 6vh, 3.75rem); */
-	}
-
-	@media (max-width: 480px) {
-		.auth-header {
-			margin-bottom: 2.75rem; /* was 44px */
+	@media (min-width: 640px) and (max-height: 950px) {
+		.auth-page {
+			padding-top: 0.5rem;
+			padding-bottom: 0.5rem;
 		}
-	}
 
-	@media (min-width: 640px) {
-		.auth-tabs a.active::before {
-			top: -0.9375rem; /* was -15px */
-			border-left-width: 0.625rem; /* was 10px */
-			border-right-width: 0.625rem;
-			border-top-width: 0.9375rem; /* was 15px */
+		.auth-header {
+			margin-top: 0.5rem;
+			margin-bottom: 0.5rem;
+		}
+
+		.auth-logo {
+			font-size: clamp(3rem, 12vh, 6rem);
+		}
+
+		.auth-tabs {
+			margin-bottom: 1rem;
 		}
 	}
 </style>

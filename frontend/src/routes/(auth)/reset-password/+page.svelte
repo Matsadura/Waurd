@@ -25,24 +25,26 @@
 	// }
 </script>
 
+<svelte:head>
+	<title>Reset Password</title>
+</svelte:head>
+
 <form class="flex w-full flex-col" onsubmit={handleSubmit}>
 	{#if status !== 'success'}
 		<div class="flex w-full flex-col" class:loading={status === 'loading'}>
 			<FormField label="Email" name="email" type="email" autocomplete="email" bind:value={email} />
 
-			<AuthButton class="mt-[clamp(1.5rem,6vh,3.75rem)]" disabled={status === 'loading'}>
-				Reset Password
-			</AuthButton>
+			<AuthButton class="mt-5 sm:mt-7" disabled={status === 'loading'}>Reset Password</AuthButton>
 		</div>
 
 		{#if status === 'loading'}
-			<div class="mt-7 flex justify-center" role="status">
+			<div class="mt-4 flex justify-center sm:mt-6" role="status">
 				<div class="spinner"></div>
 				<span class="sr-only">Sending password reset request...</span>
 			</div>
 		{/if}
 	{:else}
-		<p class="mt-8 text-center text-sm font-bold text-[#00d66b]" role="status">
+		<p class="mt-8 text-center text-base font-bold text-[#00d66b] sm:text-lg" role="status">
 			*If your email address exists in our database, you will receive a password recovery link at
 			your email address in a few minutes.
 		</p>

@@ -3,7 +3,7 @@
 	let { ongoogle }: { ongoogle: () => void } = $props();
 </script>
 
-<div class="mx-auto mt-[clamp(1.5rem,5vh,3rem)] flex w-3/4 items-center gap-3">
+<div class="mx-auto mt-3 flex w-3/4 items-center gap-3 sm:mt-5">
 	<div class="h-px flex-1 bg-[#018bf6]"></div>
 	<span class="text-[1.2rem] font-light text-[#018bf6]">OR</span>
 	<div class="h-px flex-1 bg-[#018bf6]"></div>
@@ -13,7 +13,7 @@
 	type="button"
 	onclick={ongoogle}
 	aria-label="Continue with Google"
-	class="mx-auto mt-[clamp(1.5rem,5vh,3rem)] flex size-13 cursor-pointer items-center justify-center rounded-full bg-white text-black transition hover:brightness-90 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[#ff8a00]"
+	class="mx-auto mt-3 flex size-12 cursor-pointer items-center justify-center rounded-full bg-white text-black transition hover:brightness-90 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-accent-action sm:mt-4"
 >
 	<svg viewBox="0 0 48 48" class="size-6.5" aria-hidden="true">
 		<path

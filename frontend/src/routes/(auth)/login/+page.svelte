@@ -17,7 +17,7 @@
 </script>
 
 <svelte:head>
-	<title>Login — Waurd</title>
+	<title>Login</title>
 </svelte:head>
 
 <form class="flex w-full flex-col" onsubmit={handleSubmit}>
@@ -29,10 +29,10 @@
 		type="password"
 		autocomplete="current-password"
 		bind:value={password}
-		class="mt-6"
+		class="mt-3 sm:mt-5"
 	/>
 
-	<AuthButton class="mt-[clamp(1.5rem,6vh,3.75rem)]">LOGIN</AuthButton>
+	<AuthButton class="mt-5 sm:mt-7">LOGIN</AuthButton>
 
 	<SocialLogin ongoogle={handleGoogle} />
 </form>

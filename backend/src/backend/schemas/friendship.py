@@ -1,12 +1,11 @@
+import enum
 from datetime import datetime
 
 from backend.models.friendship import FriendshipStatus
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class FriendUserResponse(BaseModel):
-    """User summary returned in friend list responses."""
-
     id: str = Field(..., description="User UUID string")
     username: str
     avatar_url: str | None = None
@@ -17,8 +16,6 @@ class FriendUserResponse(BaseModel):
 
 
 class FriendshipResponse(BaseModel):
-    """Response schema for friend request actions."""
-
     id: int
     requester_id: str
     addressee_id: str
@@ -30,9 +27,23 @@ class FriendshipResponse(BaseModel):
 
 
 class FriendRequestCreate(BaseModel):
-    """Input payload to send a friend request."""
+    target_user_id: str | None = Field(None, description="Target user UUID string")
+    username: str | None = Field(None, description="Target username")
 
-    addressee_id: str = Field(..., description="Target user UUID string")
+    @model_validator(mode="after")
+    def validate_target(self):
+        if not self.target_user_id and not self.username:
+            raise ValueError("Either target_user_id or username must be provided.")
+        return self
+
+
+class RequestAction(str, enum.Enum):
+    ACCEPT = "ACCEPTED"
+    DECLINE = "DECLINED"
+
+
+class FriendRequestUpdate(BaseModel):
+    action: RequestAction
 
 
 class FriendListResponse(BaseModel):

@@ -1,3 +1,14 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
+
+@theme {
+	--color-background: #100d14;
+	--color-text-primary: #f5f3f5;
+	--color-accent: #fa8c01;
+	--color-accent-red: #ef4637;
+	--color-accent-action: #ff8a00;
+
+	--font-rajdhani: 'Rajdhani', sans-serif;
+	--font-henny-penny: 'Henny Penny', cursive;
+}

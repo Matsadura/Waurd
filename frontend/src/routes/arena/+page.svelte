@@ -1,5 +1,6 @@
 <script lang="ts">
-	import GlyphCard from './GlyphCard.svelte';
+	import GlyphCardHand from './GlyphCardHand.svelte';
+	import GlyphCardSlot from './GlyphCardSlot.svelte';
 	import { FEEL } from '#lib/configs/arenaFeel.ts';
 
 	const SLOT_COUNT = 8;
@@ -26,8 +27,8 @@
 	let targetSlot = $state<number | null>(null);
 	const TARGET_RADIUS = 0.9;
 
-	let hand_ids = $state<string[]>(Object.keys(glyphs_by_id));
 	let slot_ids = $state<(string | null)[]>(Array(SLOT_COUNT).fill(null));
+	let hand_ids = $derived(Object.keys(glyphs_by_id).filter((key) => !slot_ids.includes(key)));
 	let hand_hovered_id = $state<string | null>(null);
 
 	function updateTargetSlot(x: number, y: number) {
@@ -88,11 +89,30 @@
 			x: rest.x + side * FEEL.neighborPush
 		};
 	}
+
+	function moveToSlot(id: string, index: number) {
+		if (!glyphs_by_id[id] || index < 0 || index >= SLOT_COUNT) return;
+		if (slot_ids[index] !== null && slot_ids[index] !== id) return;
+		hand_ids = hand_ids.filter((value) => value !== id);
+		slot_ids = slot_ids.map((value) => (value === id ? null : value));
+		slot_ids[index] = id;
+		hand_hovered_id = null;
+	}
+
+	function toggleGlyph(id: string) {
+		if (slot_ids.includes(id)) {
+			const index = slot_ids.indexOf(id);
+			slot_ids[index] = null;
+		} else {
+			const empty = slot_ids.indexOf(null);
+			moveToSlot(id, empty);
+		}
+	}
 </script>
 
 <div class="relative h-dvh overflow-hidden bg-gray-950 select-none">
 	<div class="absolute inset-x-0 top-1/3 flex items-start justify-center gap-2 px-4">
-		{#each Array(SLOT_COUNT) as _, i}
+		{#each slot_ids as glyphId, i}
 			<div
 				bind:this={slotEls[i]}
 				style:aspect-ratio={FEEL.glyphAspectRatio}
@@ -100,18 +120,28 @@
 					'w-36 rounded-2xl border border-dashed border-amber-800 transition-colors duration-150',
 					targetSlot === i ? 'border-amber-100' : 'border-gray-600'
 				]}
-			></div>
+			>
+				{#if glyphId}
+					<GlyphCardSlot
+						glyph={glyphs_by_id[glyphId]}
+						onDrag={updateTargetSlot}
+						onDragEnd={() => (targetSlot = null)}
+						onClickHandler={() => toggleGlyph(glyphId)}
+					/>
+				{/if}
+			</div>
 		{/each}
 	</div>
 
 	<p class="absolute top-2 left-3 text-2xl text-gray-500">Target: {targetSlot ?? 'none'}</p>
 
 	{#each hand_ids as glyphId, i}
-		<GlyphCard
+		<GlyphCardHand
 			glyph={glyphs_by_id[glyphId]}
 			pose={calculateLayout(glyphId)}
 			onDrag={updateTargetSlot}
 			onDragEnd={() => (targetSlot = null)}
+			onClickHandler={() => toggleGlyph(glyphId)}
 			onHover={(hovered) => (hand_hovered_id = hovered ? glyphId : null)}
 		/>
 	{/each}

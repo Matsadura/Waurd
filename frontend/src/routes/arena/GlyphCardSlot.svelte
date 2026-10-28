@@ -7,26 +7,16 @@
 		letter: string;
 	};
 
-	type Pose = {
-		x: number;
-		y: number;
-		rotation: number;
-		scale: number;
-		zIndex: number;
-	};
-
 	let {
 		glyph,
-		pose,
-		onHover,
 		onDrag,
-		onDragEnd
+		onDragEnd,
+		onClickHandler
 	}: {
 		glyph: Glyph;
-		pose: Pose;
-		onHover: (hovered: boolean) => void;
 		onDrag: (x: number, y: number) => void;
 		onDragEnd: () => void;
+		onClickHandler: () => void;
 	} = $props();
 
 	type Drag = {
@@ -54,7 +44,6 @@
 		};
 
 		el.setPointerCapture(e.pointerId);
-		onHover(false);
 		onDrag(e.clientX, e.clientY);
 	}
 
@@ -75,40 +64,38 @@
 		drag = null;
 
 		motion.target = {
-			x: pose.x,
-			y: pose.y,
-			rotation: pose.rotation,
-			scale: pose.scale
+			x: 0,
+			y: 0,
+			rotation: 0,
+			scale: 1
 		};
 		onDragEnd();
 	}
 
 	const motion = Spring.of(
 		() => ({
-			x: pose.x,
-			y: pose.y,
-			rotation: pose.rotation,
-			scale: pose.scale
+			x: 0,
+			y: 0,
+			rotation: 0,
+			scale: 1
 		}),
-		{ stiffness: 0.1, damping: 0.3 }
+		{ stiffness: 0.07, damping: 0.3 }
 	);
 </script>
 
 <button
-	class="card absolute bottom-0 left-1/2 -ml-24 h-60"
+	class="card w-full"
 	style:aspect-ratio={FEEL.glyphAspectRatio}
 	style:transform-origin="center bottom"
 	style:translate="{motion.current.x}px {motion.current.y}px"
-	style:rotate="{drag ? 0 : motion.current.rotation}deg"
-	style:scale={drag ? 1.2 : motion.current.scale}
-	style:z-index={pose.zIndex}
-	onpointerenter={() => onHover(true)}
-	onpointerleave={() => onHover(false)}
+	// style:scale={drag ? 1.2 : motion.current.scale}
+	// style:z-index={pose.zIndex}
 	onpointerdown={press}
 	onpointermove={move}
 	onpointerup={release}
 	onpointercancel={release}
 	onlostpointercapture={release}
+	onclick={onClickHandler}
 >
 	<div
 		class="flex h-full w-full items-center justify-center

@@ -66,23 +66,23 @@ async def get_pending_requests(
     return PendingRequestsResponse(
         incoming=[
             FriendUserResponse(
-                id=bytes_to_str(u.id),
-                username=u.username,
-                avatar_url=u.avatar_url,
-                is_online=u.is_online,
-                last_seen_at=u.last_seen_at,
+                id=bytes_to_str(requester.id),
+                username=requester.username,
+                avatar_url=requester.avatar_url,
+                is_online=requester.is_online,
+                last_seen_at=requester.last_seen_at,
             )
-            for u in incoming
+            for requester in incoming
         ],
         outgoing=[
             FriendUserResponse(
-                id=bytes_to_str(u.id),
-                username=u.username,
-                avatar_url=u.avatar_url,
-                is_online=u.is_online,
-                last_seen_at=u.last_seen_at,
+                id=bytes_to_str(addressee.id),
+                username=addressee.username,
+                avatar_url=addressee.avatar_url,
+                is_online=addressee.is_online,
+                last_seen_at=addressee.last_seen_at,
             )
-            for u in outgoing
+            for addressee in outgoing
         ],
     )
 

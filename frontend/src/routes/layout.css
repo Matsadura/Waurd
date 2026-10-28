@@ -2,6 +2,20 @@
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
 
+@font-face {
+	font-family: 'Henny Penny';
+	src: url('/fonts/HennyPenny-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Rajdhani';
+	src: url('/fonts/Rajdhani-Bold.ttf') format('truetype');
+	font-weight: 700;
+	font-style: normal;
+}
+
 @theme {
 	--color-background: #100d14;
 	--color-text-primary: #f5f3f5;

@@ -20,7 +20,7 @@
 	<title>Login</title>
 </svelte:head>
 
-<form class="flex w-full flex-col" onsubmit={handleSubmit}>
+<form class="flex w-full flex-col items-center" onsubmit={handleSubmit}>
 	<FormField label="Email" name="email" type="email" autocomplete="email" bind:value={email} />
 
 	<FormField
@@ -32,7 +32,13 @@
 		class="mt-3 sm:mt-5"
 	/>
 
-	<AuthButton class="mt-5 sm:mt-7">LOGIN</AuthButton>
+	<AuthButton class="mt-12 mb-2">LOGIN</AuthButton>
+
+	<p class="mt-2 min-h-5 text-center text-base text-[#ff0000] sm:mt-3 sm:text-lg" role="alert">
+		<!-- {#if showTermsError}
+		*You must accept our Terms of Service
+		{/if} -->
+	</p>
 
 	<SocialLogin ongoogle={handleGoogle} />
 </form>

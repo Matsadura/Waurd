@@ -29,7 +29,7 @@
 	<title>Register</title>
 </svelte:head>
 
-<form class="flex w-full flex-col" onsubmit={handleSubmit}>
+<form class="flex w-full flex-col items-center" onsubmit={handleSubmit}>
 	<FormField label="Email" name="email" type="email" autocomplete="email" bind:value={email} />
 
 	<FormField
@@ -51,7 +51,7 @@
 	/>
 
 	<!-- Terms of Service -->
-	<div class="mt-4 flex items-center justify-center gap-2 text-sm sm:mt-6">
+	<div class="mt-6 flex items-center justify-center gap-2 text-sm">
 		<input
 			id="terms"
 			name="terms"
@@ -79,9 +79,9 @@
 		</label>
 	</div>
 
-	<AuthButton class="mt-4 sm:mt-6">REGISTER</AuthButton>
+	<AuthButton class="mt-12 mb-2">REGISTER</AuthButton>
 
-	<p class="mt-2 min-h-5 text-center text-base text-[#ff0000] sm:mt-3 sm:text-lg" role="alert">
+	<p class="mt-2 mb-2 min-h-5 text-center text-base text-[#ff0000] sm:mt-3 sm:text-lg" role="alert">
 		{#if showTermsError}
 			*You must accept our Terms of Service
 		{/if}

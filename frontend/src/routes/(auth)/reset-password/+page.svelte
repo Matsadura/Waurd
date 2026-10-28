@@ -29,12 +29,12 @@
 	<title>Reset Password</title>
 </svelte:head>
 
-<form class="flex w-full flex-col" onsubmit={handleSubmit}>
+<form class="flex w-full flex-col items-center" onsubmit={handleSubmit}>
 	{#if status !== 'success'}
-		<div class="flex w-full flex-col" class:loading={status === 'loading'}>
+		<div class="flex w-full flex-col items-center" class:loading={status === 'loading'}>
 			<FormField label="Email" name="email" type="email" autocomplete="email" bind:value={email} />
 
-			<AuthButton class="mt-5 sm:mt-7" disabled={status === 'loading'}>Reset Password</AuthButton>
+			<AuthButton class="mt-12 mb-2" disabled={status === 'loading'}>Reset Password</AuthButton>
 		</div>
 
 		{#if status === 'loading'}

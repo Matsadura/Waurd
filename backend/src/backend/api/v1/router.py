@@ -11,4 +11,7 @@ api_v1_router.include_router(
     dependencies=[Depends(verify_csrf)],
 )
 
-api_v1_router.include_router(friendship.router)
+api_v1_router.include_router(
+    friendship.router,
+    dependencies=[Depends(verify_csrf)],
+)

@@ -38,13 +38,13 @@ async def get_friends(
 
     friend_responses = [
         FriendUserResponse(
-            id=bytes_to_str(u.id),
-            username=u.username,
-            avatar_url=u.avatar_url,
-            is_online=u.is_online,
-            last_seen_at=u.last_seen_at,
+            id=bytes_to_str(friend.id),
+            username=friend.username,
+            avatar_url=friend.avatar_url,
+            is_online=friend.is_online,
+            last_seen_at=friend.last_seen_at,
         )
-        for u in friends
+        for friend in friends
     ]
     return FriendListResponse(friends=friend_responses)
 

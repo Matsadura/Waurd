@@ -24,7 +24,7 @@
 	};
 
 	let slotEls: HTMLElement[] = $state([]);
-	let targetSlot = $state<number | null>(null);
+	let targetSlot = $state<number>(-1);
 	const TARGET_RADIUS = 0.9;
 
 	let slot_ids = $state<(string | null)[]>(Array(SLOT_COUNT).fill(null));
@@ -32,14 +32,13 @@
 	let hand_hovered_id = $state<string | null>(null);
 
 	function updateTargetSlot(x: number, y: number) {
-		let best: number | null = null;
+		let best: number = -1;
 		let bestDist = Infinity;
 
 		for (let i = 0; i < SLOT_COUNT; i++) {
 			const slotEl = slotEls[i];
 			if (slotEl) {
 				const r = slotEl.getBoundingClientRect();
-				// TODO(ALI): Mybe we should just compare it squared without the hypot to avoid sqrt?
 				const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
 				const rect = slotEl.getBoundingClientRect();
 				if (d < r.height * TARGET_RADIUS && d < bestDist) {
@@ -85,7 +84,6 @@
 
 	function moveToSlot(id: string, index: number) {
 		if (!glyphs_by_id[id] || index < 0 || index >= SLOT_COUNT) return;
-		if (slot_ids[index] !== null && slot_ids[index] !== id) return;
 		slot_ids = slot_ids.map((value) => (value === id ? null : value));
 		slot_ids[index] = id;
 		hand_hovered_id = null;
@@ -100,6 +98,15 @@
 			moveToSlot(id, empty);
 		}
 	}
+	function handleDraggedGlyph(id: string) {
+		if (targetSlot >= 0) {
+			moveToSlot(id, targetSlot);
+			targetSlot = -1;
+		} else if (slot_ids.includes(id)) {
+			const index = slot_ids.indexOf(id);
+			slot_ids[index] = null;
+		}
+	}
 </script>
 
 <div class="relative h-dvh overflow-hidden bg-gray-950 select-none">
@@ -110,14 +117,14 @@
 				style:aspect-ratio={FEEL.glyphAspectRatio}
 				class={[
 					'w-36 rounded border border-dashed border-amber-800 transition-colors duration-150',
-					targetSlot === i ? 'border-amber-100' : 'border-gray-600'
+					targetSlot === i ? 'flash' : ''
 				]}
 			>
 				{#if glyphId}
 					<GlyphCardSlot
 						glyph={glyphs_by_id[glyphId]}
 						onDrag={updateTargetSlot}
-						onDragEnd={() => (targetSlot = null)}
+						onDragEnd={() => handleDraggedGlyph(glyphId)}
 						onClickHandler={() => toggleGlyph(glyphId)}
 					/>
 				{/if}
@@ -132,9 +139,28 @@
 			glyph={glyphs_by_id[glyphId]}
 			pose={calculateLayout(glyphId)}
 			onDrag={updateTargetSlot}
-			onDragEnd={() => (targetSlot = null)}
+			onDragEnd={() => handleDraggedGlyph(glyphId)}
 			onClickHandler={() => toggleGlyph(glyphId)}
 			onHover={(hovered) => (hand_hovered_id = hovered ? glyphId : null)}
 		/>
 	{/each}
 </div>
+
+<style>
+	.flash {
+		animation: flash 950ms ease-in-out infinite;
+	}
+
+	@keyframes flash {
+		from {
+			filter: brightness(1.1);
+			box-shadow: 0 0 1px 6px rgba(68, 49, 1, 0.7);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.flash {
+			animation: none;
+		}
+	}
+</style>

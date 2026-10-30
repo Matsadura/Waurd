@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { FEEL } from '#lib/configs/arenaFeel.ts';
-	import { backIn, backInOut, cubicOut } from 'svelte/easing';
 	import { Spring } from 'svelte/motion';
-	import { fly, slide } from 'svelte/transition';
+	import { fade, fly } from 'svelte/transition';
 
 	type Glyph = {
 		id: string;
@@ -41,7 +40,10 @@
 		y: number;
 	};
 
+	const SIZE_OF_DRAG_TO_BE_DRAG = 40;
+
 	let drag = $state<Drag | null>(null);
+	let movedEnoughToBeDrag = $state(false);
 
 	function press(e: PointerEvent) {
 		if (drag || !e.isPrimary) return;
@@ -56,6 +58,7 @@
 			x: motion.current.x,
 			y: motion.current.y
 		};
+		movedEnoughToBeDrag = false;
 
 		el.setPointerCapture(e.pointerId);
 		onHover(false);
@@ -64,6 +67,14 @@
 
 	function move(e: PointerEvent) {
 		if (!drag || e.pointerId !== drag.pointerId) return;
+
+		const dx = e.clientX - drag.startX;
+		const dy = e.clientY - drag.startY;
+
+		if (!movedEnoughToBeDrag) {
+			if (Math.hypot(dx, dy) < SIZE_OF_DRAG_TO_BE_DRAG) return;
+			movedEnoughToBeDrag = true;
+		}
 
 		motion.set({
 			...motion.current,
@@ -76,15 +87,20 @@
 	function release(e: PointerEvent) {
 		if (!drag || e.pointerId !== drag.pointerId) return;
 
-		drag = null;
-
 		motion.target = {
 			x: pose.x,
 			y: pose.y,
 			rotation: pose.rotation,
 			scale: pose.scale
 		};
+		drag = null;
 		onDragEnd();
+	}
+
+	function click() {
+		if (!movedEnoughToBeDrag) {
+			onClickHandler();
+		}
 	}
 
 	const motion = Spring.of(
@@ -99,8 +115,7 @@
 </script>
 
 <button
-	in:fly={{ y: -100, duration: 200 }}
-	out:fly={{ y: -100, duration: 200 }}
+	transition:fade={{ duration: 200 }}
 	class="card absolute bottom-0 left-1/2 -ml-24 w-[calc((1em+1vw)*4)]"
 	style:aspect-ratio={FEEL.glyphAspectRatio}
 	style:transform-origin="center bottom"
@@ -115,12 +130,31 @@
 	onpointerup={release}
 	onpointercancel={release}
 	onlostpointercapture={release}
-	onclick={onClickHandler}
+	onclick={click}
 >
 	<div
-		class="flex h-full w-full items-center justify-center
-           rounded border-2 border-amber-700 bg-amber-900 text-5xl text-white transition-all duration-1000 ease-in-out"
+		class="flash flex h-full w-full items-center justify-center
+           rounded border-2 border-amber-700 bg-amber-900 text-5xl text-white transition-all ease-in-out"
 	>
 		{glyph.letter}
 	</div>
 </button>
+
+<style>
+	.flash {
+		animation: flash 450ms ease-out;
+	}
+
+	@keyframes flash {
+		from {
+			filter: brightness(2);
+			box-shadow: 0 0 22px 6px rgb(251 191 36 / 0.7);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.flash {
+			animation: none;
+		}
+	}
+</style>

@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { FEEL } from '#lib/configs/arenaFeel.ts';
-	import { backInOut, cubicOut } from 'svelte/easing';
 	import { Spring } from 'svelte/motion';
-	import { crossfade, draw, fly, slide } from 'svelte/transition';
+	import { fade, fly } from 'svelte/transition';
 
 	type Glyph = {
 		id: string;
@@ -29,7 +28,10 @@
 		y: number;
 	};
 
+	const SIZE_OF_DRAG_TO_BE_DRAG = 40;
+
 	let drag = $state<Drag | null>(null);
+	let movedEnoughToBeDrag = $state(false);
 
 	function press(e: PointerEvent) {
 		if (drag || !e.isPrimary) return;
@@ -44,6 +46,7 @@
 			x: motion.current.x,
 			y: motion.current.y
 		};
+		movedEnoughToBeDrag = false;
 
 		el.setPointerCapture(e.pointerId);
 		onDrag(e.clientX, e.clientY);
@@ -51,6 +54,14 @@
 
 	function move(e: PointerEvent) {
 		if (!drag || e.pointerId !== drag.pointerId) return;
+
+		const dx = e.clientX - drag.startX;
+		const dy = e.clientY - drag.startY;
+
+		if (!movedEnoughToBeDrag) {
+			if (Math.hypot(dx, dy) < SIZE_OF_DRAG_TO_BE_DRAG) return;
+			movedEnoughToBeDrag = true;
+		}
 
 		motion.set({
 			...motion.current,
@@ -65,13 +76,19 @@
 
 		drag = null;
 
-		// motion.target = {
-		// 	x: 0,
-		// 	y: 0,
-		// 	rotation: 0,
-		// 	scale: 1
-		// };
+		motion.target = {
+			x: 0,
+			y: 0,
+			rotation: 0,
+			scale: 1
+		};
 		onDragEnd();
+	}
+
+	function click() {
+		if (!movedEnoughToBeDrag) {
+			onClickHandler();
+		}
 	}
 
 	const motion = Spring.of(
@@ -86,22 +103,21 @@
 </script>
 
 <button
-	transition:fly={{ y: 100, duration: 200 }}
+	transition:fade={{ duration: 200 }}
 	class="card w-full"
 	style:aspect-ratio={FEEL.glyphAspectRatio}
 	style:transform-origin="center bottom"
 	style:translate="{motion.current.x}px {motion.current.y}px"
-	// style:scale={drag ? 1.2 : motion.current.scale}
-	// style:z-index={pose.zIndex}
+	style:z-index={drag ? 500 : 'auto'}
 	onpointerdown={press}
 	onpointermove={move}
 	onpointerup={release}
 	onpointercancel={release}
 	onlostpointercapture={release}
-	onclick={onClickHandler}
+	onclick={click}
 >
 	<div
-		class="flex h-full w-full items-center justify-center
+		class="flash flex h-full w-full items-center justify-center
            rounded border-2 border-amber-700 bg-amber-900 text-5xl text-white transition-all duration-1000 ease-in-out"
 	>
 		{glyph.letter}
@@ -109,9 +125,20 @@
 </button>
 
 <style>
-	.card {
-		transition:
-			rotate 160ms ease-out,
-			scale 50ms ease-out;
+	.flash {
+		animation: flash 450ms ease-out;
+	}
+
+	@keyframes flash {
+		from {
+			filter: brightness(2);
+			box-shadow: 0 0 22px 6px rgb(251 191 36 / 0.7);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.flash {
+			animation: none;
+		}
 	}
 </style>

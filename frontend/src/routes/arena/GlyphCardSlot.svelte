@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { FEEL } from '#lib/configs/arenaFeel.ts';
+	import { backInOut, cubicOut } from 'svelte/easing';
 	import { Spring } from 'svelte/motion';
+	import { crossfade, draw, fly, slide } from 'svelte/transition';
 
 	type Glyph = {
 		id: string;
@@ -63,12 +65,12 @@
 
 		drag = null;
 
-		motion.target = {
-			x: 0,
-			y: 0,
-			rotation: 0,
-			scale: 1
-		};
+		// motion.target = {
+		// 	x: 0,
+		// 	y: 0,
+		// 	rotation: 0,
+		// 	scale: 1
+		// };
 		onDragEnd();
 	}
 
@@ -84,6 +86,7 @@
 </script>
 
 <button
+	transition:fly={{ y: 100, duration: 200 }}
 	class="card w-full"
 	style:aspect-ratio={FEEL.glyphAspectRatio}
 	style:transform-origin="center bottom"
@@ -99,7 +102,7 @@
 >
 	<div
 		class="flex h-full w-full items-center justify-center
-           rounded-xl border-2 border-amber-700 bg-amber-900 text-5xl text-white transition-all duration-1000 ease-in-out"
+           rounded border-2 border-amber-700 bg-amber-900 text-5xl text-white transition-all duration-1000 ease-in-out"
 	>
 		{glyph.letter}
 	</div>

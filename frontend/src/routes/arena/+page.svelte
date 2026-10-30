@@ -40,7 +40,6 @@
 			if (slotEl) {
 				const r = slotEl.getBoundingClientRect();
 				const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
-				const rect = slotEl.getBoundingClientRect();
 				if (d < r.height * TARGET_RADIUS && d < bestDist) {
 					best = i;
 					bestDist = d;
@@ -132,9 +131,11 @@
 		{/each}
 	</div>
 
-	<p class="absolute top-2 left-3 text-2xl text-gray-500">Target: {targetSlot ?? 'none'}</p>
+	<p class="absolute top-2 left-3 text-2xl text-gray-500">
+		Target: {targetSlot >= 0 ? targetSlot : 'none'}
+	</p>
 
-	{#each hand_ids as glyphId, i (glyphId)}
+	{#each hand_ids as glyphId (glyphId)}
 		<GlyphCardHand
 			glyph={glyphs_by_id[glyphId]}
 			pose={calculateLayout(glyphId)}

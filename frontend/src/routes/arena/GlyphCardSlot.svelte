@@ -1,12 +1,8 @@
 <script lang="ts">
 	import { FEEL } from '#lib/configs/arenaFeel.ts';
 	import { Spring } from 'svelte/motion';
-	import { fade, fly } from 'svelte/transition';
-
-	type Glyph = {
-		id: string;
-		letter: string;
-	};
+	import { fade } from 'svelte/transition';
+	import type { Glyph } from './types';
 
 	let {
 		glyph,
@@ -28,7 +24,7 @@
 		y: number;
 	};
 
-	const SIZE_OF_DRAG_TO_BE_DRAG = 40;
+	const SIZE_OF_DRAG_TO_BE_DRAG = 10;
 
 	let drag = $state<Drag | null>(null);
 	let movedEnoughToBeDrag = $state(false);
@@ -117,8 +113,8 @@
 	onclick={click}
 >
 	<div
-		class="flash flex h-full w-full items-center justify-center
-           rounded border-2 border-amber-700 bg-amber-900 text-5xl text-white transition-all duration-1000 ease-in-out"
+		class="flash relative flex h-full w-full items-center justify-center
+           rounded border-2 border-amber-700 bg-amber-900 text-5xl text-white"
 	>
 		{glyph.letter}
 	</div>

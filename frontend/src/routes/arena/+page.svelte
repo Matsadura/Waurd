@@ -8,7 +8,7 @@
 
 	let glyphs_by_id = $state<Record<string, Glyph>>(
 		Object.fromEntries(
-			'ALIJBAEIISMYN'.split('').map((letter, i) => {
+			'ALIJBAEIISM1'.split('').map((letter, i) => {
 				const id = `g${i}`;
 				return [id, { id, letter }];
 			})
@@ -51,49 +51,41 @@
 		targetSlot = best;
 	}
 
-	function calculateLayout(glyphId: string): Pose {
-		const index = hand_ids.indexOf(glyphId);
-		const outer = (hand_ids.length - 1) / 2;
-		const offset = index - outer;
-		const hoveredIndex = hand_hovered_id ? hand_ids.indexOf(hand_hovered_id) : -1;
+	const FAN = {
+		radius: 2050,
+		anglePerCard: 2,
+		maxSpread: 30
+	};
 
-		const step = FEEL.spacing;
-		const angle = Math.min(FEEL.rotation, FEEL.maxFan / Math.max(outer, 1));
+	function calculateLayout(glyphId: string): Pose {
+		const count = hand_ids.length;
+		const index = hand_ids.indexOf(glyphId);
+		const offset = index - (count - 1) / 2;
+		const hoveredIndex = hand_hovered_id ? hand_ids.indexOf(hand_hovered_id) : -1;
+		const stepAngle = Math.min(FAN.anglePerCard, FAN.maxSpread / Math.max(count - 1, 1));
+		const angle = offset * stepAngle;
+		const rad = (angle * Math.PI) / 180;
 
 		const rest: Pose = {
-			x: offset * step,
-			y: -FEEL.cardBottom + offset * offset * FEEL.curvature,
-			rotation: offset * angle,
+			x: FAN.radius * Math.sin(rad),
+			y: FAN.radius * (1 - Math.cos(rad)) * 1.3,
+			rotation: angle,
 			scale: 1,
 			zIndex: 1 + index
 		};
 
 		if (glyphId === hand_hovered_id) {
-			return {
-				...rest,
-				rotation: 0,
-				y: 0,
-				x: rest.x + 5 * offset,
-				scale: FEEL.scale,
-				zIndex: 50
-			};
+			return { ...rest, rotation: 0, y: 0, x: rest.x + 1 * offset, scale: FEEL.scale, zIndex: 50 };
 		}
-
-		if (hand_hovered_id === null) {
-			return rest;
-		}
+		if (hand_hovered_id === null) return rest;
 
 		const side = index < hoveredIndex ? -1 : 1;
-		return {
-			...rest,
-			x: rest.x + side * FEEL.neighborPush
-		};
+		return { ...rest, x: rest.x + side * FEEL.neighborPush };
 	}
 
 	function moveToSlot(id: string, index: number) {
 		if (!glyphs_by_id[id] || index < 0 || index >= SLOT_COUNT) return;
 		if (slot_ids[index] !== null && slot_ids[index] !== id) return;
-		hand_ids = hand_ids.filter((value) => value !== id);
 		slot_ids = slot_ids.map((value) => (value === id ? null : value));
 		slot_ids[index] = id;
 		hand_hovered_id = null;
@@ -117,7 +109,7 @@
 				bind:this={slotEls[i]}
 				style:aspect-ratio={FEEL.glyphAspectRatio}
 				class={[
-					'w-36 rounded-2xl border border-dashed border-amber-800 transition-colors duration-150',
+					'w-36 rounded border border-dashed border-amber-800 transition-colors duration-150',
 					targetSlot === i ? 'border-amber-100' : 'border-gray-600'
 				]}
 			>
@@ -135,7 +127,7 @@
 
 	<p class="absolute top-2 left-3 text-2xl text-gray-500">Target: {targetSlot ?? 'none'}</p>
 
-	{#each hand_ids as glyphId, i}
+	{#each hand_ids as glyphId, i (glyphId)}
 		<GlyphCardHand
 			glyph={glyphs_by_id[glyphId]}
 			pose={calculateLayout(glyphId)}

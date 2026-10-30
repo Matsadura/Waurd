@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { FEEL } from '#lib/configs/arenaFeel.ts';
+	import { backIn, backInOut, cubicOut } from 'svelte/easing';
 	import { Spring } from 'svelte/motion';
+	import { fly, slide } from 'svelte/transition';
 
 	type Glyph = {
 		id: string;
@@ -92,12 +94,14 @@
 			rotation: pose.rotation,
 			scale: pose.scale
 		}),
-		{ stiffness: 0.07, damping: 0.3 }
+		{ stiffness: 0.05, damping: 0.4 }
 	);
 </script>
 
 <button
-	class="card absolute bottom-0 left-1/2 -ml-24 h-60"
+	in:fly={{ y: -100, duration: 200 }}
+	out:fly={{ y: -100, duration: 200 }}
+	class="card absolute bottom-0 left-1/2 -ml-24 w-[calc((1em+1vw)*4)]"
 	style:aspect-ratio={FEEL.glyphAspectRatio}
 	style:transform-origin="center bottom"
 	style:translate="{motion.current.x}px {motion.current.y}px"
@@ -115,16 +119,8 @@
 >
 	<div
 		class="flex h-full w-full items-center justify-center
-           rounded-xl border-2 border-amber-700 bg-amber-900 text-5xl text-white transition-all duration-1000 ease-in-out"
+           rounded border-2 border-amber-700 bg-amber-900 text-5xl text-white transition-all duration-1000 ease-in-out"
 	>
 		{glyph.letter}
 	</div>
 </button>
-
-<style>
-	.card {
-		transition:
-			rotate 160ms ease-out,
-			scale 50ms ease-out;
-	}
-</style>

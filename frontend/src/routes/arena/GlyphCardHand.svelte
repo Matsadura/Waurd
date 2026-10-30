@@ -1,20 +1,8 @@
 <script lang="ts">
 	import { FEEL } from '#lib/configs/arenaFeel.ts';
 	import { Spring } from 'svelte/motion';
-	import { fade, fly } from 'svelte/transition';
-
-	type Glyph = {
-		id: string;
-		letter: string;
-	};
-
-	type Pose = {
-		x: number;
-		y: number;
-		rotation: number;
-		scale: number;
-		zIndex: number;
-	};
+	import { fade } from 'svelte/transition';
+	import type { Glyph, Pose } from './types';
 
 	let {
 		glyph,
@@ -40,7 +28,7 @@
 		y: number;
 	};
 
-	const SIZE_OF_DRAG_TO_BE_DRAG = 40;
+	const SIZE_OF_DRAG_TO_BE_DRAG = 10;
 
 	let drag = $state<Drag | null>(null);
 	let movedEnoughToBeDrag = $state(false);
@@ -62,7 +50,6 @@
 
 		el.setPointerCapture(e.pointerId);
 		onHover(false);
-		onDrag(e.clientX, e.clientY);
 	}
 
 	function move(e: PointerEvent) {
@@ -74,13 +61,17 @@
 		if (!movedEnoughToBeDrag) {
 			if (Math.hypot(dx, dy) < SIZE_OF_DRAG_TO_BE_DRAG) return;
 			movedEnoughToBeDrag = true;
+			onHover(false);
 		}
 
-		motion.set({
-			...motion.current,
-			x: drag.x + e.clientX - drag.startX,
-			y: drag.y + e.clientY - drag.startY
-		});
+		motion.set(
+			{
+				...motion.current,
+				x: drag.x + e.clientX - drag.startX,
+				y: drag.y + e.clientY - drag.startY
+			},
+			{ instant: true }
+		);
 		onDrag(e.clientX, e.clientY);
 	}
 
@@ -93,6 +84,7 @@
 			rotation: pose.rotation,
 			scale: pose.scale
 		};
+
 		drag = null;
 		onDragEnd();
 	}

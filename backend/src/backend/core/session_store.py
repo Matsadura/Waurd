@@ -4,7 +4,7 @@ from typing import Any
 
 import redis.asyncio as aioredis
 
-from backend.core.identifiers import user_id_to_bytes, user_id_to_string
+from backend.core.identifiers import user_id_to_string
 
 
 class RedisSessionStore:
@@ -59,3 +59,7 @@ class RedisSessionStore:
     async def invalidate_session(self, user_id: bytes | str) -> None:
         """Invalidate all sessions for a user, typically after sensitive updates."""
         await self.delete_all_user_sessions(user_id)
+
+    async def refresh_session(self, session_id: str) -> bool:
+        """Refresh the TTL and report whether the session still exists."""
+        return bool(await self.redis.expire(self._key(session_id), self.ttl))

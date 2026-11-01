@@ -2,16 +2,15 @@
 import secrets
 
 import redis.asyncio as aioredis
-from fastapi import Cookie, Depends, Header, HTTPException, Request, status
-from fastapi.security import APIKeyCookie
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from backend.core.config import settings
 from backend.core.identifiers import user_id_to_bytes
 from backend.core.session_store import RedisSessionStore
 from backend.db.session import get_db
 from backend.models.user import User
 from backend.repositories.user import UserRepository
+from fastapi import Cookie, Depends, Header, HTTPException, Request, status
+from fastapi.security import APIKeyCookie
+from sqlalchemy.ext.asyncio import AsyncSession
 
 cookie_scheme = APIKeyCookie(name=settings.SESSION_COOKIE_NAME, auto_error=False)
 

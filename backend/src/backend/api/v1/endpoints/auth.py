@@ -84,6 +84,47 @@ async def logout(
     response.delete_cookie(key=settings.CSRF_COOKIE_NAME, path="/")
 
 
+@router.post(
+    "/refresh-session",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(verify_csrf)],
+)
+async def refresh_session(
+    response: Response,
+    session_id: str | None = Depends(cookie_scheme),
+    session_store: RedisSessionStore = Depends(get_session_store),
+) -> None:
+    """Refresh the current session and extend the browser cookie lifetimes."""
+    if not session_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No active session to refresh.",
+        )
+
+    if not await session_store.refresh_session(session_id):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired or invalid",
+        )
+
+    response.set_cookie(
+        key=settings.SESSION_COOKIE_NAME,
+        value=session_id,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+        max_age=settings.SESSION_TTL_SECONDS,
+    )
+    response.set_cookie(
+        key=settings.CSRF_COOKIE_NAME,
+        value=secrets.token_urlsafe(32),
+        httponly=False,
+        secure=settings.COOKIE_SECURE,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+        max_age=settings.SESSION_TTL_SECONDS,
+    )
+
+
 @router.post("/register", response_model=UserResponse)
 async def register_user(
     user_create: UserCreateRequest,

@@ -1,10 +1,12 @@
 import json
 import secrets
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import redis.asyncio as aioredis
 
-from backend.core.identifiers import user_id_to_bytes, user_id_to_string
+from backend.core.config import settings
+from backend.core.identifiers import user_id_to_string
 
 
 class RedisSessionStore:
@@ -59,3 +61,17 @@ class RedisSessionStore:
     async def invalidate_session(self, user_id: bytes | str) -> None:
         """Invalidate all sessions for a user, typically after sensitive updates."""
         await self.delete_all_user_sessions(user_id)
+
+
+# see what is  the diff
+
+redis_client = aioredis.from_url(
+    f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}",
+    encoding="utf-8",
+    decode_responses=True,
+)
+
+
+async def get_redis_client() -> AsyncGenerator[aioredis.Redis, None]:
+    """FastAPI route dependency yielding the global async Redis client instance."""
+    yield redis_client

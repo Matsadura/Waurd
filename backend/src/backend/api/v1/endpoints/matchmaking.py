@@ -1,8 +1,6 @@
-import uuid
-
-from backend.api.dependencies.auth import get_current_user
+from backend.api.dependencies.auth import get_current_user, get_redis
+from backend.core.identifiers import user_id_to_string as bytes_to_str
 from backend.core.matchmaking_store import MatchmakingQueueStore
-from backend.core.session_store import get_session_store
 from backend.db.session import get_db
 from backend.models.user import User
 from backend.repositories.match import MatchRepository
@@ -12,10 +10,6 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/matchmaking", tags=["Matchmaking & Matches"])
-
-
-def bytes_to_str(binary_uuid: bytes) -> str:
-    return str(uuid.UUID(bytes=binary_uuid))
 
 
 @router.post(
@@ -28,7 +22,7 @@ async def join_queue(
     payload: QueueJoinRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    redis: Redis = Depends(get_session_store),
+    redis: Redis = Depends(get_redis),
 ):
     """
     Join the matchmaking pool for the selected time control (60s, 180s, 300s).

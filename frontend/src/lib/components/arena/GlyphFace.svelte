@@ -27,9 +27,7 @@
 
 		<footer class="card__footer">
 			<p class="card__description">Deal <b class="text-red-300">90</b> damage</p>
-			<p class="card__modifier">
-				The modifier slot description, and also this can grow up a little bit?
-			</p>
+			<p class="card__modifier">x5 if at end of word</p>
 		</footer>
 	</div>
 </article>
@@ -40,7 +38,8 @@
 		--card-text: #fff1c3;
 		--card-subtext: #fee2e2;
 		--card-border: #fff1c3;
-		--card-border: #fff1c3;
+		--card-bg: #063528;
+		--card-border-light: #3c836f7e;
 
 		container-type: inline-size;
 		width: 100%;
@@ -48,6 +47,8 @@
 		background-color: var(--card-bg);
 		color: var(--card-text);
 		font-family: 'Kreon', serif;
+		border: 1px solid var(--card-border-light);
+		user-select: none;
 	}
 
 	.card__frame {
@@ -94,12 +95,14 @@
 	}
 
 	.card__footer {
-		margin: 5cqi 0cqi;
+		margin: 5cqi 1cqi;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		justify-content: center;
 		text-align: center;
 		line-height: 1.25;
+		min-height: 50cqi;
 	}
 
 	.card__description {

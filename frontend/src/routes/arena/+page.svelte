@@ -2,6 +2,7 @@
 	import GlyphCardHand from './GlyphCardHand.svelte';
 	import GlyphCardSlot from './GlyphCardSlot.svelte';
 	import { FEEL } from '#lib/configs/arenaFeel.ts';
+	import GlyphsList from '#lib/components/arena/GlyphsList.svelte';
 
 	const SLOT_COUNT = 8;
 	type Glyph = { id: string; letter: string };
@@ -26,6 +27,9 @@
 	let slotEls: HTMLElement[] = $state([]);
 	let targetSlot = $state<number>(-1);
 	const TARGET_RADIUS = 0.9;
+
+	let showDrawPile = $state(false);
+	let showDiscardPile = $state(false);
 
 	let slot_ids = $state<(string | null)[]>(Array(SLOT_COUNT).fill(null));
 	let hand_ids = $derived(Object.keys(glyphs_by_id).filter((key) => !slot_ids.includes(key)));
@@ -131,10 +135,6 @@
 		{/each}
 	</div>
 
-	<p class="absolute top-2 left-3 text-2xl text-gray-500">
-		Target: {targetSlot >= 0 ? targetSlot : 'none'}
-	</p>
-
 	{#each hand_ids as glyphId (glyphId)}
 		<GlyphCardHand
 			glyph={glyphs_by_id[glyphId]}
@@ -145,6 +145,22 @@
 			onHover={(hovered) => (hand_hovered_id = hovered ? glyphId : null)}
 		/>
 	{/each}
+
+	<button
+		class="absolute bottom-16 left-16 cursor-pointer rounded border p-4 text-2xl text-white"
+		style:z-index={showDrawPile ? '99' : 'auto'}
+		onclick={() => (showDrawPile = !showDrawPile)}
+		>{showDrawPile ? 'Hide' : 'Show'} draw pile</button
+	>
+	<GlyphsList show={showDrawPile} title={'Your draw pile'} />
+
+	<button
+		class="absolute right-16 bottom-16 cursor-pointer items-center rounded border p-4 text-2xl text-white"
+		style:z-index={showDiscardPile ? '99' : 'auto'}
+		onclick={() => (showDiscardPile = !showDiscardPile)}
+		>{showDiscardPile ? 'Hide' : 'Show'} discard pile
+	</button>
+	<GlyphsList show={showDiscardPile} title={'You discard pile'} />
 </div>
 
 <style>

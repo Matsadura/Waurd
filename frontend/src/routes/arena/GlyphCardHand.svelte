@@ -3,7 +3,7 @@
 	import { Spring } from 'svelte/motion';
 	import { fade } from 'svelte/transition';
 	import type { Glyph, Pose } from './types';
-	import GlyphFace from './GlyphFace.svelte';
+	import GlyphFace from '#lib/components/arena/GlyphFace.svelte';
 
 	let {
 		glyph,
@@ -125,11 +125,8 @@
 	onlostpointercapture={release}
 	onclick={click}
 >
-	<div
-		class="flash flex h-full w-full items-center justify-center
-           rounded border border-green-700 bg-amber-900 text-5xl text-white transition-all ease-in-out"
-	>
-		<GlyphFace />
+	<div class="flash h-full w-full rounded transition-all ease-in-out">
+		<GlyphFace letter={glyph.letter} />
 	</div>
 </button>
 

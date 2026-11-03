@@ -3,6 +3,7 @@
 	import { Spring } from 'svelte/motion';
 	import { fade } from 'svelte/transition';
 	import type { Glyph, Pose } from './types';
+	import GlyphFace from './GlyphFace.svelte';
 
 	let {
 		glyph,
@@ -126,9 +127,9 @@
 >
 	<div
 		class="flash flex h-full w-full items-center justify-center
-           rounded border-2 border-amber-700 bg-amber-900 text-5xl text-white transition-all ease-in-out"
+           rounded border border-green-700 bg-amber-900 text-5xl text-white transition-all ease-in-out"
 	>
-		{glyph.letter}
+		<GlyphFace />
 	</div>
 </button>
 

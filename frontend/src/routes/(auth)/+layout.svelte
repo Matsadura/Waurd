@@ -43,7 +43,6 @@
 </div>
 
 <style>
-	/* The small triangle above the active tab (sized in em, so it scales with the tab text) */
 	.auth-tabs a[aria-current='page']::before {
 		content: '';
 		position: absolute;

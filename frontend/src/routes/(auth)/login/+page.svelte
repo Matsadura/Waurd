@@ -36,7 +36,7 @@
 
 	<p class="mt-2 min-h-5 text-center text-base text-[#ff0000] sm:mt-3 sm:text-lg" role="alert">
 		<!-- {#if showTermsError}
-		*You must accept our Terms of Service
+			*Error message for later
 		{/if} -->
 	</p>
 

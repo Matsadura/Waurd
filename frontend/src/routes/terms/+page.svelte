@@ -252,12 +252,3 @@
 		</footer>
 	</main>
 </div>
-
-<style>
-	@font-face {
-		font-family: 'Henny Penny';
-		src: url('/fonts/HennyPenny-Regular.ttf') format('truetype');
-		font-weight: 400;
-		font-style: normal;
-	}
-</style>

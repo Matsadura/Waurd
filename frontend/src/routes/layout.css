@@ -26,3 +26,7 @@
 	--font-rajdhani: 'Rajdhani', sans-serif;
 	--font-henny-penny: 'Henny Penny', cursive;
 }
+
+body {
+	font-family: var(--font-rajdhani);
+}

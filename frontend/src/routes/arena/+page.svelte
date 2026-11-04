@@ -165,13 +165,13 @@
 
 <style>
 	.flash {
-		animation: flash 950ms ease-in-out infinite;
+		animation: flash 800ms ease-in-out infinite;
 	}
 
 	@keyframes flash {
 		from {
-			filter: brightness(1.1);
-			box-shadow: 0 0 1px 6px rgba(68, 49, 1, 0.7);
+			filter: brightness(1.4);
+			box-shadow: 0 0 0px 6px rgba(231, 70, 6, 0.4);
 		}
 	}
 

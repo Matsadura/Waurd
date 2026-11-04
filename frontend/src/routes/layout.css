@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+@plugin '@tailwindcss/typography';
+
+@font-face {
+	font-family: 'Henny Penny';
+	src: url('/fonts/HennyPenny-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Rajdhani';
+	src: url('/fonts/Rajdhani-Bold.ttf') format('truetype');
+	font-weight: 700;
+	font-style: normal;
+}
+
+@theme {
+	--color-background: #100d14;
+	--color-text-primary: #f5f3f5;
+	--color-accent: #fa8c01;
+	--color-accent-red: #ef4637;
+	--color-accent-action: #ff8a00;
+
+	--font-rajdhani: 'Rajdhani', sans-serif;
+	--font-henny-penny: 'Henny Penny', cursive;
+}
+
+body {
+	font-family: var(--font-rajdhani);
+}

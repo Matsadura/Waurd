@@ -5,6 +5,24 @@ from datetime import datetime
 from redis.asyncio import Redis
 
 
+# Lua Script 1: Atomic Queue Join (prevents duplicate queueing & partial writes)
+LUA_JOIN_QUEUE = """
+local user_key = KEYS[1]
+local queue_key = KEYS[2]
+local user_id = ARGV[1]
+local ticket_json = ARGV[2]
+local ttl = tonumber(ARGV[3])
+
+if redis.call("EXISTS", user_key) == 1 then
+    return redis.call("GET", user_key)
+end
+
+redis.call("SET", user_key, ticket_json, "EX", ttl)
+redis.call("RPUSH", queue_key, user_id)
+return ticket_json
+"""
+
+
 class MatchmakingQueueStore:
     def __init__(self, redis_client: Redis):
         self.redis = redis_client
@@ -25,24 +43,24 @@ class MatchmakingQueueStore:
         if existing_ticket:
             return json.loads(existing_ticket)
 
-        ticket_id = str(uuid.uuid4())
-        queued_at = datetime.utcnow().isoformat()
-
         ticket_data = {
-            "ticket_id": ticket_id,
+            "ticket_id": str(uuid.uuid4()),
             "user_id": user_id_str,
             "time_control_seconds": time_control,
             "status": "QUEUED",
-            "queued_at": queued_at,
+            "queued_at": datetime.utcnow().isoformat(),
             "matched_match_id": None,
         }
-
-        # Store user ticket state (expires in 10 minutes max if abandoned)
-        await self.redis.set(user_key, json.dumps(ticket_data), ex=600)
-        # Push user ID to queue list for this time control
-        await self.redis.rpush(queue_key, user_id_str)
-
-        return ticket_data
+        res_raw = await self.redis.eval(
+            LUA_JOIN_QUEUE,
+            2,
+            user_key,
+            queue_key,
+            user_id_str,
+            json.dumps(ticket_data),
+            600,
+        )
+        return json.loads(res_raw)
 
     async def get_user_ticket(self, user_id_str: str) -> dict | None:
         """Fetches active queue ticket for a given user."""

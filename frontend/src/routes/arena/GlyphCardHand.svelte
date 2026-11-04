@@ -132,13 +132,13 @@
 
 <style>
 	.flash {
-		animation: flash 450ms ease-out;
+		animation: flash 650ms ease-out;
 	}
 
 	@keyframes flash {
 		from {
-			filter: brightness(2);
-			box-shadow: 0 0 22px 6px rgb(251 191 36 / 0.7);
+			filter: brightness(3);
+			box-shadow: 0 0 5px 25px rgba(206, 204, 76, 0.6);
 		}
 	}
 

@@ -3,6 +3,7 @@
 	import { Spring } from 'svelte/motion';
 	import { fade } from 'svelte/transition';
 	import type { Glyph } from './types';
+	import GlyphFace from '#lib/components/arena/GlyphFace.svelte';
 
 	let {
 		glyph,
@@ -100,11 +101,11 @@
 
 <button
 	transition:fade={{ duration: 200 }}
-	class="card w-full"
+	class="card flash relative w-full"
 	style:aspect-ratio={FEEL.glyphAspectRatio}
 	style:transform-origin="center bottom"
 	style:translate="{motion.current.x}px {motion.current.y}px"
-	style:z-index={drag ? 500 : 'auto'}
+	style:z-index={drag ? 99 : 'auto'}
 	onpointerdown={press}
 	onpointermove={move}
 	onpointerup={release}
@@ -112,23 +113,18 @@
 	onlostpointercapture={release}
 	onclick={click}
 >
-	<div
-		class="flash relative flex h-full w-full items-center justify-center
-           rounded border-2 border-amber-700 bg-amber-900 text-5xl text-white"
-	>
-		{glyph.letter}
-	</div>
+	<GlyphFace letter={glyph.letter} />
 </button>
 
 <style>
 	.flash {
-		animation: flash 450ms ease-out;
+		animation: flash 950ms ease-out;
 	}
 
 	@keyframes flash {
 		from {
-			filter: brightness(2);
-			box-shadow: 0 0 22px 6px rgb(251 191 36 / 0.7);
+			filter: brightness(1);
+			box-shadow: 0 0 5px 15px rgba(206, 204, 76, 0.6);
 		}
 	}
 

@@ -18,6 +18,9 @@ class RedisSessionStore:
     def _key(self, session_id: str) -> str:
         return f"{self.prefix}{session_id}"
 
+    def _oauth_state_key(self, state: str) -> str:
+        return f"{self.prefix}oauth-state:{state}"
+
     async def create_session(
         self, user_id: bytes | str, metadata: dict[str, Any] | None = None
     ) -> str:
@@ -55,6 +58,18 @@ class RedisSessionStore:
             val = await self.redis.get(key)
             if val and json.loads(val).get("user_id") == user_id_to_string(user_id):
                 await self.redis.delete(key)
+
+    async def create_oauth_state(self, state: str, ttl_seconds: int) -> None:
+        """Store a short-lived, single-use OAuth state value."""
+        await self.redis.set(
+            self._oauth_state_key(state),
+            "1",
+            ex=ttl_seconds,
+        )
+
+    async def consume_oauth_state(self, state: str) -> bool:
+        """Consume an OAuth state value exactly once."""
+        return bool(await self.redis.getdel(self._oauth_state_key(state)))
 
     async def invalidate_session(self, user_id: bytes | str) -> None:
         """Invalidate all sessions for a user, typically after sensitive updates."""

@@ -1,8 +1,9 @@
 <script lang="ts">
 	import GlyphCardHand from './GlyphCardHand.svelte';
 	import GlyphCardSlot from './GlyphCardSlot.svelte';
-	import { FEEL } from '#lib/configs/arenaFeel.ts';
+	import { FEEL } from '#lib/utils/arena.svelte.ts';
 	import GlyphsList from '#lib/components/arena/GlyphsList.svelte';
+	import { device } from '#lib/components/arena/device.svelte.ts';
 
 	const SLOT_COUNT = 8;
 	type Glyph = { id: string; letter: string };
@@ -112,7 +113,10 @@
 	}
 </script>
 
-<div class="relative h-dvh overflow-hidden bg-gray-950 select-none">
+<div
+	class="relative h-dvh overflow-hidden bg-gray-950 select-none"
+	style:transform={device.isMobile && 'retate(90deg)'}
+>
 	<div class="absolute inset-x-0 top-1/3 flex items-start justify-center gap-2 px-4">
 		{#each slot_ids as glyphId, i}
 			<div

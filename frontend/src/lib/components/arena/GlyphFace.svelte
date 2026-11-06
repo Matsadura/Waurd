@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { FEEL } from '#lib/configs/arenaFeel.ts';
+	import { FEEL } from '#lib/utils/arena.svelte.ts';
 	import horse from '#lib/assets/horse.png';
 
 	let {
@@ -20,7 +20,8 @@
 				<span class="card__rank">{letter}</span>
 				<span class="card__type">SKILL</span>
 			</div>
-			<img src={horse} alt="knight icon" class="card__icon" />
+			<!-- <img src={horse} alt="knight icon" class="card__icon" /> -->
+			<p class="card__icon">⚔</p>
 		</header>
 
 		<main class="card__body">{letter}</main>
@@ -84,8 +85,12 @@
 	}
 
 	.card__icon {
-		margin-top: 1cqi;
-		width: 16cqi;
+		/* margin-top: 1cqi; */
+		/* width: 16cqi; */
+		font-size: 20cqi;
+		line-height: 0.9;
+		text-align: start;
+		/* margin-left: 1cqi; */
 	}
 
 	.card__body {

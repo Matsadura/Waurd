@@ -1,10 +1,14 @@
-from backend.api.dependencies.auth import get_current_user, get_redis
+from backend.api.dependencies.auth import (
+    get_current_user,
+    get_redis,
+)
+from backend.core.dependencies import get_matchmaking_queue
 from backend.core.identifiers import user_id_to_string as bytes_to_str
 from backend.core.matchmaking_store import MatchmakingQueueStore
 from backend.db.session import get_db
 from backend.models.user import User
 from backend.repositories.match import MatchRepository
-from backend.schemas.matchmaking import QueueJoinRequest, QueueTicketResponse
+from backend.schemas.matchmaking import QueueJoinRequest, QueueTicketResponse, QueueLeaveRequest
 from fastapi import APIRouter, Depends, HTTPException, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,12 +37,35 @@ async def join_queue(
     if active_match:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot queue while currently in an active or pending match.",
+           detail="Cannot queue while currently in an active or pending match.",
+        #   detail=f"Userelo: {current_user.elo}",
         )
 
     # 2. Add user to Redis matchmaking queue
     user_id_str = bytes_to_str(current_user.id)
     queue_store = MatchmakingQueueStore(redis)
-    ticket = await queue_store.add_to_queue(user_id_str, payload.time_control_seconds)
+    ticket = await queue_store.add_to_queue(user_id_str, payload.time_control_seconds, current_user.elo)
 
     return QueueTicketResponse(**ticket)
+
+@router.delete(
+    "/queue",
+    status_code=status.HTTP_200_OK,
+    summary="Leave matchmaking pool",
+)
+async def leave_queue(
+    payload: QueueLeaveRequest,
+    current_user: User = Depends(get_current_user),
+    queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
+):
+    """Atomically removes user from the matchmaking queue and deletes their ticket."""
+    user_id_str = bytes_to_str(current_user.id)
+    cancelled = await queue_store.cancel_queue(user_id_str, payload.time_control_seconds)
+
+    if not cancelled:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Active matchmaking queue ticket not found.",
+        )
+
+    return {"detail": "Successfully removed from matchmaking queue"}

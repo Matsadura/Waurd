@@ -18,4 +18,5 @@ def get_session_store(
 def get_matchmaking_queue(
     redis: aioredis.Redis = Depends(get_redis_client),
 ) -> MatchmakingQueueStore:
+    """Injects MatchmakingQueueStore using the shared Redis connection pool."""
     return MatchmakingQueueStore(redis_client=redis)

@@ -67,10 +67,10 @@ services:
       retries: 10
       start_period: 15s
 
-    waf:
-    build:
-      context: ./nginx
+  waf:
+    image : owasp/modsecurity-crs:nginx
     container_name: waf
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:

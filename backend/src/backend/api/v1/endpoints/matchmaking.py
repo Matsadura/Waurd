@@ -3,12 +3,16 @@ from backend.api.dependencies.auth import (
     get_redis,
 )
 from backend.core.dependencies import get_matchmaking_queue
-from backend.core.identifiers import user_id_to_string as bytes_to_str
+from backend.core.identifiers import user_id_to_string
 from backend.core.matchmaking_store import MatchmakingQueueStore
 from backend.db.session import get_db
 from backend.models.user import User
 from backend.repositories.match import MatchRepository
 from backend.schemas.matchmaking import (
+    CustomMatchCreateRequest,
+    CustomMatchResponse,
+    MatchPlayerResponse,
+    MatchStatusEnum,
     QueueJoinRequest,
     QueueLeaveRequest,
     QueueTicketResponse,
@@ -46,7 +50,7 @@ async def join_queue(
         )
 
     # 2. Add user to Redis matchmaking queue
-    user_id_str = bytes_to_str(current_user.id)
+    user_id_str = user_id_to_string(current_user.id)
     queue_store = MatchmakingQueueStore(redis)
     ticket = await queue_store.add_to_queue(user_id_str, payload.time_control_seconds, current_user.elo)
 
@@ -63,7 +67,7 @@ async def leave_queue(
     queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
 ):
     """Atomically removes user from the matchmaking queue and deletes their ticket."""
-    user_id_str = bytes_to_str(current_user.id)
+    user_id_str = user_id_to_string(current_user.id)
     cancelled = await queue_store.cancel_queue(user_id_str, payload.time_control_seconds)
 
     if not cancelled:
@@ -88,7 +92,7 @@ async def get_queue_status(
     Check current matchmaking ticket state, age in queue, and matched match ID.
     Serves as a polling fallback when WebSocket connections drop.
     """
-    user_id_str = bytes_to_str(current_user.id)
+    user_id_str = user_id_to_string(current_user.id)
 
     ticket = await queue_store.get_user_ticket(user_id_str)
     if not ticket:
@@ -98,3 +102,43 @@ async def get_queue_status(
         )
 
     return QueueTicketResponse(**ticket)
+
+@router.post(
+    "/matches/custom",
+    response_model=CustomMatchResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a private custom lobby or challenge",
+)
+async def create_private_match_lobby(
+    payload: CustomMatchCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Creates a pending match lobby in WAITING status with a private 6-character join code.
+    """
+    match_repo = MatchRepository(db)
+    active_match = await match_repo.get_active_match_for_user(current_user.id)
+    if active_match:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot create a match while in an active or pending match.",
+        )
+
+    match = await match_repo.create_custom_match(
+        creator_id_bytes=current_user.id,
+        time_control_seconds=payload.time_control_seconds,
+    )
+
+    return CustomMatchResponse(
+        id=user_id_to_string(match.id),
+        invite_code=match.invite_code,
+        status=MatchStatusEnum.WAITING,
+        time_control_seconds=match.time_control_seconds,
+        creator=MatchPlayerResponse(
+            id=user_id_to_string(current_user.id),
+            username=current_user.username,
+            avatar_url=getattr(current_user, "avatar_url", None),
+        ),
+        created_at=match.created_at,
+    )

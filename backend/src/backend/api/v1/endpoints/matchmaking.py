@@ -8,7 +8,11 @@ from backend.core.matchmaking_store import MatchmakingQueueStore
 from backend.db.session import get_db
 from backend.models.user import User
 from backend.repositories.match import MatchRepository
-from backend.schemas.matchmaking import QueueJoinRequest, QueueTicketResponse, QueueLeaveRequest
+from backend.schemas.matchmaking import (
+    QueueJoinRequest,
+    QueueLeaveRequest,
+    QueueTicketResponse,
+)
 from fastapi import APIRouter, Depends, HTTPException, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,3 +73,28 @@ async def leave_queue(
         )
 
     return {"detail": "Successfully removed from matchmaking queue"}
+
+@router.get(
+    "/status",
+    response_model=QueueTicketResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Poll queue state as WebSocket fallback",
+)
+async def get_queue_status(
+    current_user: User = Depends(get_current_user),
+    queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
+):
+    """
+    Check current matchmaking ticket state, age in queue, and matched match ID.
+    Serves as a polling fallback when WebSocket connections drop.
+    """
+    user_id_str = bytes_to_str(current_user.id)
+
+    ticket = await queue_store.get_user_ticket(user_id_str)
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active matchmaking ticket found.",
+        )
+
+    return QueueTicketResponse(**ticket)

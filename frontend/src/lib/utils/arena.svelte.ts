@@ -17,9 +17,12 @@ export const FEEL = {
 export class Arena {
 	readonly slotCount = 8;
 
-	glyphs = $state<Glyph[]>([...'ALIJBAEIISM1'].map((letter, i) => ({ id: `g${i}`, letter })));
+	glyphs = $state<Record<string, Glyph>>(
+		Object.fromEntries([...'ABCDEFYGHIJ!L'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }]))
+	);
+	// glyphs = $state<Glyph[]>([...'ALIJBAEIISM1'].map((letter, i) => ({ id: `g${i}`, letter })));
 	slots = $state<(string | null)[]>(Array(this.slotCount).fill(null));
-	hand = $derived(this.glyphs.filter((g) => !this.slots.includes(g.id)));
+	hand = $derived(Object.keys(this.glyphs).filter((g) => !this.slots.includes(g)));
 
 	overSlot = $state(-1);
 
@@ -36,9 +39,12 @@ export class Arena {
 	/**
 	 * Returns the data of a glyph using its id
 	 */
-	glyph(id: string): Glyph | null {
-		const glyphData = this.glyphs.find((g) => g.id === id);
-		return glyphData || null;
+	glyph(id: string): Glyph {
+		const glyph = this.glyphs[id];
+		if (!glyph) {
+			throw new Error(`Unknown glyph: ${id}`);
+		}
+		return this.glyphs[id];
 	}
 
 	/**
@@ -55,25 +61,29 @@ export class Arena {
 	 */
 	remove(id: string) {
 		const i = this.slots.indexOf(id);
-		if (i >= 0) this.slots[i] = null;
+		if (i >= 0) {
+			this.slots[i] = null;
+		}
 	}
 
 	/**
-	 * Should be when tab event is fired at draggable element
+	 * Use when a glyph is clicked on
 	 */
 	toggle(id: string) {
-		if (this.slots.includes(id)) this.remove(id);
-		else this.place(id, this.slots.indexOf(null));
+		if (this.slots.includes(id)) {
+			this.remove(id);
+		} else {
+			this.place(id, this.slots.indexOf(null));
+		}
 	}
 
 	/**
-	 * Should be called while moving card using pointer
+	 * Should be called while moving card using mouse or finger?
 	 */
 	dragOver(x: number, y: number) {
-		// console.log(x, y);
-		let best = -1,
-			bestDist = Infinity;
-		console.log($state.snapshot( this.#slotEls));
+		let best = -1;
+		let bestDist = Infinity;
+
 		this.#slotEls.forEach((el, i) => {
 			if (!el) return;
 			const r = el.getBoundingClientRect();
@@ -84,11 +94,14 @@ export class Arena {
 	}
 
 	/**
-	 * Should be called when the glyph is dropeed, for example calling up while dragging
+	 * Should be called when the glyph is dropeed, for example canceling while dragging
 	 */
 	drop(id: string) {
-		if (this.overSlot >= 0) this.place(id, this.overSlot);
-		else this.remove(id);
+		if (this.overSlot >= 0) {
+			this.place(id, this.overSlot);
+		} else {
+			this.remove(id);
+		}
 		this.overSlot = -1;
 	}
 }
@@ -97,6 +110,8 @@ const KEY = Symbol('arena');
 export const setArena = () => setContext(KEY, new Arena());
 export function getArena() {
 	const arena = getContext<Arena | undefined>(KEY);
-	if (!arena) throw new Error('getArena() called while the its context was never initialized');
+	if (!arena) {
+		throw new Error('getArena() called while the its context was never initialized');
+	}
 	return arena;
 }

@@ -3,10 +3,6 @@ import secrets
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from fastapi.responses import RedirectResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from backend.api.dependencies.auth import (
     cookie_scheme,
     get_session_store,
@@ -21,6 +17,9 @@ from backend.models.user import OAuthProvider, User
 from backend.repositories.user import UserRepository
 from backend.schemas.auth import LoginRequest
 from backend.schemas.user import UserCreateRequest, UserResponse
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi.responses import RedirectResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -282,14 +281,6 @@ async def refresh_session(
         key=settings.SESSION_COOKIE_NAME,
         value=session_id,
         httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite=settings.SESSION_COOKIE_SAMESITE,
-        max_age=settings.SESSION_TTL_SECONDS,
-    )
-    response.set_cookie(
-        key=settings.CSRF_COOKIE_NAME,
-        value=secrets.token_urlsafe(32),
-        httponly=False,
         secure=settings.COOKIE_SECURE,
         samesite=settings.SESSION_COOKIE_SAMESITE,
         max_age=settings.SESSION_TTL_SECONDS,

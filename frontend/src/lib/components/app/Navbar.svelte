@@ -130,33 +130,6 @@
 				/>
 			</form>
 
-			<!-- <form
-				class="hidden w-44 min-w-0 shrink-0 items-center gap-2 rounded-lg
-					border border-white/10 bg-white/5 px-3 py-2
-					md:flex lg:w-52"
-				role="search"
-				onsubmit={(event) => event.preventDefault()}
-			>
-				<svg
-					viewBox="0 0 24 24"
-					class="size-5 shrink-0 text-white/60"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-				>
-					<circle cx="11" cy="11" r="7" />
-					<path d="m20 20-4-4" />
-				</svg>
-				<input
-					type="search"
-					aria-label="Search players"
-					placeholder="Search players..."
-					class="w-full min-w-0 border-0 bg-transparent p-0 text-sm
-						text-text-primary placeholder:text-white/40 focus:ring-0"
-				/>
-			</form> -->
-
 			<!-- Notification button -->
 			<button
 				type="button"
@@ -361,19 +334,6 @@
 								d="M6.5 7h11a4 4 0 0 1 3.9 4.9l-1 4A2.5 2.5 0 0 1 16 17l-2-2H10l-2 2a2.5 2.5 0 0 1-4.4-1.1l-1-4A4 4 0 0 1 6.5 7Z"
 							/>
 						</svg>
-						<!-- {:else if link.icon === 'user-round'}
-						<svg
-							viewBox="0 0 24 24"
-							class="size-5 shrink-0"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.8"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-						>
-							<circle cx="12" cy="8" r="4" />
-							<path d="M5 21v-2a7 7 0 0 1 14 0v2" />
-						</svg> -->
 					{:else if link.icon === 'book-open'}
 						<svg
 							viewBox="0 0 24 24"
@@ -407,32 +367,6 @@
 		</div>
 
 		<div class="my-4 border-t border-white/10"></div>
-
-		<!-- <form
-			role="search"
-			class="flex items-center gap-3 rounded-lg border border-white/10
-                bg-white/5 px-3 py-3"
-			onsubmit={(event) => event.preventDefault()}
-		>
-			<svg
-				viewBox="0 0 24 24"
-				class="size-5 shrink-0 text-white/60"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-			>
-				<circle cx="11" cy="11" r="7" />
-				<path d="m20 20-4-4" />
-			</svg>
-			<input
-				type="search"
-				aria-label="Search players"
-				placeholder="Search players..."
-				class="w-full min-w-0 border-0 bg-transparent p-0 text-sm
-                    text-text-primary placeholder:text-white/40 focus:ring-0"
-			/>
-		</form> -->
 
 		<form
 			role="search"

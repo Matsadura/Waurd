@@ -1,10 +1,11 @@
 # app/repositories/user.py
 from collections.abc import Sequence
 
-from backend.models.user import User
-from backend.repositories.base import BaseRepository
 from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.models.user import OAuthProvider, User
+from backend.repositories.base import BaseRepository
 
 # from sqlalchemy.orm import selectinload
 
@@ -18,6 +19,12 @@ class UserRepository(BaseRepository[User]):
 
     async def get_by_username(self, username: str) -> User | None:
         return await self.get_one_or_none(User.username == username)
+
+    async def get_by_oauth_id(self, provider_id: str) -> User | None:
+        return await self.get_one_or_none(
+            User.oauth_provider == OAuthProvider.GOOGLE,
+            User.oauth_id == provider_id,
+        )
 
     async def search_online_by_query(
         self,

@@ -19,6 +19,31 @@ user id: 00000000-0000-4000-8000-000000000001
 
 After logging in, request `GET /api/v1/users/00000000-0000-4000-8000-000000000001/stats` with the returned session cookie.
 
+## Google authentication
+
+Create a Google OAuth web application in Google Cloud Console and add this authorized redirect URI:
+
+```text
+http://localhost:8000/api/v1/auth/google/callback
+```
+
+Set these backend environment variables before starting the API:
+
+```text
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/auth/google/callback
+GOOGLE_FRONTEND_REDIRECT_URI=http://localhost:3000
+```
+
+Start the flow from the frontend by navigating the browser to `GET /api/v1/auth/google`. The callback creates or finds the Google user, sets the existing session and CSRF cookies, and redirects to `GOOGLE_FRONTEND_REDIRECT_URI`.
+
+Apply the OAuth identity constraint before using the flow:
+
+```bash
+uv run alembic upgrade head
+```
+
 Additional stats test user:
 
 ```text

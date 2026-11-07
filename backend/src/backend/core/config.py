@@ -1,7 +1,8 @@
 # backend/core/config.py
+import os
+
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import os
 
 
 class Settings(BaseSettings):
@@ -39,6 +40,14 @@ class Settings(BaseSettings):
     REDIS_URL: str = (
         os.getenv("REDIS_URL") or "redis://localhost:6379/0"
     )  # Default value; will be overridden by computed property
+
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+    # GOOGLE_FRONTEND_REDIRECT_URI: str = "http://localhost:3000"
+    GOOGLE_FRONTEND_REDIRECT_URI: str = "http://localhost:8000/docs"  # For testing purposes; replace with your frontend URL in production
+    GOOGLE_OAUTH_STATE_TTL_SECONDS: int = 600
 
     # @computed_field
     # @property

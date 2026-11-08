@@ -75,15 +75,36 @@ async def request_validation_error_handler(
     error = exc.errors()[0]
     error_type = error.get("type", "")
     context = error.get("ctx", {})
-
-    messages = {
-        "email_parsing": "Invalid email address",
-        "string_too_short": f"Value must be at least {context.get('min_length', 'the required number of')} characters",
-        "string_too_long": f"Value must be at most {context.get('max_length', 'the allowed number of')} characters",
-        "missing": "This field is required",
-        "uuid_parsing": "Invalid identifier",
+    location = error.get("loc", ())
+    field = str(location[-1]) if location else "value"
+    field_names = {
+        "username": "Username",
+        "email": "Email",
+        "password": "Password",
+        "avatar_url": "Avatar URL",
+        "target_user_id": "User ID",
+        "user_id": "User ID",
+        "request_id": "Request ID",
     }
-    detail = messages.get(error_type, "Invalid request data")
+    field_name = field_names.get(field, "Value")
+
+    if field == "email" or error_type == "email_parsing":
+        detail = "Email must be a valid email address."
+    elif error_type == "string_too_short":
+        detail = (
+            f"{field_name} must be at least {context.get('min_length')} characters."
+        )
+    elif error_type == "string_too_long":
+        detail = f"{field_name} must be at most {context.get('max_length')} characters."
+    elif error_type == "missing":
+        detail = f"{field_name} is required."
+    elif error_type in {"uuid_parsing", "uuid_type"}:
+        detail = f"{field_name} is invalid."
+    elif error_type == "value_error":
+        detail = "Provide a target user ID or username."
+    else:
+        detail = f"{field_name} is invalid."
+
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": detail},
@@ -92,11 +113,15 @@ async def request_validation_error_handler(
 
 @app.exception_handler(IntegrityError)
 async def integrity_error_handler(_: Request, exc: IntegrityError) -> JSONResponse:
+    conflict = str(exc.orig).lower() if exc.orig else str(exc).lower()
+    detail = (
+        "Username or email already exists."
+        if "username" in conflict or "email" in conflict
+        else "Data conflict."
+    )
     return JSONResponse(
         status_code=status.HTTP_409_CONFLICT,
-        content={
-            "detail": "Username or email already exists.",
-        },
+        content={"detail": detail},
     )
 
 
@@ -119,26 +144,26 @@ async def unified_health_check(
     db: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
     redis_client = request.app.state.redis
-    db_error: str | None = None
-    redis_error: str | None = None
+    db_failed = False
+    redis_failed = False
 
     async def check_db() -> bool:
-        nonlocal db_error
+        nonlocal db_failed
         try:
             result = await db.execute(text("SELECT 1"))
             return bool(result.scalar())
-        except Exception as exc:
-            db_error = f"{type(exc).__name__}: {exc}"
-            logger.error("Health check DB failure: %s", db_error)
+        except Exception:
+            db_failed = True
+            logger.exception("Health check DB failure")
             return False
 
     async def check_redis() -> bool:
-        nonlocal redis_error
+        nonlocal redis_failed
         try:
             return bool(await redis_client.ping())
-        except Exception as exc:
-            redis_error = f"{type(exc).__name__}: {exc}"
-            logger.error("Health check Redis failure: %s", redis_error)
+        except Exception:
+            redis_failed = True
+            logger.exception("Health check Redis failure")
             return False
 
     db_ok, redis_ok = await asyncio.gather(check_db(), check_redis())
@@ -149,11 +174,11 @@ async def unified_health_check(
         "services": {
             "database": {
                 "status": "up" if db_ok else "down",
-                **({"error": db_error} if db_error else {}),
+                **({"error": "Database unavailable"} if db_failed else {}),
             },
             "redis": {
                 "status": "up" if redis_ok else "down",
-                **({"error": redis_error} if redis_error else {}),
+                **({"error": "Redis unavailable"} if redis_failed else {}),
             },
         },
     }

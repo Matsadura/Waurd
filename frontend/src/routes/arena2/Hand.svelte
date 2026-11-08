@@ -8,7 +8,7 @@
 <div class="hand fixed inset-x-0 bottom-0 z-40 flex" style:--n={arena.hand.length}>
 	{#each arena.hand as glyphId, i (glyphId)}
 		<button
-			class="card absolute bottom-0 left-1/2 -ml-24 w-48 touch-none hover:shadow-2xl hover:shadow-amber-200/20"
+			class="card absolute bottom-0 left-1/2 -ml-24 w-48 cursor-pointer touch-none hover:shadow-2xl hover:shadow-amber-200/20"
 			style:--i={i}
 			{@attach draggable(
 				(x, y) => arena.dragOver(x, y),
@@ -16,7 +16,7 @@
 				() => arena.toggle(glyphId)
 			)}
 		>
-			<div class="card__visual">
+			<div class="card__visual pulse">
 				<GlyphFace letter={arena.glyph(glyphId)?.letter} />
 			</div>
 		</button>
@@ -49,9 +49,7 @@
 		z-index: calc(1 + var(--i));
 
 		transition: translate 900ms var(--easing);
-		/* width: 100%;
 
-		
 		/**
 		 * Animation source: https://easingwizard.com/
 		 */
@@ -61,14 +59,13 @@
 	.card__visual {
 		--rot: var(--angle);
 		--scale: 1;
+		--pulse-delay: calc(var(--i) * 60ms);
 
 		width: 100%;
 		transform-origin: center bottom;
 
 		rotate: var(--rot);
 		scale: var(--scale);
-		animation: flash 600ms ease-in-out both;
-		animation-delay: calc(var(--i) * 40ms);
 	}
 
 	.card:hover {
@@ -122,7 +119,6 @@
 		height: 100%;
 		top: 0;
 		left: -30%;
-		/* background-color: red !important; */
 	}
 	.card:last-child::after {
 		content: '';
@@ -130,21 +126,5 @@
 		height: 100%;
 		top: 0;
 		left: 30%;
-		/* background-color: red !important; */
-	}
-
-	@keyframes flash {
-		from {
-			filter: brightness(1);
-			box-shadow: 0 0 5px 15px rgba(206, 204, 76, 0.6);
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.card,
-		.card__visual {
-			transition: none;
-			animation: none;
-		}
 	}
 </style>

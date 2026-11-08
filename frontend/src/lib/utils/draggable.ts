@@ -28,7 +28,7 @@ export default function draggable(
 				dy = e.clientY - sy;
 			if (!moved && Math.hypot(dx, dy) < threshold) return;
 			moved = true;
-			el.dataset.dragging = '';
+			el.dataset.dragging = 'true';
 			el.style.setProperty('--dx', `${dx}px`);
 			el.style.setProperty('--dy', `${dy}px`);
 			onMove(e.clientX, e.clientY);

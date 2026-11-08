@@ -79,3 +79,12 @@ class CustomMatchResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class JoinMatchRequest(BaseModel):
+    invite_code: str = Field(
+        ...,
+        min_length=6,
+        max_length=6,
+        description="6-character uppercase invite code",
+    )

@@ -12,59 +12,24 @@
 			{@attach arena.slot(i)}
 			style:aspect-ratio={FEEL.glyphAspectRatio}
 			class={[
-				'w-36 rounded ',
-				arena.overSlot === i ? 'suspanse' : '',
-				glyphId ? '' : 'border border-dashed border-amber-100/50'
+				'w-36 rounded border border-dashed border-amber-100/30',
+				arena.overSlot === i ? 'suspanse-pulse' : ''
 			]}
 		>
-			{#if glyphId}
-				<button
-					class="flash w-full translate-x-(--dx) translate-y-(--dy) transition-[scale] hover:scale-120"
-					{@attach draggable(
-						(x, y) => arena.dragOver(x, y),
-						() => arena.drop(glyphId),
-						() => arena.toggle(glyphId)
-					)}
-				>
-					<GlyphFace letter={arena.glyph(glyphId).letter} />
-				</button>
-			{/if}
+			{#key glyphId}
+				{#if glyphId}
+					<button
+						class="pulse w-full translate-x-(--dx) translate-y-(--dy) cursor-pointer"
+						{@attach draggable(
+							(x, y) => arena.dragOver(x, y),
+							() => arena.drop(glyphId),
+							() => arena.toggle(glyphId)
+						)}
+					>
+						<GlyphFace letter={arena.glyph(glyphId).letter} />
+					</button>
+				{/if}
+			{/key}
 		</div>
 	{/each}
 </div>
-
-<style>
-	.suspanse {
-		animation: suspanse 800ms ease-in-out infinite;
-	}
-
-	@keyframes suspanse {
-		from {
-			filter: brightness(1.1);
-			box-shadow: 0 0 2px 5px #fff1c3f6;
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.suspanse {
-			animation: none;
-		}
-	}
-
-	.flash {
-		animation: flash 950ms ease-out;
-	}
-
-	@keyframes flash {
-		from {
-			filter: brightness(1);
-			box-shadow: 0 0 5px 15px rgba(206, 204, 76, 0.6);
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.flash {
-			animation: none;
-		}
-	}
-</style>

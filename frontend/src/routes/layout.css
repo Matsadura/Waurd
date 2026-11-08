@@ -303,4 +303,6 @@
 	from {
 		width: 0;
 	}
+@theme {
+	--color-arena-yallow-100: #fff1c3;
 }

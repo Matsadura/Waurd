@@ -20,7 +20,6 @@ export class Arena {
 	glyphs = $state<Record<string, Glyph>>(
 		Object.fromEntries([...'ABCDEFYGHIJ!L'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }]))
 	);
-	// glyphs = $state<Glyph[]>([...'ALIJBAEIISM1'].map((letter, i) => ({ id: `g${i}`, letter })));
 	slots = $state<(string | null)[]>(Array(this.slotCount).fill(null));
 	hand = $derived(Object.keys(this.glyphs).filter((g) => !this.slots.includes(g)));
 
@@ -28,12 +27,18 @@ export class Arena {
 
 	#slotEls: (HTMLElement | undefined)[] = [];
 
+	dragging = false;
+
 	/** use as {@attach arena.slot(i)} */
 	slot(i: number) {
 		return (el: HTMLElement) => {
 			this.#slotEls[i] = el;
 			return () => (this.#slotEls[i] = undefined);
 		};
+	}
+
+	setDragging(isDragging: boolean) {
+		this.dragging = isDragging;
 	}
 
 	/**

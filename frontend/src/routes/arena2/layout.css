@@ -1,0 +1,110 @@
+:root {
+	--animated-el-box-shadow:
+		0 0 12px 2px rgb(255 211 115 / 55%), inset 0 0 18px rgb(255 241 195 / 35%);
+	--animated-el-backgroud: rgb(255 241 195 / 10%);
+}
+
+.pulse {
+	position: relative;
+	--pulse-delay: 0s;
+	--easing: cubic-bezier(0.137, 0.766, 1, 1.561);
+}
+
+.pulse:before {
+	content: '';
+	width: 100%;
+	height: 100%;
+	position: absolute;
+	inset: 0;
+	border: 3px solid var(--color-arena-yallow-100);
+	border-radius: inherit;
+
+	background: var(--animated-el-backgroud);
+	box-shadow: var(--animated-el-box-shadow);
+
+	opacity: 0;
+	pointer-events: none;
+	animation: card-impact calc(450ms + var(--pulse-delay)) var(--easing) 40ms forwards;
+}
+
+.pulse:after {
+	content: '';
+	width: 100%;
+	height: 100%;
+	position: absolute;
+	inset: 0;
+	border: 2px solid var(--color-arena-yallow-100);
+	border-radius: inherit;
+
+	box-shadow: var(--animated-el-box-shadow);
+
+	opacity: 0;
+	pointer-events: none;
+	animation: card-impact calc(850ms + var(--pulse-delay)) var(--easing) forwards;
+}
+
+.suspanse-pulse {
+	position: relative;
+}
+
+.suspanse-pulse::before,
+.suspanse-pulse::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border: 1px solid var(--color-green-200);
+	border-radius: inherit;
+	pointer-events: none;
+	box-shadow: var(--animated-el-box-shadow);
+	opacity: 0;
+	animation: suspense-wave 0.8s infinite;
+	animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+@keyframes suspense-wave {
+	0% {
+		opacity: 0;
+		transform: scale(1);
+	}
+
+	8% {
+		opacity: 0.85;
+	}
+
+	100% {
+		opacity: 0;
+		transform: scale(1.1);
+	}
+}
+
+@keyframes card-impact {
+	0% {
+		opacity: 0.9;
+		transform: scale(0.94);
+	}
+
+	100% {
+		opacity: 0;
+		transform: scale(1.14);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.suspanse-pulse::before,
+	.suspanse-pulse::after {
+		animation: none;
+		opacity: 0.5;
+		transform: none;
+	}
+	.pulse,
+	.pulse::after,
+	.pulse::after {
+		animation: none;
+	}
+}
+
+[data-dragging] {
+	z-index: 99;
+	scale: 1;
+	transition: none;
+}

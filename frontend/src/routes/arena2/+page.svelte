@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { setArena } from '#lib/utils/arena.svelte.ts';
+	import './layout.css';
 
 	import Slots from './Slots.svelte';
 	import Hand from './Hand.svelte';
-
 	setArena();
 </script>
 

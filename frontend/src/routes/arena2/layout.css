@@ -4,6 +4,7 @@
 	--animated-el-backgroud: rgb(255 241 195 / 10%);
 }
 
+
 .pulse {
 	position: relative;
 	--pulse-delay: 0s;

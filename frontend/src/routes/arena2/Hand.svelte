@@ -8,7 +8,7 @@
 <div class="hand fixed inset-x-0 bottom-0 z-40 flex" style:--n={arena.hand.length}>
 	{#each arena.hand as glyphId, i (glyphId)}
 		<button
-			class="card absolute bottom-0 left-1/2 -ml-24 w-48 cursor-pointer touch-none hover:shadow-2xl hover:shadow-amber-200/20"
+			class="card absolute bottom-0 left-1/2 -ml-24 w-[10%] cursor-pointer touch-none hover:shadow-2xl hover:shadow-amber-200/20"
 			style:--i={i}
 			{@attach draggable(
 				(x, y) => arena.dragOver(x, y),

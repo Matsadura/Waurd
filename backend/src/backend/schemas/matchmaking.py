@@ -135,3 +135,18 @@ class MatchDetailResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MatchCastResponse(BaseModel):
+    id: str
+    match_id: str
+    turn_number: int
+    player_id: str
+    word: str | None = None
+    glyphs_used: list[str] = Field(default_factory=list)
+    perks_activated: list[str] = Field(default_factory=list)
+    damage_dealt: int = 0
+    healing_done: int = 0
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

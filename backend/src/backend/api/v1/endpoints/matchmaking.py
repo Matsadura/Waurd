@@ -1,3 +1,5 @@
+import uuid
+
 from backend.api.dependencies.auth import (
     get_current_user,
     get_redis,
@@ -7,7 +9,7 @@ from backend.core.identifiers import user_id_to_bytes, user_id_to_string
 from backend.core.matchmaking_store import MatchmakingQueueStore
 from backend.db.session import get_db
 from backend.models.user import User
-from backend.repositories.match import MatchRepository
+from backend.repositories.match import MatchRepository, MatchStatus
 from backend.repositories.user import UserRepository
 from backend.schemas.matchmaking import (
     AIDifficultyEnum,
@@ -16,6 +18,7 @@ from backend.schemas.matchmaking import (
     CustomMatchCreateRequest,
     CustomMatchResponse,
     JoinMatchRequest,
+    MatchCastResponse,
     MatchDetailResponse,
     MatchPlayerResponse,
     MatchStatusEnum,
@@ -324,3 +327,65 @@ async def get_match_details(
         ended_at=match.ended_at,
         created_at=match.created_at,
     )
+
+
+@router.get(
+    "/matches/{match_id}/casts",
+    response_model=list[MatchCastResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Audit log of all turns cast in a match",
+)
+async def get_match_casts(
+    match_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Fetches the turn-by-turn audit log for a match including words played, glyphs, perks, and damage values.
+    """
+    try:
+        match_bytes = user_id_to_bytes(match_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid match UUID format.",
+        )
+
+    match_repo = MatchRepository(db)
+    match = await match_repo.get_match_by_id(match_bytes)
+
+    if not match:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Match not found.",
+        )
+
+    # Ensure user was either a participant or match is completed/public
+    user_bytes = current_user.id
+    if (
+        match.player1_id != user_bytes
+        and match.player2_id != user_bytes
+        and match.status == MatchStatus.ACTIVE
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot inspect turn logs of an ongoing match you are not participating in.",
+        )
+
+    casts = await match_repo.get_casts_for_match(match_bytes)
+
+    return [
+        MatchCastResponse(
+            id=user_id_to_string(cast.id) if hasattr(cast, "id") else str(uuid.uuid4()),
+            match_id=match_id,
+            turn_number=getattr(cast, "turn_number", idx + 1),
+            player_id=user_id_to_string(cast.player_id),
+            word=getattr(cast, "word", None),
+            glyphs_used=getattr(cast, "glyphs_used", []),
+            perks_activated=getattr(cast, "perks_activated", []),
+            damage_dealt=getattr(cast, "damage_dealt", 0),
+            healing_done=getattr(cast, "healing_done", 0),
+            created_at=getattr(cast, "created_at", match.created_at),
+        )
+        for idx, cast in enumerate(casts)
+    ]

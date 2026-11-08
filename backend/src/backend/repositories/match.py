@@ -3,7 +3,7 @@ import string
 import uuid
 
 from backend.core.identifiers import user_id_to_bytes
-from backend.models.match import Match, MatchStatus
+from backend.models.match import Match, MatchCast, MatchStatus
 from backend.repositories.base import BaseRepository
 from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select
@@ -127,3 +127,16 @@ class MatchRepository(BaseRepository[Match]):
         await self.session.flush()
         await self.session.refresh(match)
         return match
+
+    async def get_casts_for_match(self, match_id_bytes: bytes) -> list:
+        """
+        Retrieves all recorded turn casts for a match ordered chronologically by turn number.
+        """
+        # If storing turn logs in a related model/table (e.g., MatchCast or TurnLog)
+        stmt = (
+            select(MatchCast)
+            .where(MatchCast.match_id == match_id_bytes)
+            .order_by(MatchCast.turn_number.asc())
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

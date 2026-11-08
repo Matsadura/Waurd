@@ -2,15 +2,17 @@
 import secrets
 
 import redis.asyncio as aioredis
+from fastapi import Cookie, Depends, Header, Request
+from fastapi.security import APIKeyCookie
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.core.config import settings
+from backend.core.exceptions import ForbiddenException, UnauthorizedException
 from backend.core.identifiers import user_id_to_bytes
 from backend.core.session_store import RedisSessionStore
 from backend.db.session import get_db
 from backend.models.user import User
 from backend.repositories.user import UserRepository
-from fastapi import Cookie, Depends, Header, HTTPException, Request, status
-from fastapi.security import APIKeyCookie
-from sqlalchemy.ext.asyncio import AsyncSession
 
 cookie_scheme = APIKeyCookie(name=settings.SESSION_COOKIE_NAME, auto_error=False)
 
@@ -31,25 +33,16 @@ async def get_current_user(
 ) -> User:
     """Validate the HTTP session cookie and resolve the authenticated User entity."""
     if not session_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-        )
+        raise UnauthorizedException()
 
     session_data = await session_store.get_session(session_id)
     if not session_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session expired or invalid",
-        )
+        raise UnauthorizedException("Session expired or invalid")
 
     user_repo = UserRepository(db)
     user = await user_repo.get_by_id(user_id_to_bytes(session_data["user_id"]))
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
+        raise UnauthorizedException("User not found")
     return user
 
 
@@ -63,14 +56,8 @@ async def verify_csrf(
         return
 
     if not csrf_token_header or not csrf_token_cookie:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="CSRF token missing",
-        )
+        raise ForbiddenException("CSRF token missing")
 
     # Constant-time comparison prevents timing attacks
     if not secrets.compare_digest(csrf_token_header, csrf_token_cookie):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="CSRF validation failed",
-        )
+        raise ForbiddenException("CSRF validation failed")

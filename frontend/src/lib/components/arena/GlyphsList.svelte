@@ -9,7 +9,7 @@
 	<div
 		class="relative z-50 flex max-h-dvh flex-col items-center overflow-y-scroll bg-gray-950/80 p-4 px-4 pt-12 md:pb-16"
 	>
-		<h2 class="mb-10 text-center text-4xl text-white">{title}</h2>
+		<h2 class="mb-10 text-center text-4xl text-white font-kreon">{title}</h2>
 
 		{#if glyphs.length === 0}
 			<p class="mt-56 text-3xl text-amber-100">Nothing here...</p>

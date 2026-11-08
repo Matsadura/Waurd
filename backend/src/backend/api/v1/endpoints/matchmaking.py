@@ -3,28 +3,29 @@ from backend.api.dependencies.auth import (
     get_redis,
 )
 from backend.core.dependencies import get_matchmaking_queue
-from backend.core.identifiers import user_id_to_string
+from backend.core.identifiers import user_id_to_bytes, user_id_to_string
 from backend.core.matchmaking_store import MatchmakingQueueStore
 from backend.db.session import get_db
 from backend.models.user import User
 from backend.repositories.match import MatchRepository
+from backend.repositories.user import UserRepository
 from backend.schemas.matchmaking import (
+    AIDifficultyEnum,
+    AIMatchCreateRequest,
+    AIMatchResponse,
     CustomMatchCreateRequest,
     CustomMatchResponse,
     JoinMatchRequest,
+    MatchDetailResponse,
     MatchPlayerResponse,
     MatchStatusEnum,
     QueueJoinRequest,
     QueueLeaveRequest,
     QueueTicketResponse,
-    AIMatchCreateRequest,
-    AIMatchResponse,
-    AIDifficultyEnum,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.repositories.user import UserRepository
 
 router = APIRouter(prefix="/matchmaking", tags=["Matchmaking & Matches"])
 
@@ -187,7 +188,7 @@ async def join_custom_match(
     )
 
     user_repo = UserRepository(db)
-    creator_user = await user_repo.get_user_by_id(match.player1_id)
+    creator_user = await user_repo.get_by_id(match.player1_id)
     username = creator_user.username if creator_user else "Creator"
 
     return CustomMatchResponse(
@@ -244,5 +245,82 @@ async def create_ai_match(
             username=current_user.username,
             avatar_url=getattr(current_user, "avatar_url", None),
         ),
+        created_at=match.created_at,
+    )
+
+
+@router.get(
+    "/matches/{match_id}",
+    response_model=MatchDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Retrieve match details by match ID",
+)
+async def get_match_details(
+    match_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Fetches match metadata, participants, final HP, scores, and completion info by match UUID.
+    """
+    try:
+        match_bytes = user_id_to_bytes(match_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid match UUID format.",
+        )
+
+    match_repo = MatchRepository(db)
+    user_repo = UserRepository(db)
+
+    match = await match_repo.get_match_by_id(match_bytes)
+    if not match:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Match not found.",
+        )
+
+    # 1. Fetch Player 1
+    p1 = await user_repo.get_by_id(match.player1_id)
+    player1_resp = MatchPlayerResponse(
+        id=user_id_to_string(match.player1_id),
+        username=p1.username if p1 else "Unknown Player",
+        avatar_url=getattr(p1, "avatar_url", None) if p1 else None,
+    )
+
+    # 2. Resolve Player 2 (Human or AI)
+    player2_resp = None
+    if match.is_ai_match:
+        player2_resp = MatchPlayerResponse(
+            id="ai_bot_opponent",
+            username=f"AI Bot ({match.ai_difficulty or 'MEDIUM'})",
+            avatar_url=None,
+        )
+    elif match.player2_id:
+        p2 = await user_repo.get_by_id(match.player2_id)
+        player2_resp = MatchPlayerResponse(
+            id=user_id_to_string(match.player2_id),
+            username=p2.username if p2 else "Unknown Player",
+            avatar_url=getattr(p2, "avatar_url", None) if p2 else None,
+        )
+
+    return MatchDetailResponse(
+        id=user_id_to_string(match.id),
+        invite_code=match.invite_code,
+        is_ai_match=bool(match.is_ai_match),
+        ai_difficulty=match.ai_difficulty,
+        status=MatchStatusEnum(match.status.value),
+        time_control_seconds=match.time_control_seconds,
+        player1=player1_resp,
+        player2=player2_resp,
+        winner_id=user_id_to_string(match.winner_id) if match.winner_id else None,
+        end_reason=match.end_reason,
+        player1_final_hp=match.player1_final_hp,
+        player2_final_hp=match.player2_final_hp,
+        total_turns=match.total_turns or 0,
+        duration_seconds=match.duration_seconds or 0,
+        started_at=match.started_at,
+        ended_at=match.ended_at,
         created_at=match.created_at,
     )

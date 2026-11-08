@@ -72,7 +72,8 @@ class MatchmakingQueueStore:
         return f"matchmaking:queue:{time_control}"
 
     async def add_to_queue(
-        self, user_id_str: str, time_control: int, user_elo: int) -> dict:
+        self, user_id_str: str, time_control: int, user_elo: int
+    ) -> dict:
         """Adds a user with their Elo rating to the matchmaking pool in Redis."""
         user_key = self._user_key(user_id_str)
         queue_key = self._queue_key(time_control)
@@ -98,7 +99,7 @@ class MatchmakingQueueStore:
         )
         return json.loads(res_raw)
 
-    async def cancel_queue(self, user_id_str: str, time_control: int) -> bool:  
+    async def cancel_queue(self, user_id_str: str, time_control: int) -> bool:
         """Atomically removes a user from the queue list and deletes their ticket key."""
         user_key = self._user_key(user_id_str)
         queue_key = self._queue_key(time_control)

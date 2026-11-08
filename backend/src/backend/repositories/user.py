@@ -19,9 +19,6 @@ class UserRepository(BaseRepository[User]):
     async def get_by_username(self, username: str) -> User | None:
         return await self.get_one_or_none(User.username == username)
 
-    async def get_user_by_id(self, user_id_bytes: bytes) -> User | None:
-        return await self.get_one_or_none(User.id == user_id_bytes)
-
     async def search_online_by_query(
         self,
         query: str,

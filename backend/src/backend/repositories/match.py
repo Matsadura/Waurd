@@ -26,6 +26,12 @@ class MatchRepository(BaseRepository[Match]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_match_by_id(self, match_id_bytes: bytes) -> Match | None:
+        """Fetches a match record by its BINARY(16) primary key."""
+        stmt = select(Match).where(Match.id == match_id_bytes)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def create_custom_match(
         self,
         creator_id_bytes: bytes,

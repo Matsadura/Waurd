@@ -113,3 +113,25 @@ class AIMatchResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MatchDetailResponse(BaseModel):
+    id: str
+    invite_code: str | None = None
+    is_ai_match: bool
+    ai_difficulty: str | None = None
+    status: MatchStatusEnum
+    time_control_seconds: int
+    player1: MatchPlayerResponse
+    player2: MatchPlayerResponse | None = None
+    winner_id: str | None = None
+    end_reason: str | None = None
+    player1_final_hp: int | None = None
+    player2_final_hp: int | None = None
+    total_turns: int = 0
+    duration_seconds: int = 0
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

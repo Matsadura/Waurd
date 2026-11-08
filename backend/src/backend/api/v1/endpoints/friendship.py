@@ -1,5 +1,9 @@
 from backend.api.dependencies.auth import get_current_user
-from backend.core.identifiers import user_id_to_bytes as str_to_bytes
+from backend.core.exceptions import (
+    BadRequestException,
+    EntityNotFoundException,
+)
+from backend.core.identifiers import parse_user_id
 from backend.core.identifiers import user_id_to_string as bytes_to_str
 from backend.db.session import get_db
 from backend.models.friendship import Friendship, FriendshipStatus
@@ -15,7 +19,7 @@ from backend.schemas.friendship import (
     PendingRequestsResponse,
     RequestAction,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -103,29 +107,22 @@ async def send_friend_request(
     target_user: User | None = None
 
     if payload.target_user_id:
-        target_bytes = str_to_bytes(payload.target_user_id)
+        target_bytes = parse_user_id(payload.target_user_id)
         target_user = await user_repo.get_by_id(target_bytes)
     elif payload.username:
         target_user = await user_repo.get_by_username(payload.username)
 
     if not target_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Target user not found",
-        )
+        raise EntityNotFoundException("Target user not found")
 
     if target_user.id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot send a friend request to yourself",
-        )
+        raise BadRequestException("Cannot send a friend request to yourself")
 
     friend_repo = FriendshipRepository(db)
     existing = await friend_repo.get_by_users(current_user.id, target_user.id)
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Friendship relationship already exists with status: {existing.status.value}",
+        raise BadRequestException(
+            f"Friendship relationship already exists with status: {existing.status.value}"
         )
 
     friendship_instance = Friendship(
@@ -162,15 +159,13 @@ async def handle_friend_request(
     friendship = await friend_repo.get_by_id(request_id)
 
     if not friendship or friendship.addressee_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Friend request not found or not addressed to you",
+        raise EntityNotFoundException(
+            "Friend request not found or not addressed to you"
         )
 
     if friendship.status != FriendshipStatus.PENDING:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot process request with status: {friendship.status.value}",
+        raise BadRequestException(
+            f"Cannot process request with status: {friendship.status.value}"
         )
 
     if payload.action == RequestAction.DECLINE:
@@ -205,15 +200,12 @@ async def remove_friend(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    target_bytes = str_to_bytes(friend_id)
+    target_bytes = parse_user_id(friend_id)
     friend_repo = FriendshipRepository(db)
     friendship = await friend_repo.get_by_users(current_user.id, target_bytes)
 
     if not friendship or friendship.status != FriendshipStatus.ACCEPTED:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Accepted friend relationship not found",
-        )
+        raise EntityNotFoundException("Accepted friend relationship not found")
 
     await friend_repo.delete(friendship)
     return {"detail": "Friend successfully removed"}
@@ -231,13 +223,10 @@ async def block_user(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    target_bytes = str_to_bytes(target_user_id)
+    target_bytes = parse_user_id(target_user_id)
 
     if target_bytes == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot block yourself",
-        )
+        raise BadRequestException("Cannot block yourself")
 
     friend_repo = FriendshipRepository(db)
     existing = await friend_repo.get_by_users(current_user.id, target_bytes)
@@ -287,7 +276,7 @@ async def unblock_user(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    target_bytes = str_to_bytes(target_user_id)
+    target_bytes = parse_user_id(target_user_id)
     friend_repo = FriendshipRepository(db)
     existing = await friend_repo.get_by_users(current_user.id, target_bytes)
 
@@ -296,10 +285,7 @@ async def unblock_user(
         or existing.status != FriendshipStatus.BLOCKED
         or existing.requester_id != current_user.id
     ):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Blocked user record not found",
-        )
+        raise EntityNotFoundException("Blocked user record not found")
 
     await friend_repo.delete(existing)
     return {"detail": "User successfully unblocked"}

@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 import redis.asyncio as aioredis
 from fastapi import Depends, FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -63,7 +64,29 @@ app.add_middleware(
 async def app_exception_handler(_: Request, exc: AppException) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error": exc.__class__.__name__, "detail": exc.message},
+        content={"detail": exc.message},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(
+    _: Request, exc: RequestValidationError
+) -> JSONResponse:
+    error = exc.errors()[0]
+    error_type = error.get("type", "")
+    context = error.get("ctx", {})
+
+    messages = {
+        "email_parsing": "Invalid email address",
+        "string_too_short": f"Value must be at least {context.get('min_length', 'the required number of')} characters",
+        "string_too_long": f"Value must be at most {context.get('max_length', 'the allowed number of')} characters",
+        "missing": "This field is required",
+        "uuid_parsing": "Invalid identifier",
+    }
+    detail = messages.get(error_type, "Invalid request data")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": detail},
     )
 
 
@@ -72,8 +95,7 @@ async def integrity_error_handler(_: Request, exc: IntegrityError) -> JSONRespon
     return JSONResponse(
         status_code=status.HTTP_409_CONFLICT,
         content={
-            "error": "DatabaseConflict",
-            "detail": "A data integrity conflict occurred.",
+            "detail": "Username or email already exists.",
         },
     )
 
@@ -82,10 +104,7 @@ async def integrity_error_handler(_: Request, exc: IntegrityError) -> JSONRespon
 async def dbapi_error_handler(_: Request, exc: DBAPIError) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "error": "DatabaseError",
-            "detail": "An internal database operation failed.",
-        },
+        content={"detail": "An internal database operation failed."},
     )
 
 

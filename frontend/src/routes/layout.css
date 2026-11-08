@@ -303,6 +303,15 @@
 	from {
 		width: 0;
 	}
+@font-face {
+	font-family: 'Kreon';
+	src: url('/fonts/Kreon-Medium.ttf') format('woff2');
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+
 @theme {
 	--color-arena-yallow-100: #fff1c3;
+	--font-kreon: 'Kreon';
 }

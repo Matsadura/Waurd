@@ -5,7 +5,8 @@ import uuid
 from backend.core.identifiers import user_id_to_bytes
 from backend.models.match import Match, MatchStatus
 from backend.repositories.base import BaseRepository
-from sqlalchemy import or_, select
+from fastapi import HTTPException, status
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -32,9 +33,7 @@ class MatchRepository(BaseRepository[Match]):
     ) -> Match:
         """Creates a custom match lobby with an optional 6-character room code."""
         alphabet = string.ascii_uppercase + string.digits
-        invite_code = (
-            "".join(secrets.choice(alphabet) for _ in range(6))
-        )
+        invite_code = "".join(secrets.choice(alphabet) for _ in range(6))
 
         match = Match(
             id=uuid.uuid4().bytes,
@@ -45,6 +44,39 @@ class MatchRepository(BaseRepository[Match]):
             invite_code=invite_code,
         )
         self.session.add(match)
+        await self.session.flush()
+        await self.session.refresh(match)
+        return match
+
+    async def join_match_by_code(
+        self,
+        joiner_id_bytes: bytes,
+        invite_code: str,
+    ) -> Match:
+        """Finds a WAITING lobby by invite code, assigns player2_id, and activates the match."""
+        stmt = select(Match).where(
+            Match.invite_code == invite_code.upper(),
+            Match.status == MatchStatus.WAITING,
+        )
+        result = await self.session.execute(stmt)
+        match = result.scalar_one_or_none()
+
+        if not match:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Invalid or expired invite code.",
+            )
+
+        if match.player1_id == joiner_id_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You cannot join your own custom match lobby.",
+            )
+
+        match.player2_id = joiner_id_bytes
+        match.status = MatchStatus.ACTIVE
+        match.started_at = func.now()
+
         await self.session.flush()
         await self.session.refresh(match)
         return match

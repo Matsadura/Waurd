@@ -23,6 +23,12 @@ class QueueStatusEnum(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 
+class AIDifficultyEnum(str, enum.Enum):
+    EASY = "EASY"
+    MEDIUM = "MEDIUM"
+    HARD = "HARD"
+
+
 class QueueJoinRequest(BaseModel):
     time_control_seconds: int = Field(
         ..., description="Time control per player in seconds (60, 180, 300)"
@@ -88,3 +94,22 @@ class JoinMatchRequest(BaseModel):
         max_length=6,
         description="6-character uppercase invite code",
     )
+
+
+class AIMatchCreateRequest(BaseModel):
+    difficulty: AIDifficultyEnum = Field(
+        AIDifficultyEnum.MEDIUM, description="EASY, MEDIUM, or HARD"
+    )
+    time_control_seconds: int = Field(180, description="60, 180, or 300 seconds")
+
+
+class AIMatchResponse(BaseModel):
+    id: str
+    is_ai_match: bool
+    ai_difficulty: AIDifficultyEnum
+    status: MatchStatusEnum
+    time_control_seconds: int
+    player: MatchPlayerResponse
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

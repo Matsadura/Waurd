@@ -17,6 +17,9 @@ from backend.schemas.matchmaking import (
     QueueJoinRequest,
     QueueLeaveRequest,
     QueueTicketResponse,
+    AIMatchCreateRequest,
+    AIMatchResponse,
+    AIDifficultyEnum,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
 from redis.asyncio import Redis
@@ -47,16 +50,19 @@ async def join_queue(
     if active_match:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-           detail="Cannot queue while currently in an active or pending match.",
-        #   detail=f"Userelo: {current_user.elo}",
+            detail="Cannot queue while currently in an active or pending match.",
+            #   detail=f"Userelo: {current_user.elo}",
         )
 
     # 2. Add user to Redis matchmaking queue
     user_id_str = user_id_to_string(current_user.id)
     queue_store = MatchmakingQueueStore(redis)
-    ticket = await queue_store.add_to_queue(user_id_str, payload.time_control_seconds, current_user.elo)
+    ticket = await queue_store.add_to_queue(
+        user_id_str, payload.time_control_seconds, current_user.elo
+    )
 
     return QueueTicketResponse(**ticket)
+
 
 @router.delete(
     "/queue",
@@ -70,7 +76,9 @@ async def leave_queue(
 ):
     """Atomically removes user from the matchmaking queue and deletes their ticket."""
     user_id_str = user_id_to_string(current_user.id)
-    cancelled = await queue_store.cancel_queue(user_id_str, payload.time_control_seconds)
+    cancelled = await queue_store.cancel_queue(
+        user_id_str, payload.time_control_seconds
+    )
 
     if not cancelled:
         raise HTTPException(
@@ -79,6 +87,7 @@ async def leave_queue(
         )
 
     return {"detail": "Successfully removed from matchmaking queue"}
+
 
 @router.get(
     "/status",
@@ -104,6 +113,7 @@ async def get_queue_status(
         )
 
     return QueueTicketResponse(**ticket)
+
 
 @router.post(
     "/matches/custom",
@@ -145,6 +155,7 @@ async def create_private_match_lobby(
         created_at=match.created_at,
     )
 
+
 @router.post(
     "/matches/join",
     response_model=CustomMatchResponse,
@@ -160,7 +171,7 @@ async def join_custom_match(
     Validates an invite code, assigns the joining user as player 2, and starts the match.
     """
     match_repo = MatchRepository(db)
-    
+
     # 1. Ensure joining player isn't already in an active match
     active_match = await match_repo.get_active_match_for_user(current_user.id)
     if active_match:
@@ -187,8 +198,51 @@ async def join_custom_match(
         is_private=match.invite_code is not None,
         creator=MatchPlayerResponse(
             id=user_id_to_string(match.player1_id),
-            username= username,
+            username=username,
             avatar_url=None,
+        ),
+        created_at=match.created_at,
+    )
+
+
+@router.post(
+    "/matches/ai",
+    response_model=AIMatchResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Instantiate a bot match against AI",
+)
+async def create_ai_match(
+    payload: AIMatchCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Creates an active single-player match against an AI bot with specified difficulty.
+    """
+    match_repo = MatchRepository(db)
+    active_match = await match_repo.get_active_match_for_user(current_user.id)
+    if active_match:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot start an AI match while in an active or pending match.",
+        )
+
+    match = await match_repo.create_ai_match(
+        player_id_bytes=current_user.id,
+        ai_difficulty=payload.difficulty.value,
+        time_control_seconds=payload.time_control_seconds,
+    )
+
+    return AIMatchResponse(
+        id=user_id_to_string(match.id),
+        is_ai_match=bool(match.is_ai_match),
+        ai_difficulty=AIDifficultyEnum(match.ai_difficulty),
+        status=MatchStatusEnum.ACTIVE,
+        time_control_seconds=match.time_control_seconds,
+        player=MatchPlayerResponse(
+            id=user_id_to_string(current_user.id),
+            username=current_user.username,
+            avatar_url=getattr(current_user, "avatar_url", None),
         ),
         created_at=match.created_at,
     )

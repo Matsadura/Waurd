@@ -33,7 +33,6 @@
 		type="button"
 		aria-label="Open profile menu"
 		aria-expanded={open}
-		aria-haspopup="true"
 		class="group flex items-center gap-2 rounded-md py-2
 			text-text-primary/80 transition-colors hover:text-accent sm:gap-2"
 		onclick={ontoggle}

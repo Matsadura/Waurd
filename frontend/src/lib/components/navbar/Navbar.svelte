@@ -111,10 +111,11 @@
 					<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
 					<path d="M10 21h4" />
 				</svg>
+				<!-- TODO: Show this indicator only when unread notifications exist -->
 				<span
 					class="absolute top-2 right-2 size-1.5 rounded-full
 						bg-accent-red"
-					aria-label="Unread notifications"
+					aria-hidden="true"
 				></span>
 			</button>
 

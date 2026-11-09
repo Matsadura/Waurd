@@ -9,6 +9,13 @@ from backend.api.dependencies.auth import (
     verify_csrf,
 )
 from backend.core.config import settings
+from backend.core.exceptions import (
+    BadGatewayException,
+    BadRequestException,
+    ServiceUnavailableException,
+    UnauthorizedException,
+    UserAlreadyExistsException,
+)
 from backend.core.security import hash_password, verify_password
 from backend.core.session_store import RedisSessionStore
 from backend.db.session import get_db
@@ -17,7 +24,7 @@ from backend.models.user import OAuthProvider, User
 from backend.repositories.user import UserRepository
 from backend.schemas.auth import LoginRequest
 from backend.schemas.user import UserCreateRequest, UserResponse
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -73,10 +80,7 @@ async def login(
         or not user.password_hash
         or not verify_password(credentials.password, user.password_hash)
     ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-        )
+        raise UnauthorizedException("Invalid email or password")
 
     session_id = await session_store.create_session(
         user_id=user.id,
@@ -92,10 +96,7 @@ async def google_login(
 ) -> RedirectResponse:
     """Start Google's authorization-code flow."""
     if not settings.GOOGLE_CLIENT_ID:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Google authentication is not configured",
-        )
+        raise ServiceUnavailableException("Google authentication is not configured")
 
     state = secrets.token_urlsafe(32)
     await session_store.create_oauth_state(
@@ -138,10 +139,7 @@ async def google_callback(
 ) -> RedirectResponse:
     """Exchange Google's code, create or find the user, and start a session."""
     if error:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google authentication was cancelled",
-        )
+        raise BadRequestException("Google authentication was cancelled")
     if (
         not code
         or not state
@@ -149,15 +147,9 @@ async def google_callback(
         or not secrets.compare_digest(state, state_cookie)
         or not await session_store.consume_oauth_state(state)
     ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired Google authentication state",
-        )
+        raise BadRequestException("Invalid or expired Google authentication state")
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Google authentication is not configured",
-        )
+        raise ServiceUnavailableException("Google authentication is not configured")
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -174,10 +166,7 @@ async def google_callback(
             token_response.raise_for_status()
             access_token = token_response.json().get("access_token")
             if not access_token:
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail="Google did not return an access token",
-                )
+                raise BadGatewayException("Google did not return an access token")
 
             profile_response = await client.get(
                 "https://openidconnect.googleapis.com/v1/userinfo",
@@ -186,10 +175,7 @@ async def google_callback(
             profile_response.raise_for_status()
             profile = profile_response.json()
     except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Could not complete Google authentication",
-        ) from exc
+        raise BadGatewayException("Could not complete Google authentication") from exc
 
     google_id = profile.get("sub")
     email = profile.get("email")
@@ -198,9 +184,8 @@ async def google_callback(
         or not isinstance(email, str)
         or not profile.get("email_verified")
     ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google account does not provide a verified email address",
+        raise BadRequestException(
+            "Google account does not provide a verified email address"
         )
 
     async with UnitOfWork() as uow:
@@ -208,9 +193,8 @@ async def google_callback(
         if user is None:
             existing_user = await uow.users.get_by_email(email)
             if existing_user:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="An account with this email already exists. Log in with your password first.",
+                raise UserAlreadyExistsException(
+                    "An account with this email already exists. Log in with your password first."
                 )
 
             user = await uow.users.create(
@@ -266,16 +250,10 @@ async def refresh_session(
 ) -> None:
     """Refresh the current session and extend the browser cookie lifetimes."""
     if not session_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No active session to refresh.",
-        )
+        raise UnauthorizedException("No active session to refresh.")
 
     if not await session_store.refresh_session(session_id):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session expired or invalid",
-        )
+        raise UnauthorizedException("Session expired or invalid")
 
     response.set_cookie(
         key=settings.SESSION_COOKIE_NAME,
@@ -293,12 +271,13 @@ async def register_user(
 ) -> UserResponse:
     """Register a new user"""
     async with UnitOfWork() as uow:
-        existing_user = await uow.users.get_by_email(user_create.email)
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered.",
-            )
+        existing_email = await uow.users.get_by_email(user_create.email)
+        if existing_email:
+            raise UserAlreadyExistsException("Email already registered.")
+
+        existing_username = await uow.users.get_by_username(user_create.username)
+        if existing_username:
+            raise UserAlreadyExistsException("Username already taken.")
 
         new_user = await uow.users.create(
             User(

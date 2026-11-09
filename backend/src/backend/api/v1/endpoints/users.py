@@ -1,15 +1,19 @@
 from uuid import UUID
 
 from backend.api.dependencies.auth import get_current_user, get_session_store
+from backend.core.exceptions import (
+    EntityNotFoundException,
+    ForbiddenException,
+    UserAlreadyExistsException,
+)
 from backend.core.identifiers import user_id_to_bytes
 from backend.core.security import hash_password
 from backend.core.session_store import RedisSessionStore
 from backend.db.uow import UnitOfWork
 from backend.models.user import User
-from backend.models.user_stats import UserStats
-from backend.schemas.user import UserCreateRequest, UserResponse, UserStatsResponse
 from backend.schemas.match import MatchResponse
-from fastapi import APIRouter, Depends, HTTPException, status
+from backend.schemas.user import UserCreateRequest, UserResponse, UserStatsResponse
+from fastapi import APIRouter, Depends
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -43,10 +47,19 @@ async def update_me(
     async with uow:
         user = await uow.users.get_by_id(current_user.id)
         if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+            raise EntityNotFoundException("User not found")
+        if (
+            user_update.username
+            and user_update.username != user.username
+            and await uow.users.get_by_username(user_update.username)
+        ):
+            raise UserAlreadyExistsException("Username already taken.")
+        if (
+            user_update.email
+            and user_update.email != user.email
+            and await uow.users.get_by_email(user_update.email)
+        ):
+            raise UserAlreadyExistsException("Email already registered.")
         user = await uow.users.update(user, attributes)
         await uow.commit()
         await uow.users.session.refresh(user)
@@ -67,16 +80,12 @@ async def get_user_by_id(
     """Retrieve a user's information by their unique identifier."""
     async with uow:
         if user_id.bytes != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to access this user's information.",
+            raise ForbiddenException(
+                "You do not have permission to access this user's information."
             )
         user = await uow.users.get_by_id(user_id_to_bytes(user_id))
         if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+            raise EntityNotFoundException("User not found")
         return UserResponse.model_validate(user)
 
 
@@ -89,16 +98,12 @@ async def get_user_stats(
     """Retrieve a user's statistics by their unique identifier."""
     async with uow:
         if user_id.bytes != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to access this user's statistics.",
+            raise ForbiddenException(
+                "You do not have permission to access this user's statistics."
             )
         user_stats = await uow.user_stats.get_by_user_id(user_id.bytes)
         if user_stats is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User statistics not found",
-            )
+            raise EntityNotFoundException("User statistics not found")
         return UserStatsResponse.model_validate(user_stats)
 
 
@@ -111,9 +116,8 @@ async def get_user_matches(
     """Retrieve a list of matches for a specific user."""
     async with uow:
         if user_id.bytes != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to access this user's matches.",
+            raise ForbiddenException(
+                "You do not have permission to access this user's matches."
             )
         matches = await uow.matches.get_all_matches_for_user(user_id.bytes)
         return [MatchResponse.model_validate(match) for match in matches]

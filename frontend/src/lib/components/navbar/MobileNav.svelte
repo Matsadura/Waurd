@@ -28,16 +28,16 @@
 		type="button"
 		class="fixed inset-0 z-55 cursor-default bg-black/65
 			backdrop-blur-[2px] md:hidden"
-		aria-label="Close navigation menu"
+		tabindex="-1"
+		aria-hidden="true"
 		onclick={closeMenu}
 	></button>
 {/if}
 
 <!-- Mobile off-canvas drawer -->
-<aside
+<nav
 	id="mobile-navigation"
 	aria-label="Mobile navigation"
-	aria-hidden={!open}
 	inert={!open}
 	class={`fixed inset-y-0 left-0 z-60 flex w-[min(20rem,85vw)]
 		flex-col border-r border-white/10 bg-[#17131d] text-text-primary
@@ -133,7 +133,7 @@
 		<div class="my-4 border-t border-white/10"></div>
 		<SearchBar mobile />
 	</div>
-</aside>
+</nav>
 
 <style>
 	.mobile-nav-link[aria-current='page'] {

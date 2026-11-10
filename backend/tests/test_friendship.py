@@ -517,11 +517,6 @@ class TestBlockUser:
         assert response.status_code == 400
         assert response.json() == {"detail": "Invalid user identifier"}
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="BUG: block_user calls friend_repo.create(requester_id=..., ...) but "
-        "BaseRepository.create takes an entity, so TypeError gives a 500.",
-    )
     async def test_blocks_a_user_with_no_prior_relationship(
         self, alice_client, alice, bob
     ):
@@ -533,21 +528,11 @@ class TestBlockUser:
         assert body["addressee_id"] == user_uuid(bob)
         assert body["status"] == "BLOCKED"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="BUG: block_user never checks that the target exists, unlike "
-        "send_friend_request which returns 404.",
-    )
     async def test_blocking_unknown_user_is_not_found(self, alice_client):
         response = await alice_client.post(f"/friends/block/{UNKNOWN_USER_ID}")
 
         assert response.status_code == 404
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="BUG: blocking back overwrites the existing row's requester, so a "
-        "blocked user can take over the block and then delete it.",
-    )
     async def test_blocked_user_cannot_lift_the_block(
         self, alice_client, bob_client, alice, bob, make_friendship
     ):

@@ -2,7 +2,6 @@
 
 import uuid
 
-import pytest
 from conftest import PASSWORD
 from sqlalchemy import delete
 
@@ -191,11 +190,6 @@ class TestUpdateMe:
         assert response.status_code == 403
         assert (await alice_client.get("/users/me")).json()["username"] == "alice"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="BUG: PATCH /users/me reuses UserCreateRequest, so every field is "
-        "required even though the handler is written for partial updates.",
-    )
     async def test_partial_update_is_accepted(self, alice_client):
         response = await alice_client.patch(
             "/users/me",
@@ -204,12 +198,6 @@ class TestUpdateMe:
 
         assert response.status_code == 200
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="BUG: delete_all_user_sessions scans session:* which also matches "
-        "session:oauth-state:* keys whose value is '1'; json.loads gives an int "
-        "and .get() raises AttributeError after the update was already committed.",
-    )
     async def test_succeeds_while_an_oauth_login_is_in_progress(
         self, alice_client, client, monkeypatch
     ):
@@ -351,12 +339,6 @@ class TestGetUserMatches:
 
         assert response.status_code == 401
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="BUG: MatchResponse has no validator converting BINARY(16) ids to "
-        "UUID strings (UserResponse does), so any real match fails validation "
-        "and the endpoint returns 500.",
-    )
     async def test_returns_matches_with_uuid_ids(
         self, alice_client, alice, bob, session_maker
     ):

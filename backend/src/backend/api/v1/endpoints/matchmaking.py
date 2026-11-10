@@ -5,6 +5,11 @@ from backend.api.dependencies.auth import (
     get_redis,
 )
 from backend.core.dependencies import get_matchmaking_queue
+from backend.core.exceptions import (
+    BadRequestException,
+    EntityNotFoundException,
+    ForbiddenException,
+)
 from backend.core.identifiers import user_id_to_bytes, user_id_to_string
 from backend.core.matchmaking_store import MatchmakingQueueStore
 from backend.db.session import get_db
@@ -26,7 +31,7 @@ from backend.schemas.matchmaking import (
     QueueLeaveRequest,
     QueueTicketResponse,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,10 +57,8 @@ async def join_queue(
     match_repo = MatchRepository(db)
     active_match = await match_repo.get_active_match_for_user(current_user.id)
     if active_match:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot queue while currently in an active or pending match.",
-            #   detail=f"Userelo: {current_user.elo}",
+        raise BadRequestException(
+            "Cannot queue while currently in an active or pending match"
         )
 
     # 2. Add user to Redis matchmaking queue
@@ -85,10 +88,7 @@ async def leave_queue(
     )
 
     if not cancelled:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Active matchmaking queue ticket not found.",
-        )
+        raise EntityNotFoundException("Active matchmaking queue ticket not found")
 
     return {"detail": "Successfully removed from matchmaking queue"}
 
@@ -111,10 +111,7 @@ async def get_queue_status(
 
     ticket = await queue_store.get_user_ticket(user_id_str)
     if not ticket:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active matchmaking ticket found.",
-        )
+        raise EntityNotFoundException("No active matchmaking ticket found")
 
     return QueueTicketResponse(**ticket)
 
@@ -136,9 +133,8 @@ async def create_private_match_lobby(
     match_repo = MatchRepository(db)
     active_match = await match_repo.get_active_match_for_user(current_user.id)
     if active_match:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot create a match while in an active or pending match.",
+        raise BadRequestException(
+            "Cannot create a match while in an active or pending match"
         )
 
     match = await match_repo.create_custom_match(
@@ -179,9 +175,8 @@ async def join_custom_match(
     # 1. Ensure joining player isn't already in an active match
     active_match = await match_repo.get_active_match_for_user(current_user.id)
     if active_match:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot join a match while in an active or pending match.",
+        raise BadRequestException(
+            "Cannot join a match while in an active or pending match"
         )
 
     # 2. Join and activate match
@@ -226,9 +221,8 @@ async def create_ai_match(
     match_repo = MatchRepository(db)
     active_match = await match_repo.get_active_match_for_user(current_user.id)
     if active_match:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot start an AI match while in an active or pending match.",
+        raise BadRequestException(
+            "Cannot start an AI match while in an active or pending match"
         )
 
     match = await match_repo.create_ai_match(
@@ -269,20 +263,14 @@ async def get_match_details(
     try:
         match_bytes = user_id_to_bytes(match_id)
     except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid match UUID format.",
-        )
+        raise BadRequestException("Invalid match UUID format")
 
     match_repo = MatchRepository(db)
     user_repo = UserRepository(db)
 
     match = await match_repo.get_match_by_id(match_bytes)
     if not match:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Match not found.",
-        )
+        raise EntityNotFoundException("Match not found")
 
     # 1. Fetch Player 1
     p1 = await user_repo.get_by_id(match.player1_id)
@@ -346,19 +334,13 @@ async def get_match_casts(
     try:
         match_bytes = user_id_to_bytes(match_id)
     except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid match UUID format.",
-        )
+        raise BadRequestException("Invalid match UUID format")
 
     match_repo = MatchRepository(db)
     match = await match_repo.get_match_by_id(match_bytes)
 
     if not match:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Match not found.",
-        )
+        raise EntityNotFoundException("Match not found")
 
     # Ensure user was either a participant or match is completed/public
     user_bytes = current_user.id
@@ -367,9 +349,8 @@ async def get_match_casts(
         and match.player2_id != user_bytes
         and match.status == MatchStatus.ACTIVE
     ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot inspect turn logs of an ongoing match you are not participating in.",
+        raise ForbiddenException(
+            "Cannot inspect turn logs of an ongoing match you are not participating in"
         )
 
     casts = await match_repo.get_casts_for_match(match_bytes)

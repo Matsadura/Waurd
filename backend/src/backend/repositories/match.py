@@ -2,10 +2,10 @@ import secrets
 import string
 import uuid
 
+from backend.core.exceptions import BadRequestException, EntityNotFoundException
 from backend.core.identifiers import user_id_to_bytes
 from backend.models.match import Match, MatchCast, MatchStatus
 from backend.repositories.base import BaseRepository
-from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -68,16 +68,10 @@ class MatchRepository(BaseRepository[Match]):
         match = result.scalar_one_or_none()
 
         if not match:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Invalid or expired invite code.",
-            )
+            raise EntityNotFoundException("Invalid or expired invite code")
 
         if match.player1_id == joiner_id_bytes:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="You cannot join your own custom match lobby.",
-            )
+            raise BadRequestException("You cannot join your own custom match lobby")
 
         match.player2_id = joiner_id_bytes
         match.status = MatchStatus.ACTIVE

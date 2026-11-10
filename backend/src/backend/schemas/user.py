@@ -41,6 +41,26 @@ class UserCreateRequest(BaseModel):
     )
 
 
+class UserUpdateRequest(BaseModel):
+    """Request payload for updating a user; omitted fields are left unchanged."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+    username: str | None = Field(
+        None,
+        min_length=3,
+        max_length=32,
+        description="New username (3-32 characters)",
+    )
+    email: EmailStr | None = Field(None, description="New email address")
+    password: str | None = Field(
+        None,
+        min_length=8,
+        max_length=128,
+        description="New password (8-128 characters)",
+    )
+    avatar_url: str | None = Field(None, description="New avatar image URL")
+
+
 class UserResponse(UserBase):
     """Response payload for user data."""
 

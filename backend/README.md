@@ -51,3 +51,14 @@ email: stats@email.com
 password: SecureP@ssw0rd!123
 user id: 00000000-0000-4000-8000-000000000004
 ```
+
+## Running the tests
+
+The API tests need no running services: MySQL is replaced by a temporary SQLite database and Redis by fakeredis.
+
+```bash
+uv run pytest
+uv run pytest --cov --cov-report=term-missing
+```
+
+Tests marked `xfail` describe known bugs. They are strict, so fixing a bug makes its test fail until the marker is removed.

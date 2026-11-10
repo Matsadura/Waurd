@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from backend.core.identifiers import user_id_to_string
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class MatchResponse(BaseModel):
@@ -48,3 +48,10 @@ class MatchResponse(BaseModel):
     ended_at: datetime | None = Field(
         None, description="Timestamp when the match ended (if applicable)"
     )
+
+    @field_validator(
+        "id", "tournament_id", "player1_id", "player2_id", "winner_id", mode="before"
+    )
+    @classmethod
+    def serialize_ids(cls, value: bytes | str | None) -> str | None:
+        return None if value is None else user_id_to_string(value)

@@ -1,11 +1,19 @@
 import { BACKEND_URL } from '$app/env/private';
 import { fail, redirect } from '@sveltejs/kit';
+import * as v from 'valibot';
+import { registerSchema } from '#lib/schemas/register.ts';
 import type { Actions } from './$types';
 
-function extractError(json: any): string {
-	const detail = json?.detail;
-	if (typeof detail === 'string') return detail;
-	if (Array.isArray(detail)) return detail.map((d) => d.msg).join(' ');
+function extractError(json: unknown): string {
+	if (
+		typeof json === 'object' &&
+		json !== null &&
+		'detail' in json &&
+		typeof json.detail === 'string'
+	) {
+		return json.detail;
+	}
+
 	return 'Registration failed. Please try again.';
 }
 
@@ -13,15 +21,27 @@ export const actions = {
 	default: async ({ request, fetch }) => {
 		const data = await request.formData();
 
-		const username = String(data.get('username') ?? '').trim();
-		const email = String(data.get('email') ?? '').trim();
+		const username = String(data.get('username') ?? '');
+		const email = String(data.get('email') ?? '');
 		const password = String(data.get('password') ?? '');
+		const confirmPassword = String(data.get('confirm-password') ?? '');
 		const termsAccepted = data.get('terms') === 'on';
 
 		const values = { username, email };
 
-		if (!termsAccepted) {
-			return fail(400, { error: 'You must accept the terms.', values });
+		const result = v.safeParse(registerSchema, {
+			username,
+			email,
+			password,
+			confirmPassword,
+			termsAccepted
+		});
+
+		if (!result.success) {
+			return fail(400, {
+				error: result.issues[0].message,
+				values
+			});
 		}
 
 		let response: Response;
@@ -29,7 +49,11 @@ export const actions = {
 			response = await fetch(`${BACKEND_URL}/api/v1/auth/register`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ username, email, password })
+				body: JSON.stringify({
+					username: result.output.username,
+					email: result.output.email,
+					password: result.output.password
+				})
 			});
 		} catch {
 			return fail(502, {

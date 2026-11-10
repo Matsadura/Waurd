@@ -48,14 +48,14 @@
 		class="mt-3 sm:mt-5"
 	/>
 
-	<!-- <FormField
+	<FormField
 		label="Confirm Password"
 		name="confirm-password"
 		type="password"
 		autocomplete="new-password"
 		bind:value={confirmPassword}
 		class="mt-3 sm:mt-5"
-	/> -->
+	/>
 
 	<!-- Terms of Service -->
 	<div class="mt-6 flex items-center justify-center gap-2 text-sm">

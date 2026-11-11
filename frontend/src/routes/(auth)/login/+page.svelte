@@ -2,14 +2,12 @@
 	import FormField from '#lib/components/auth/FormField.svelte';
 	import AuthButton from '#lib/components/auth/AuthButton.svelte';
 	import SocialLogin from '#lib/components/auth/SocialLogin.svelte';
+	import type { ActionData } from './$types';
 
-	let email = $state('');
+	let { form }: { form: ActionData | null } = $props();
+
+	let email = $derived(form?.values?.email ?? '');
 	let password = $state('');
-
-	function handleSubmit(event: SubmitEvent) {
-		event.preventDefault();
-		// TODO: login API
-	}
 
 	function handleGoogle() {
 		// TODO: google sign-in
@@ -20,7 +18,7 @@
 	<title>Login</title>
 </svelte:head>
 
-<form class="flex w-full flex-col items-center" onsubmit={handleSubmit}>
+<form method="POST" class="flex w-full flex-col items-center">
 	<FormField label="Email" name="email" type="email" autocomplete="email" bind:value={email} />
 
 	<FormField
@@ -35,9 +33,9 @@
 	<AuthButton class="mt-12 mb-2">LOGIN</AuthButton>
 
 	<p class="mt-2 min-h-5 text-center text-base text-[#ff0000] sm:mt-3 sm:text-lg" role="alert">
-		<!-- {#if showTermsError}
-			*Error message for later
-		{/if} -->
+		{#if form?.error}
+			*{form.error}
+		{/if}
 	</p>
 
 	<SocialLogin ongoogle={handleGoogle} />

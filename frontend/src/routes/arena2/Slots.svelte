@@ -6,7 +6,7 @@
 	const arena = getArena();
 </script>
 
-<div class="absolute inset-x-0 top-1/3 flex items-start justify-center gap-2 px-4">
+<div class="flex items-start justify-center gap-2 px-4 ">
 	{#each arena.slots as glyphId, i}
 		<div
 			{@attach arena.slot(i)}

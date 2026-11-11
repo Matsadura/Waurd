@@ -100,6 +100,7 @@ async def leave_queue(
     summary="Poll queue state as WebSocket fallback",
 )
 async def get_queue_status(
+    time_control_seconds: int,
     current_user: User = Depends(get_current_user),
     queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
 ):
@@ -109,7 +110,7 @@ async def get_queue_status(
     """
     user_id_str = user_id_to_string(current_user.id)
 
-    ticket = await queue_store.get_user_ticket(user_id_str)
+    ticket = await queue_store.get_user_ticket(user_id_str, time_control_seconds)
     if not ticket:
         raise EntityNotFoundException("No active matchmaking ticket found")
 
@@ -205,7 +206,7 @@ async def join_custom_match(
 
 
 @router.post(
-    "/matches/ai",
+    "/matches/bot",
     response_model=AIMatchResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Instantiate a bot match against AI",
@@ -370,3 +371,56 @@ async def get_match_casts(
         )
         for idx, cast in enumerate(casts)
     ]
+
+
+@router.delete(
+    "/matches/{match_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Cancel a custom match lobby",
+)
+async def cancel_custom_match(
+    match_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Cancels a pending WAITING match lobby. Unlocks the host so they can queue or host again.
+    """
+    try:
+        match_bytes = user_id_to_bytes(match_id)
+    except ValueError:
+        raise BadRequestException("Invalid match UUID format.")
+
+    match_repo = MatchRepository(db)
+    await match_repo.cancel_custom_match(
+        match_id_bytes=match_bytes,
+        user_id_bytes=current_user.id,
+    )
+
+    return {"detail": "Match lobby cancelled successfully"}
+
+@router.delete(
+    "/matches/{match_id}/abandon",
+    status_code=status.HTTP_200_OK,
+    summary="Abandon an active match",
+)
+async def abandon_active_match(
+    match_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Abandons an active match. Marks the match as ABANDONED and unlocks the user.
+    """
+    try:
+        match_bytes = user_id_to_bytes(match_id)
+    except ValueError:
+        raise BadRequestException("Invalid match UUID format.")
+
+    match_repo = MatchRepository(db)
+    await match_repo.abandon_active_match(
+        match_id_bytes=match_bytes,
+        user_id_bytes=current_user.id,
+    )
+
+    return {"detail": "Active match abandoned successfully"}

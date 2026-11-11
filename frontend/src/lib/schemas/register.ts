@@ -8,11 +8,7 @@ export const registerSchema = v.pipe(
 			v.minLength(3, 'Username must be at least 3 characters.'),
 			v.maxLength(32, 'Username must be at most 32 characters.')
 		),
-		email: v.pipe(
-			v.string(),
-			v.trim(),
-			v.email('Please enter a valid email address.')
-		),
+		email: v.pipe(v.string(), v.trim(), v.email('Please enter a valid email address.')),
 		password: v.pipe(
 			v.string(),
 			v.minLength(8, 'Password must be at least 8 characters.'),

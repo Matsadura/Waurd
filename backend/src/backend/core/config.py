@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "FastAPI MySQL Service"
     API_V1_STR: str = "/api/v1"
 
+    # HashiCorp Vault
+    VAULT_ADDR: str = "http://vault:8200"
+    VAULT_ROLE_ID: str | None = None
+    VAULT_SECRET_ID: str | None = None
+
+
     # MySQL Configuration
     DB_HOST: str = "localhost"
     DB_PORT: int = 3306
@@ -67,3 +73,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+

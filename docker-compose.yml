@@ -26,6 +26,9 @@ services:
       - DB_PASSWORD=${DB_USER_PASSWORD:-app_password}
       - DB_NAME=${DB_NAME:-app_db}
       - REDIS_URL=redis://redis:6379
+      - VAULT_ADDR=${VAULT_ADDR}
+      - VAULT_ROLE_ID=${VAULT_ROLE_ID}
+      - VAULT_SECRET_ID=${VAULT_SECRET_ID}
     depends_on:
       db:
         condition: service_healthy
@@ -67,7 +70,23 @@ services:
       retries: 10
       start_period: 15s
 
+  vault:
+    image: hashicorp/vault:latest
+    container_name: vault
+    restart: unless-stopped
+    ports:
+      - "8200:8200"
+    cap_add:
+      - IPC_LOCK #Allows Vault to lock memory
+    volumes:
+      - ./vault/config:/vault/config #our config file
+      - vault_data:/vault/data #store vault data
+    command: server
+
+
 volumes:
   redis_data:
     driver: local
   mysql_data:
+  vault_data:
+

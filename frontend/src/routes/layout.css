@@ -12,5 +12,23 @@
 
 @theme {
 	--color-arena-yallow-100: #fff1c3;
+	--color-card-skill: #063528;
 	--font-kreon: 'Kreon';
+	--animate-ready-pulse: pulse 1.4s ease-in-out infinite;
+
+	@keyframes pulse {
+		0% {
+			transform: scale(0.99);
+			box-shadow: 0 0 0 0 #063528;
+		}
+
+		70% {
+			transform: scale(1);
+			box-shadow: 0 0 0 40px #06352800;
+		}
+
+		100% {
+			transform: scale(0.99);
+		}
+	}
 }

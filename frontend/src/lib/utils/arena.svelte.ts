@@ -20,10 +20,10 @@ export class Arena {
 	glyphs = $state<Record<string, Glyph>>(
 		Object.fromEntries([...'ABCDEFYGHIJ!L'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }]))
 	);
-	draw_pile = $state<Record<string, Glyph>>(
+	drawPile = $state<Record<string, Glyph>>(
 		Object.fromEntries([...'ABCDEFYGHIJ!L'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }]))
 	);
-	discard_pile = $state<Record<string, Glyph>>(
+	discardPile = $state<Record<string, Glyph>>(
 		Object.fromEntries([...'ABCDEFYGHIJ!L'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }]))
 	);
 	slots = $state<(string | null)[]>(Array(this.slotCount).fill(null));

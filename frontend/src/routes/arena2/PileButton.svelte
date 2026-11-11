@@ -1,32 +1,28 @@
 <script lang="ts">
-	import { getArena, setArena } from '#lib/utils/arena.svelte.ts';
+	import { getArena, setArena, type Glyph } from '#lib/utils/arena.svelte.ts';
 	import './layout.css';
 	import drawDeckImg from '#lib/assets/arena/draw-deck.png';
 	import GlyphsList from '#lib/components/arena/GlyphsList.svelte';
 
-	let showDrawPile = $state(false);
-	setArena();
+	let showPile = $state(false);
+	let { glyphs, title }: { glyphs: Glyph[]; title: string } = $props();
 </script>
 
 <button
-	class="draw-button absolute bottom-16 left-16 w-32 cursor-pointer transition-[scale] duration-500 hover:scale-110"
-	onclick={() => (showDrawPile = !showDrawPile)}
-	style:z-index={showDrawPile ? '99' : 'auto'}
+	class="draw-button relative w-32 cursor-pointer transition-[scale] duration-500 hover:scale-110 active:scale-100"
+	onclick={() => (showPile = !showPile)}
+	style:z-index={showPile ? '99' : 'auto'}
 >
-	<p class="tooltip font-kreon text-green-900">{showDrawPile ? 'Hide' : 'Show'} draw pile</p>
+	<p class="tooltip font-kreon text-green-900">{showPile ? 'Show' : 'Hide'} {title.toLowerCase()}</p>
 	<img alt="draw pile icon" src={drawDeckImg} />
 	<p
 		class="absolute right-0 bottom-4 flex aspect-square w-10 items-center justify-center rounded-full border-2 border-green-900 bg-arena-yallow-100 font-kreon text-xl text-green-900"
 	>
-		{Object.values(getArena().draw_pile).length}
+		{glyphs.length}
 	</p>
 </button>
 
-<GlyphsList
-	show={showDrawPile}
-	title={'You draw pile'}
-	glyphs={Object.values(getArena().draw_pile)}
-/>
+<GlyphsList show={showPile} {title} {glyphs} />
 
 <style>
 	.draw-button {

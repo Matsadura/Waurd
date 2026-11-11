@@ -9,7 +9,7 @@
 </script>
 
 <button
-	class="discard-button absolute right-16 bottom-16 w-32 cursor-pointer transition-[scale] duration-500 hover:scale-110"
+	class="discard-button relative w-32 cursor-pointer transition-[scale] duration-500 hover:scale-110"
 	onclick={() => (showDiscardPile = !showDiscardPile)}
 	style:z-index={showDiscardPile ? '99' : 'auto'}
 >

@@ -133,27 +133,6 @@ class MatchRepository(BaseRepository[Match]):
         await self.session.refresh(match)
         return match
 
-    async def create_ai_match(
-        self,
-        player_id_bytes: bytes,
-        ai_difficulty: str,
-        time_control_seconds: int,
-    ) -> Match:
-        """Instantiates an active match against an AI bot."""
-        match = Match(
-            id=uuid.uuid4().bytes,
-            player1_id=player_id_bytes,
-            player2_id=None,
-            is_ai_match=1,
-            ai_difficulty=ai_difficulty,
-            status=MatchStatus.ACTIVE,
-            time_control_seconds=time_control_seconds,
-        )
-        self.session.add(match)
-        await self.session.flush()
-        await self.session.refresh(match)
-        return match
-
     async def get_casts_for_match(self, match_id_bytes: bytes) -> list:
         """
         Retrieves all recorded turn casts for a match ordered chronologically by turn number.
@@ -195,7 +174,9 @@ class MatchRepository(BaseRepository[Match]):
         await self.session.refresh(match)
         return match
 
-    async def abandon_active_match(self, match_id_bytes: bytes, user_id_bytes: bytes) -> Match:
+    async def abandon_active_match(
+        self, match_id_bytes: bytes, user_id_bytes: bytes
+    ) -> Match:
         """
         Abandons an ACTIVE match. This can be used in scenarios where a player leaves or disconnects.
         """

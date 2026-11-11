@@ -17,9 +17,6 @@ from backend.models.user import User
 from backend.repositories.match import MatchRepository, MatchStatus
 from backend.repositories.user import UserRepository
 from backend.schemas.matchmaking import (
-    AIDifficultyEnum,
-    AIMatchCreateRequest,
-    AIMatchResponse,
     CustomMatchCreateRequest,
     CustomMatchResponse,
     JoinMatchRequest,
@@ -205,48 +202,6 @@ async def join_custom_match(
     )
 
 
-@router.post(
-    "/matches/bot",
-    response_model=AIMatchResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Instantiate a bot match against AI",
-)
-async def create_ai_match(
-    payload: AIMatchCreateRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Creates an active single-player match against an AI bot with specified difficulty.
-    """
-    match_repo = MatchRepository(db)
-    active_match = await match_repo.get_active_match_for_user(current_user.id)
-    if active_match:
-        raise BadRequestException(
-            "Cannot start an AI match while in an active or pending match"
-        )
-
-    match = await match_repo.create_ai_match(
-        player_id_bytes=current_user.id,
-        ai_difficulty=payload.difficulty.value,
-        time_control_seconds=payload.time_control_seconds,
-    )
-
-    return AIMatchResponse(
-        id=user_id_to_string(match.id),
-        is_ai_match=bool(match.is_ai_match),
-        ai_difficulty=AIDifficultyEnum(match.ai_difficulty),
-        status=MatchStatusEnum.ACTIVE,
-        time_control_seconds=match.time_control_seconds,
-        player=MatchPlayerResponse(
-            id=user_id_to_string(current_user.id),
-            username=current_user.username,
-            avatar_url=getattr(current_user, "avatar_url", None),
-        ),
-        created_at=match.created_at,
-    )
-
-
 @router.get(
     "/matches/{match_id}",
     response_model=MatchDetailResponse,
@@ -398,6 +353,7 @@ async def cancel_custom_match(
     )
 
     return {"detail": "Match lobby cancelled successfully"}
+
 
 @router.delete(
     "/matches/{match_id}/abandon",

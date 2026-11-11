@@ -1,7 +1,7 @@
 # backend/core/config.py
 import os
 
-from pydantic import computed_field
+from pydantic import SecretStr, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -48,6 +48,23 @@ class Settings(BaseSettings):
     # GOOGLE_FRONTEND_REDIRECT_URI: str = "http://localhost:3000"
     GOOGLE_FRONTEND_REDIRECT_URI: str = "http://localhost:8000/docs"  # For testing purposes; replace with your frontend URL in production
     GOOGLE_OAUTH_STATE_TTL_SECONDS: int = 600
+
+    # Two-factor authentication (emailed codes)
+    TWO_FACTOR_COOKIE_NAME: str = "two_factor_token"
+    TWO_FACTOR_CODE_TTL_SECONDS: int = 600
+    TWO_FACTOR_MAX_ATTEMPTS: int = 5
+    TWO_FACTOR_RESEND_COOLDOWN_SECONDS: int = 60
+
+    # Outgoing email. Defaults suit Gmail; MAIL_PASSWORD must be a Google app
+    # password, not the account password.
+    MAIL_USERNAME: str | None = None
+    MAIL_PASSWORD: SecretStr | None = None
+    MAIL_FROM: str | None = None  # Defaults to MAIL_USERNAME
+    MAIL_FROM_NAME: str = "Waurd"
+    MAIL_SERVER: str = "smtp.gmail.com"
+    MAIL_PORT: int = 587
+    MAIL_STARTTLS: bool = True
+    MAIL_SSL_TLS: bool = False
 
     # @computed_field
     # @property

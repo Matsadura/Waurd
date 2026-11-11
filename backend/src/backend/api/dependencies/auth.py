@@ -10,6 +10,7 @@ from backend.core.config import settings
 from backend.core.exceptions import ForbiddenException, UnauthorizedException
 from backend.core.identifiers import user_id_to_bytes
 from backend.core.session_store import RedisSessionStore
+from backend.core.two_factor import TwoFactorStore
 from backend.db.session import get_db
 from backend.models.user import User
 from backend.repositories.user import UserRepository
@@ -24,6 +25,15 @@ async def get_redis(request: Request) -> aioredis.Redis:
 
 def get_session_store(redis: aioredis.Redis = Depends(get_redis)) -> RedisSessionStore:
     return RedisSessionStore(redis, ttl_seconds=settings.SESSION_TTL_SECONDS)
+
+
+def get_two_factor_store(redis: aioredis.Redis = Depends(get_redis)) -> TwoFactorStore:
+    return TwoFactorStore(
+        redis,
+        code_ttl_seconds=settings.TWO_FACTOR_CODE_TTL_SECONDS,
+        max_attempts=settings.TWO_FACTOR_MAX_ATTEMPTS,
+        resend_cooldown_seconds=settings.TWO_FACTOR_RESEND_COOLDOWN_SECONDS,
+    )
 
 
 async def get_current_user(

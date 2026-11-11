@@ -85,6 +85,7 @@ async def request_validation_error_handler(
         "target_user_id": "User ID",
         "user_id": "User ID",
         "request_id": "Request ID",
+        "code": "Code",
     }
     field_name = field_names.get(field, "Value")
 

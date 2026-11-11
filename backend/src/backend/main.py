@@ -16,31 +16,38 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.api.v1.router import api_v1_router
 from backend.core.config import settings
 from backend.core.exceptions import AppException
-from backend.db.session import engine, get_db
+from backend.db.session import init_db, close_db, get_db
+from backend.core.vault import get_database_credentials
 
 logger = logging.getLogger("uvicorn.error")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # 1. Initialize Redis connection pool
-    app.state.redis = aioredis.from_url(
-        str(settings.REDIS_URL),
-        decode_responses=True,
-        max_connections=settings.REDIS_POOL_SIZE,
-    )
     try:
+        # 1. Get database credentials from Vault
+        db_credentials = await get_database_credentials()
+
+        # 2. Initialize database
+        await init_db(db_credentials)
+
+        # 3. Initialize Redis
+        app.state.redis = aioredis.from_url(
+            str(settings.REDIS_URL),
+            decode_responses=True,
+            max_connections=settings.REDIS_POOL_SIZE,
+        )
+
         await app.state.redis.ping()
-    except (aioredis.ConnectionError, aioredis.TimeoutError) as err:
-        raise RuntimeError(
-            f"Failed to connect to Redis at {settings.REDIS_URL}"
-        ) from err
 
-    yield
+        yield
 
-    # 2. Teardown: close Redis client and dispose SQLAlchemy pool
-    await app.state.redis.aclose()
-    await engine.dispose()
+    finally:
+        # 4. Cleanup
+        if hasattr(app.state, "redis"):
+            await app.state.redis.aclose()
+
+        await close_db()
 
 
 app = FastAPI(

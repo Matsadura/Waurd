@@ -29,6 +29,10 @@ class EmailSender:
     def __init__(self, mailer: FastMail | None) -> None:
         self.mailer = mailer
 
+    @property
+    def is_configured(self) -> bool:
+        return self.mailer is not None
+
     async def send_code(
         self, recipient: str, code: str, purpose: str | TwoFactorAction
     ) -> None:
@@ -48,10 +52,34 @@ class EmailSender:
             body=body,
             subtype=MessageType.plain,
         )
+        await self._send(message)
+
+    async def send_password_reset_link(self, recipient: str, link: str) -> None:
+        if self.mailer is None:
+            raise ServiceUnavailableException("Email delivery is not configured")
+
+        minutes = settings.PASSWORD_RESET_TTL_SECONDS // 60
+        body = (
+            "Open this link to choose a new Waurd password:\n\n"
+            f"{link}\n\n"
+            f"It works once and expires in {minutes} minutes. If you did not ask "
+            "to reset your password, ignore this email. Your password stays the "
+            "same."
+        )
+        await self._send(
+            MessageSchema(
+                subject="Reset your Waurd password",
+                recipients=[recipient],
+                body=body,
+                subtype=MessageType.plain,
+            )
+        )
+
+    async def _send(self, message: MessageSchema) -> None:
         try:
             await self.mailer.send_message(message)
         except ConnectionErrors as exc:
-            logger.exception("Sending verification email failed")
+            logger.exception("Sending email failed")
             raise BadGatewayException("Could not send the verification email") from exc
 
 

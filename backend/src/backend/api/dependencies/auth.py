@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.core.config import settings
 from backend.core.exceptions import ForbiddenException, UnauthorizedException
 from backend.core.identifiers import user_id_to_bytes
+from backend.core.password_reset import PasswordResetStore
 from backend.core.session_store import RedisSessionStore
 from backend.core.two_factor import TwoFactorStore
 from backend.db.session import get_db
@@ -33,6 +34,16 @@ def get_two_factor_store(redis: aioredis.Redis = Depends(get_redis)) -> TwoFacto
         code_ttl_seconds=settings.TWO_FACTOR_CODE_TTL_SECONDS,
         max_attempts=settings.TWO_FACTOR_MAX_ATTEMPTS,
         resend_cooldown_seconds=settings.TWO_FACTOR_RESEND_COOLDOWN_SECONDS,
+    )
+
+
+def get_password_reset_store(
+    redis: aioredis.Redis = Depends(get_redis),
+) -> PasswordResetStore:
+    return PasswordResetStore(
+        redis,
+        ttl_seconds=settings.PASSWORD_RESET_TTL_SECONDS,
+        cooldown_seconds=settings.PASSWORD_RESET_COOLDOWN_SECONDS,
     )
 
 

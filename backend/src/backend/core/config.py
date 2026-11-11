@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     TWO_FACTOR_MAX_ATTEMPTS: int = 5
     TWO_FACTOR_RESEND_COOLDOWN_SECONDS: int = 60
 
+    # Password reset links point at this frontend page, which reads ?token=
+    PASSWORD_RESET_URL: str = "http://localhost:5173/reset-password"
+    PASSWORD_RESET_TTL_SECONDS: int = 1800
+    PASSWORD_RESET_COOLDOWN_SECONDS: int = 60
+
     # Outgoing email. Defaults suit Gmail; MAIL_PASSWORD must be a Google app
     # password, not the account password.
     MAIL_USERNAME: str | None = None

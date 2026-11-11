@@ -11,14 +11,16 @@ export const FEEL = {
 	maxFan: 12,
 	scale: 1.3,
 	neighborPush: 70,
-	glyphAspectRatio: '16 / 25'
+	glyphAspectRatio: '16 / 25',
+	bounceDuration: 200, // time of bouncing of one glyph
+	bounceStagger: 60 // time to wait between glyphs
 };
 
 export class Arena {
 	readonly slotCount = 8;
 
 	glyphs = $state<Record<string, Glyph>>(
-		Object.fromEntries([...'ABCDEFYGHIJ!L'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }]))
+		Object.fromEntries([...'ABCDEFYGHIJKL'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }]))
 	);
 	drawPile = $state<Record<string, Glyph>>(
 		Object.fromEntries([...'ABCDEFYGHIJ!L'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }]))
@@ -34,6 +36,49 @@ export class Arena {
 	#slotEls: (HTMLElement | undefined)[] = [];
 
 	dragging = false;
+
+	// This is should only be true when the user submit a word
+	isBouncing = $state(false);
+	isError = $state(false);
+	isGood = $state(false);
+
+	async playWrongErrorAnimatino() {}
+
+	constructSlotWord() {
+		let word: string = '';
+		this.slots.forEach((id) => {
+			if (id) word += this.glyph(id).letter;
+		});
+		return word;
+	}
+
+	async playSubmitAnimation() {
+		const count = this.slots.filter(Boolean).length;
+		if (this.isBouncing || count === 0) return;
+
+		// const r = await fetch(`http://localhost:8000/check?word=${this.constructSlotWord()}`);
+
+		this.isBouncing = true;
+		await new Promise((r) => setTimeout(r, FEEL.bounceDuration + (count - 1) * FEEL.bounceStagger));
+		this.isBouncing = false;
+
+		// const json = await r.json();
+
+		// if (!json?.exists) {
+		if (Math.random() > 0.5) {
+			this.isError = true;
+			await new Promise((r) =>
+				setTimeout(r, FEEL.bounceDuration + (count - 1) * FEEL.bounceStagger)
+			);
+			this.isError = false;
+		} else {
+			this.isGood = true;
+			await new Promise((r) =>
+				setTimeout(r, FEEL.bounceDuration + (count - 1) * FEEL.bounceStagger)
+			);
+			this.isGood = false;
+		}
+	}
 
 	/** use as {@attach arena.slot(i)} */
 	slot(i: number) {

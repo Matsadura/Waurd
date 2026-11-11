@@ -1,8 +1,13 @@
 import secrets
 import string
 import uuid
+from datetime import UTC, datetime, timedelta
 
-from backend.core.exceptions import BadRequestException, EntityNotFoundException
+from backend.core.exceptions import (
+    BadRequestException,
+    EntityNotFoundException,
+    ForbiddenException,
+)
 from backend.core.identifiers import user_id_to_bytes
 from backend.models.match import Match, MatchCast, MatchStatus
 from backend.repositories.base import BaseRepository
@@ -15,7 +20,8 @@ class MatchRepository(BaseRepository[Match]):
         super().__init__(Match, session)
 
     async def get_active_match_for_user(self, user_id_bytes: bytes) -> Match | None:
-        """Finds any ongoing match where the user is currently player1 or player2."""
+        """Finds active or waiting matches. Automatically marks WAITING lobbies
+        older than 15 minutes as ABANDONED to unlock the user."""
         stmt = select(Match).where(
             Match.status.in_([MatchStatus.WAITING, MatchStatus.ACTIVE]),
             or_(
@@ -24,7 +30,22 @@ class MatchRepository(BaseRepository[Match]):
             ),
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        match = result.scalar_one_or_none()
+        if not match:
+            return None
+
+        if match.status == MatchStatus.WAITING and match.created_at:
+            created_at = (
+                match.created_at.replace(tzinfo=UTC)
+                if match.created_at.tzinfo is None
+                else match.created_at
+            )
+            if (datetime.now(UTC) - created_at) > timedelta(minutes=15):
+                match.status = MatchStatus.ABANDONED
+                await self.session.flush()
+                return None
+
+        return match
 
     async def get_match_by_id(self, match_id_bytes: bytes) -> Match | None:
         """Fetches a match record by its BINARY(16) primary key."""
@@ -69,7 +90,18 @@ class MatchRepository(BaseRepository[Match]):
 
         if not match:
             raise EntityNotFoundException("Invalid or expired invite code")
-
+        # 1. Validate lobby age (abandon if > 15 minutes old)
+        if match.created_at:
+            created_at = (
+                match.created_at.replace(tzinfo=UTC)
+                if match.created_at.tzinfo is None
+                else match.created_at
+            )
+            if (datetime.now(UTC) - created_at) > timedelta(minutes=15):
+                match.status = MatchStatus.ABANDONED
+                await self.session.flush()
+                await self.session.commit()
+                raise EntityNotFoundException("Invalid or expired invite code.")
         if match.player1_id == joiner_id_bytes:
             raise BadRequestException("You cannot join your own custom match lobby")
 
@@ -134,3 +166,55 @@ class MatchRepository(BaseRepository[Match]):
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def cancel_custom_match(
+        self,
+        match_id_bytes: bytes,
+        user_id_bytes: bytes,
+    ) -> Match:
+        """
+        Cancels a WAITING custom match lobby. Strictly restricted to the lobby creator.
+        """
+        stmt = select(Match).where(Match.id == match_id_bytes)
+        result = await self.session.execute(stmt)
+        match = result.scalar_one_or_none()
+
+        if not match:
+            raise EntityNotFoundException("Match lobby not found.")
+
+        if match.player1_id != user_id_bytes:
+            raise ForbiddenException("Only the lobby creator can cancel this match.")
+
+        if match.status != MatchStatus.WAITING:
+            raise BadRequestException(
+                "Cannot cancel a match that is not in WAITING status."
+            )
+
+        match.status = MatchStatus.ABANDONED
+        await self.session.flush()
+        await self.session.refresh(match)
+        return match
+
+    async def abandon_active_match(self, match_id_bytes: bytes, user_id_bytes: bytes) -> Match:
+        """
+        Abandons an ACTIVE match. This can be used in scenarios where a player leaves or disconnects.
+        """
+        stmt = select(Match).where(Match.id == match_id_bytes)
+        result = await self.session.execute(stmt)
+        match = result.scalar_one_or_none()
+
+        if not match:
+            raise EntityNotFoundException("Match not found.")
+
+        if match.status != MatchStatus.ACTIVE:
+            raise BadRequestException(
+                "Cannot abandon a match that is not in ACTIVE status."
+            )
+
+        if user_id_bytes not in [match.player1_id, match.player2_id]:
+            raise ForbiddenException("You are not a participant in this match.")
+
+        match.status = MatchStatus.ABANDONED
+        await self.session.flush()
+        await self.session.refresh(match)
+        return match

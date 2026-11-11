@@ -4,7 +4,9 @@ from datetime import datetime, timezone
 
 from redis.asyncio import Redis
 
-# Lua Script 1: Atomic Queue Join (prevents duplicate queueing & partial writes)
+from backend.core.exceptions import BadRequestException
+
+# Script 1: Atomic Queue Join
 LUA_JOIN_QUEUE = """
 local user_key = KEYS[1]
 local queue_key = KEYS[2]
@@ -21,7 +23,7 @@ redis.call("RPUSH", queue_key, user_id)
 return ticket_json
 """
 
-# Lua Script 2: Atomic Cancellation
+# Script 2: Atomic Queue Cancellation
 LUA_CANCEL_QUEUE = """
 local user_key = KEYS[1]
 local queue_key = KEYS[2]
@@ -37,7 +39,7 @@ redis.call("LREM", queue_key, 0, user_id)
 return 1
 """
 
-# Lua Script 3: Atomic Candidate Claiming
+# Script 3: Atomic Opponent Candidate Claiming
 LUA_CLAIM_OPPONENT = """
 local candidate_user_key = KEYS[1]
 local match_id = ARGV[1]
@@ -64,18 +66,23 @@ return updated_raw
 class MatchmakingQueueStore:
     def __init__(self, redis_client: Redis):
         self.redis = redis_client
+        # Pre-compile scripts into SHA1 hashes for EVALSHA execution
+        self._join_script = self.redis.register_script(LUA_JOIN_QUEUE)
+        self._cancel_script = self.redis.register_script(LUA_CANCEL_QUEUE)
+        self._claim_script = self.redis.register_script(LUA_CLAIM_OPPONENT)
 
-    def _user_key(self, user_id_str: str) -> str:
-        return f"matchmaking:user:{user_id_str}"
+    def _user_key(self, user_id_str: str, time_control: int) -> str:
+        # Hash tag {time_control} guarantees user_key and queue_key land on the same Redis cluster slot
+        return f"matchmaking:{{{time_control}}}:user:{user_id_str}"
 
     def _queue_key(self, time_control: int) -> str:
-        return f"matchmaking:queue:{time_control}"
+        return f"matchmaking:{{{time_control}}}:queue"
 
     async def add_to_queue(
         self, user_id_str: str, time_control: int, user_elo: int
     ) -> dict:
         """Adds a user with their Elo rating to the matchmaking pool in Redis."""
-        user_key = self._user_key(user_id_str)
+        user_key = self._user_key(user_id_str, time_control)
         queue_key = self._queue_key(time_control)
 
         ticket_data = {
@@ -88,50 +95,69 @@ class MatchmakingQueueStore:
             "matched_match_id": None,
         }
 
-        res_raw = await self.redis.eval(
-            LUA_JOIN_QUEUE,
-            2,
-            user_key,
-            queue_key,
-            user_id_str,
-            json.dumps(ticket_data),
-            600,
+        # Execute via EVALSHA registered script
+        res_raw = await self._join_script(
+            keys=[user_key, queue_key],
+            args=[user_id_str, json.dumps(ticket_data), 600],
         )
-        return json.loads(res_raw)
+
+        if res_raw is None:
+            raise BadRequestException("Failed to process matchmaking queue request.")
+
+        if isinstance(res_raw, bytes):
+            res_raw = res_raw.decode("utf-8")
+
+        try:
+            return json.loads(res_raw)
+        except (json.JSONDecodeError, TypeError):
+            raise BadRequestException("Invalid data structure returned from queue engine.")
 
     async def cancel_queue(self, user_id_str: str, time_control: int) -> bool:
         """Atomically removes a user from the queue list and deletes their ticket key."""
-        user_key = self._user_key(user_id_str)
+        user_key = self._user_key(user_id_str, time_control)
         queue_key = self._queue_key(time_control)
 
-        res = await self.redis.eval(
-            LUA_CANCEL_QUEUE,
-            2,
-            user_key,
-            queue_key,
-            user_id_str,
+        res = await self._cancel_script(
+            keys=[user_key, queue_key],
+            args=[user_id_str],
         )
         return bool(res)
 
     async def claim_candidate(
-        self, candidate_id_str: str, match_id_str: str
+        self, candidate_id_str: str, time_control: int, match_id_str: str
     ) -> dict | None:
         """Atomically transitions candidate ticket status to MATCHED for background matchmaker."""
-        candidate_key = self._user_key(candidate_id_str)
-        res_raw = await self.redis.eval(
-            LUA_CLAIM_OPPONENT,
-            1,
-            candidate_key,
-            match_id_str,
+        candidate_key = self._user_key(candidate_id_str, time_control)
+        res_raw = await self._claim_script(
+            keys=[candidate_key],
+            args=[match_id_str],
         )
-        if res_raw:
-            return json.loads(res_raw)
-        return None
 
-    async def get_user_ticket(self, user_id_str: str) -> dict | None:
+        if not res_raw:
+            return None
+
+        if isinstance(res_raw, bytes):
+            res_raw = res_raw.decode("utf-8")
+
+        try:
+            return json.loads(res_raw)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+    async def get_user_ticket(
+        self, user_id_str: str, time_control: int
+    ) -> dict | None:
         """Fetches active queue ticket for a given user."""
-        user_key = self._user_key(user_id_str)
+        user_key = self._user_key(user_id_str, time_control)
         raw_data = await self.redis.get(user_key)
-        if raw_data:
+
+        if not raw_data:
+            return None
+
+        if isinstance(raw_data, bytes):
+            raw_data = raw_data.decode("utf-8")
+
+        try:
             return json.loads(raw_data)
-        return None
+        except (json.JSONDecodeError, TypeError):
+            return None

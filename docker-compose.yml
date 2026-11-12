@@ -67,6 +67,17 @@ services:
       retries: 10
       start_period: 15s
 
+  waf:
+    image : owasp/modsecurity-crs:nginx
+    container_name: waf
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      BACKEND: "http://backend:8000"
+    depends_on:
+      - backend
+
 volumes:
   redis_data:
     driver: local

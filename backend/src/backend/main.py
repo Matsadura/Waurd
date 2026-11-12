@@ -86,6 +86,8 @@ async def request_validation_error_handler(
         "user_id": "User ID",
         "request_id": "Request ID",
         "code": "Code",
+        "new_password": "Password",
+        "token": "Reset token",
     }
     field_name = field_names.get(field, "Value")
 

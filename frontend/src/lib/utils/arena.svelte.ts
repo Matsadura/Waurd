@@ -56,16 +56,18 @@ export class Arena {
 		const count = this.slots.filter(Boolean).length;
 		if (this.isBouncing || count === 0) return;
 
-		// const r = await fetch(`http://localhost:8000/check?word=${this.constructSlotWord()}`);
-
 		this.isBouncing = true;
+		const r = await fetch(`http://localhost:8001/check?word=${this.constructSlotWord()}`).catch(
+			console.log
+		);
 		await new Promise((r) => setTimeout(r, FEEL.bounceDuration + (count - 1) * FEEL.bounceStagger));
 		this.isBouncing = false;
 
-		// const json = await r.json();
+		const json = await r?.json();
 
-		// if (!json?.exists) {
-		if (Math.random() > 0.5) {
+		console.log(json);
+		if (!json?.exists) {
+			// if (Math.random() > 0.5) {
 			this.isError = true;
 			await new Promise((r) =>
 				setTimeout(r, FEEL.bounceDuration + (count - 1) * FEEL.bounceStagger)

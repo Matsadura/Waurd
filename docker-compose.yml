@@ -66,8 +66,59 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+  
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.2.0
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    mem_limit: 1g
+    networks:
+      - elastic
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.2.0
+    container_name: kibana
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - NODE_OPTIONS=--max-old-space-size=512
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    mem_limit: 1g
+    networks:
+      - elastic
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:9.2.0
+    container_name: filebeat
+    user: root
+    command: ["-e", "--strict.perms=false"]
+    volumes:
+      - ./elk/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - filebeat_data:/usr/share/filebeat/data
+    depends_on:
+      - elasticsearch
+    networks:
+      - elastic
 
 volumes:
   redis_data:
     driver: local
   mysql_data:
+  es_data:
+  filebeat_data:
+networks:
+  elastic:
+    driver: bridge

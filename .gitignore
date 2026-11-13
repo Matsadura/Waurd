@@ -199,3 +199,7 @@ __marimo__/
 
 .vscode
 node_modules/
+
+
+# Vault sensitive data and temporary files
+vault/scripts/vault-data.tar.gz

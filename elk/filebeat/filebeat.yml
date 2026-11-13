@@ -1,0 +1,10 @@
+filebeat.inputs:
+  - type: filestream
+    id: docker-logs
+    paths:
+      - /var/lib/docker/containers/*/*.log
+    parsers:
+      - container: ~
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]

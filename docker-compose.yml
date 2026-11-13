@@ -99,11 +99,26 @@ services:
     networks:
       - elastic
 
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:9.2.0
+    container_name: filebeat
+    user: root
+    command: ["-e", "--strict.perms=false"]
+    volumes:
+      - ./elk/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - filebeat_data:/usr/share/filebeat/data
+    depends_on:
+      - elasticsearch
+    networks:
+      - elastic
+
 volumes:
   redis_data:
     driver: local
   mysql_data:
   es_data:
+  filebeat_data:
 networks:
   elastic:
     driver: bridge

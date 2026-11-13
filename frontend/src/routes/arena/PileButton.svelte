@@ -13,7 +13,7 @@
 	onclick={() => (showPile = !showPile)}
 	style:z-index={showPile ? '99' : 'auto'}
 >
-	<p class="tooltip font-kreon text-green-900">{showPile ? 'Show' : 'Hide'} {title.toLowerCase()}</p>
+	<p class="tooltip font-kreon text-green-900">{showPile ? 'Hide' : 'Show'} {title.toLowerCase()}</p>
 	<img alt="draw pile icon" src={drawDeckImg} />
 	<p
 		class="absolute right-0 bottom-4 flex aspect-square w-10 items-center justify-center rounded-full border-2 border-green-900 bg-arena-yallow-100 font-kreon text-xl text-green-900"

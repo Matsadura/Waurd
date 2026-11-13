@@ -141,7 +141,7 @@ async def create_private_match_lobby(
     Creates a pending match lobby in WAITING status with a private 6-character join code.
     """
     match_repo = MatchRepository(db)
-    
+
     if await queue_store.get_user_ticket(user_id_to_string(current_user.id)):
         raise BadRequestException("Please leave the matchmaking queue first.")
     active_match = await match_repo.get_active_match_for_user(current_user.id)

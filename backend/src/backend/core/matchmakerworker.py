@@ -57,9 +57,9 @@ class MatchmakerWorker:
         candidates.sort(key=lambda p: p.get("elo", 1000))
 
         # Pair adjacent players (0 & 1, 2 & 3, etc.)
-        for i in range(0, len(candidates) - 1, 2):
-            player_a = candidates[i]
-            player_b = candidates[i + 1]
+        for index in range(0, len(candidates) - 1, 2):
+            player_a = candidates[index]
+            player_b = candidates[index + 1]
 
             if (
                 abs(player_a.get("elo", 1000) - player_b.get("elo", 1000))
@@ -98,8 +98,8 @@ class MatchmakerWorker:
         """Runs continuous queue sweeps every second."""
         while True:
             try:
-                for tc in self.time_controls:
-                    await self.process_queue_for_time_control(tc)
+                for time_control in self.time_controls:
+                    await self.process_queue_for_time_control(time_control)
             except asyncio.CancelledError:
                 break
             except Exception as e:

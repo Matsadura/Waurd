@@ -94,24 +94,35 @@ async def leave_queue(
     "/status",
     response_model=QueueTicketResponse,
     status_code=status.HTTP_200_OK,
-    summary="Poll queue state as WebSocket fallback",
+    summary="Poll queue or active match state",
 )
 async def get_queue_status(
-    time_control_seconds: int,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
     queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
 ):
-    """
-    Check current matchmaking ticket state, age in queue, and matched match ID.
-    Serves as a polling fallback when WebSocket connections drop.
-    """
     user_id_str = user_id_to_string(current_user.id)
 
-    ticket = await queue_store.get_user_ticket(user_id_str, time_control_seconds)
-    if not ticket:
-        raise EntityNotFoundException("No active matchmaking ticket found")
+    # 1. Check Redis first (user is still waiting in queue)
+    ticket = await queue_store.get_user_ticket(user_id_str)
+    if ticket:
+        return QueueTicketResponse(**ticket)
 
-    return QueueTicketResponse(**ticket)
+    # 2. Not in Redis -> check MySQL for an ACTIVE or WAITING match
+    match_repo = MatchRepository(db)
+    active_match = await match_repo.get_active_match_for_user(current_user.id)
+    if active_match:
+        return QueueTicketResponse(
+            ticket_id=str(uuid.UUID(bytes=active_match.id)),
+            user_id=user_id_str,
+            time_control_seconds=active_match.time_control_seconds,
+            elo=current_user.elo,
+            status="MATCHED",
+            queued_at=active_match.created_at,
+            matched_match_id=str(uuid.UUID(bytes=active_match.id)),
+        )
+
+    raise EntityNotFoundException("No active matchmaking ticket or match found.")
 
 
 @router.post(
@@ -124,11 +135,15 @@ async def create_private_match_lobby(
     payload: CustomMatchCreateRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
 ):
     """
     Creates a pending match lobby in WAITING status with a private 6-character join code.
     """
     match_repo = MatchRepository(db)
+    
+    if await queue_store.get_user_ticket(user_id_to_string(current_user.id)):
+        raise BadRequestException("Please leave the matchmaking queue first.")
     active_match = await match_repo.get_active_match_for_user(current_user.id)
     if active_match:
         raise BadRequestException(
@@ -164,12 +179,14 @@ async def join_custom_match(
     payload: JoinMatchRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
 ):
     """
     Validates an invite code, assigns the joining user as player 2, and starts the match.
     """
     match_repo = MatchRepository(db)
-
+    if await queue_store.get_user_ticket(user_id_to_string(current_user.id)):
+        raise BadRequestException("Please leave the matchmaking queue first.")
     # 1. Ensure joining player isn't already in an active match
     active_match = await match_repo.get_active_match_for_user(current_user.id)
     if active_match:

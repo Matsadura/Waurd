@@ -16,4 +16,7 @@ api_v1_router.include_router(
     dependencies=[Depends(verify_csrf)],
 )
 
-api_v1_router.include_router(matchmaking.router)
+api_v1_router.include_router(
+    matchmaking.router,
+    dependencies=[Depends(verify_csrf)],
+)

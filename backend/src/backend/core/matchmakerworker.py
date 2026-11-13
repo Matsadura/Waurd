@@ -27,29 +27,26 @@ class MatchmakerWorker:
         queue_key = self.queue_store._queue_key(time_control)
         raw_user_ids = await self.queue_store.redis.lrange(queue_key, 0, 99)
 
-        if not raw_user_ids or len(raw_user_ids) < 2:
+        if not raw_user_ids:
             return
 
         candidates: list[dict] = []
         dead_uids: list[str] = []
 
         for raw_uid in raw_user_ids:
-            # Safely decode bytes if redis response isn't auto-decoded
             uid_str = raw_uid.decode("utf-8") if isinstance(raw_uid, bytes) else raw_uid
+            ticket = await self.queue_store.get_user_ticket(uid_str)
 
-            # Pass time_control to get_user_ticket
-            ticket = await self.queue_store.get_user_ticket(
-                user_id_str=uid_str, 
-                time_control=time_control,
-            )
-
-            if ticket and ticket.get("status") == "QUEUED":
+            if (
+                ticket
+                and ticket.get("status") == "QUEUED"
+                and ticket.get("time_control_seconds") == time_control
+            ):
                 candidates.append(ticket)
-            else:
-                # Mark expired/cancelled ticket IDs for list cleanup
+            elif not ticket or ticket.get("time_control_seconds") != time_control:
                 dead_uids.append(uid_str)
 
-        # Evict dead/expired tickets from the Redis queue list
+        # Evict expired tickets or users who switched to another time-control queue
         for dead_uid in dead_uids:
             await self.queue_store.redis.lrem(queue_key, 0, dead_uid)
 
@@ -71,33 +68,31 @@ class MatchmakerWorker:
                 continue
 
             match_id = str(uuid.uuid4())
+            p1_id = player_a["user_id"]
+            p2_id = player_b["user_id"]
 
-            # Pass time_control to claim_candidate
-            ticket_a = await self.queue_store.claim_candidate(
-                candidate_id_str=player_a["user_id"],
-                time_control=time_control,
-                match_id_str=match_id,
-            )
-            ticket_b = await self.queue_store.claim_candidate(
-                candidate_id_str=player_b["user_id"],
-                time_control=time_control,
-                match_id_str=match_id,
-            )
+            # 1. Atomically lock both candidates in Redis for 10s
+            claimed = await self.queue_store.claim_pair(p1_id, p2_id, time_control)
+            if not claimed:
+                continue
 
-            if ticket_a and ticket_b:
+            # 2. Persist match in MySQL, then immediately delete Redis queue state
+            try:
                 async with self.session_factory() as db:
                     match_repo = MatchRepository(db)
                     await match_repo.create_pvp_match(
                         match_id_str=match_id,
-                        player1_id_str=player_a["user_id"],
-                        player2_id_str=player_b["user_id"],
+                        player1_id_str=p1_id,
+                        player2_id_str=p2_id,
                         time_control_seconds=time_control,
                     )
                     await db.commit()
 
-                # Remove matched players from the Redis queue list
-                await self.queue_store.redis.lrem(queue_key, 0, player_a["user_id"])
-                await self.queue_store.redis.lrem(queue_key, 0, player_b["user_id"])
+                await self.queue_store.finalize_matched_pair(p1_id, p2_id, time_control)
+            except Exception as e:
+                logger.error(
+                    f"Failed to persist PvP match {match_id} for {p1_id} vs {p2_id}: {e}"
+                )
 
     async def start_loop(self) -> None:
         """Runs continuous queue sweeps every second."""

@@ -52,6 +52,50 @@ password: SecureP@ssw0rd!123
 user id: 00000000-0000-4000-8000-000000000004
 ```
 
+## Two-factor authentication (email codes)
+
+When 2FA is on, logging in also needs a 6-digit code emailed to the account address. Codes expire after 10 minutes, work once, and stop working after 5 wrong tries. Only one email is sent per user per minute.
+
+### Sending email from Gmail
+
+Gmail needs an app password, not your normal password:
+
+1. Turn on 2-Step Verification for the Google account.
+2. Create an app password at https://myaccount.google.com/apppasswords.
+3. Add these to `backend/.env`, which is gitignored:
+
+```text
+MAIL_USERNAME=your-address@gmail.com
+MAIL_PASSWORD=your-16-character-app-password
+```
+
+Mail goes through `smtp.gmail.com:587` with STARTTLS by default. Without these settings, the 2FA endpoints answer `503`.
+
+### API flow
+
+Turning 2FA on or off, from a signed-in session (send the `X-CSRF-Token` header):
+
+1. `POST /auth/2fa/code` with `{"action": "enable"}` or `{"action": "disable"}` emails a code.
+2. `POST /auth/2fa/enable` or `POST /auth/2fa/disable` with `{"code": "123456"}`.
+
+`GET /auth/2fa` returns `{"enabled": true|false}`.
+
+Logging in once 2FA is on:
+
+- `POST /auth/login` answers `202` with `{"two_factor_required": true, "email_hint": "a***@gmail.com"}` instead of `200`. It emails a code and sets an HttpOnly `two_factor_token` cookie instead of a session.
+- Google login redirects to `GOOGLE_FRONTEND_REDIRECT_URI` with `?two_factor=required` added.
+- Either way, send `POST /auth/2fa/verify` with `{"code": "123456"}`. On success it returns the user and sets the usual session and CSRF cookies. To get a new code, log in again.
+
+## Password reset (email links)
+
+Uses the same Gmail settings as two-factor authentication. Neither request needs a session or the `X-CSRF-Token` header.
+
+1. `POST /auth/password/forgot` with `{"email": "..."}` always answers `202` with the same message. If the address belongs to an account with a password, a link is emailed after the response is sent, so the response can't be used to tell which emails are registered. Accounts that only use Google sign-in get no link.
+2. The link opens `PASSWORD_RESET_URL` (by default `http://localhost:5173/reset-password`) with a `?token=...` query parameter. The frontend reads it and shows a new-password form.
+3. `POST /auth/password/reset` with `{"token": "...", "new_password": "..."}` sets the new password and signs the user out of every session. A used, expired, replaced or made-up token returns `400`.
+
+A link works once and expires after 30 minutes. Asking again invalidates the previous link, and each user gets at most one reset email per minute. Only a hash of the token is stored in Redis. If 2FA is on, logging in after a reset still asks for a 2FA code.
+
 ## Running the tests
 
 The API tests need no running services: MySQL is replaced by a temporary SQLite database and Redis by fakeredis.

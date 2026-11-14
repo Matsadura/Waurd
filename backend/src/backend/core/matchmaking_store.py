@@ -215,15 +215,35 @@ class MatchmakingQueueStore:
         return bool(res)
 
     async def finalize_matched_pair(
-        self, player1_id_str: str, player2_id_str: str, time_control: int
+        self,
+        player1_id_str: str,
+        player2_id_str: str,
+        time_control: int,
+        match_id: str | None = None,
     ) -> None:
-        """Immediately deletes both user tickets and removes them from the queue list."""
+        """Removes players from queue list and updates their ticket status to MATCHED in Redis for 60s."""
         queue_key = self._queue_key(time_control)
         pipe = self.redis.pipeline()
-        pipe.delete(self._user_key(player1_id_str))
-        pipe.delete(self._user_key(player2_id_str))
         pipe.lrem(queue_key, 0, player1_id_str)
         pipe.lrem(queue_key, 0, player2_id_str)
+
+        for uid in (player1_id_str, player2_id_str):
+            user_key = self._user_key(uid)
+            raw = await self.redis.get(user_key)
+            if raw:
+                try:
+                    if isinstance(raw, bytes):
+                        raw = raw.decode("utf-8")
+                    data = json.loads(raw)
+                    data["status"] = "MATCHED"
+                    if match_id:
+                        data["matched_match_id"] = match_id
+                    pipe.set(user_key, json.dumps(data), ex=60)
+                except (json.JSONDecodeError, TypeError, KeyError):
+                    pipe.delete(user_key)
+            else:
+                pipe.delete(user_key)
+
         await pipe.execute()
 
     async def get_user_ticket(self, user_id_str: str) -> dict | None:

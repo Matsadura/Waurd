@@ -88,7 +88,9 @@ class MatchmakerWorker:
                     )
                     await db.commit()
 
-                await self.queue_store.finalize_matched_pair(p1_id, p2_id, time_control)
+                await self.queue_store.finalize_matched_pair(
+                    p1_id, p2_id, time_control, match_id=match_id
+                )
             except Exception as e:
                 logger.error(
                     f"Failed to persist PvP match {match_id} for {p1_id} vs {p2_id}: {e}"

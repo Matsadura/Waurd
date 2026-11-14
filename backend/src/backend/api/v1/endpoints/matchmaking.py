@@ -1,5 +1,9 @@
 import uuid
 
+from fastapi import APIRouter, Depends, status
+from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.api.dependencies.auth import (
     get_current_user,
     get_redis,
@@ -26,11 +30,9 @@ from backend.schemas.matchmaking import (
     MatchStatusEnum,
     QueueJoinRequest,
     QueueLeaveRequest,
+    QueueStatusEnum,
     QueueTicketResponse,
 )
-from fastapi import APIRouter, Depends, status
-from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/matchmaking", tags=["Matchmaking & Matches"])
 
@@ -112,12 +114,17 @@ async def get_queue_status(
     match_repo = MatchRepository(db)
     active_match = await match_repo.get_active_match_for_user(current_user.id)
     if active_match:
+        status_val = (
+            QueueStatusEnum.WAITING
+            if active_match.status == MatchStatus.WAITING
+            else QueueStatusEnum.MATCHED
+        )
         return QueueTicketResponse(
             ticket_id=str(uuid.UUID(bytes=active_match.id)),
             user_id=user_id_str,
             time_control_seconds=active_match.time_control_seconds,
             elo=current_user.elo,
-            status="MATCHED",
+            status=status_val,
             queued_at=active_match.created_at,
             matched_match_id=str(uuid.UUID(bytes=active_match.id)),
         )
@@ -160,6 +167,7 @@ async def create_private_match_lobby(
         invite_code=match.invite_code,
         status=MatchStatusEnum.WAITING,
         time_control_seconds=match.time_control_seconds,
+        is_private=match.invite_code is not None,
         creator=MatchPlayerResponse(
             id=user_id_to_string(current_user.id),
             username=current_user.username,
@@ -253,15 +261,8 @@ async def get_match_details(
         avatar_url=getattr(p1, "avatar_url", None) if p1 else None,
     )
 
-    # 2. Resolve Player 2 (Human or AI)
-    player2_resp = None
-    if match.is_ai_match:
-        player2_resp = MatchPlayerResponse(
-            id="ai_bot_opponent",
-            username=f"AI Bot ({match.ai_difficulty or 'MEDIUM'})",
-            avatar_url=None,
-        )
-    elif match.player2_id:
+    player2_resp: MatchPlayerResponse | None = None
+    if match.player2_id:
         p2 = await user_repo.get_by_id(match.player2_id)
         player2_resp = MatchPlayerResponse(
             id=user_id_to_string(match.player2_id),
@@ -272,8 +273,6 @@ async def get_match_details(
     return MatchDetailResponse(
         id=user_id_to_string(match.id),
         invite_code=match.invite_code,
-        is_ai_match=bool(match.is_ai_match),
-        ai_difficulty=match.ai_difficulty,
         status=MatchStatusEnum(match.status.value),
         time_control_seconds=match.time_control_seconds,
         player1=player1_resp,
@@ -330,18 +329,19 @@ async def get_match_casts(
 
     return [
         MatchCastResponse(
-            id=user_id_to_string(cast.id) if hasattr(cast, "id") else str(uuid.uuid4()),
+            id=str(cast.id),
             match_id=match_id,
-            turn_number=getattr(cast, "turn_number", idx + 1),
+            turn_number=cast.turn_number,
             player_id=user_id_to_string(cast.player_id),
-            word=getattr(cast, "word", None),
-            glyphs_used=getattr(cast, "glyphs_used", []),
-            perks_activated=getattr(cast, "perks_activated", []),
-            damage_dealt=getattr(cast, "damage_dealt", 0),
-            healing_done=getattr(cast, "healing_done", 0),
-            created_at=getattr(cast, "created_at", match.created_at),
+            word_played=cast.word_played,
+            glyphs_payload=cast.glyphs_payload or {},
+            status_effects_applied=cast.status_effects_applied,
+            damage_dealt=cast.damage_dealt,
+            defense_gained=cast.defense_gained,
+            heal_amount=cast.heal_amount,
+            created_at=cast.created_at,
         )
-        for idx, cast in enumerate(casts)
+        for cast in casts
     ]
 
 

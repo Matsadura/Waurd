@@ -1,5 +1,6 @@
 import enum
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -13,14 +14,17 @@ class TimeControl(int, enum.Enum):
 class MatchStatusEnum(str, enum.Enum):
     WAITING = "WAITING"
     ACTIVE = "ACTIVE"
-    COMPLETED = "COMPLETED"
+    FINISHED = "FINISHED"
     ABANDONED = "ABANDONED"
 
 
 class QueueStatusEnum(str, enum.Enum):
     QUEUED = "QUEUED"
+    CLAIMING = "CLAIMING"
     MATCHED = "MATCHED"
     CANCELLED = "CANCELLED"
+    WAITING = "WAITING"
+    ACTIVE = "ACTIVE"
 
 
 class QueueJoinRequest(BaseModel):
@@ -56,10 +60,20 @@ class QueueTicketResponse(BaseModel):
     status: QueueStatusEnum
     queued_at: datetime
     matched_match_id: str | None = None
+    elo: int | None = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CustomMatchCreateRequest(BaseModel):
     time_control_seconds: int = Field(180, description="60, 180, or 300 seconds")
+
+    @field_validator("time_control_seconds")
+    @classmethod
+    def validate_time_control(cls, time: int) -> int:
+        if time not in (60, 180, 300):
+            raise ValueError("time_control_seconds must be 60, 180, or 300 seconds.")
+        return time
 
 
 class MatchPlayerResponse(BaseModel):
@@ -75,6 +89,7 @@ class CustomMatchResponse(BaseModel):
     invite_code: str | None
     status: MatchStatusEnum
     time_control_seconds: int
+    is_private: bool = False
     creator: MatchPlayerResponse
     created_at: datetime
 
@@ -93,8 +108,6 @@ class JoinMatchRequest(BaseModel):
 class MatchDetailResponse(BaseModel):
     id: str
     invite_code: str | None = None
-    is_ai_match: bool
-    ai_difficulty: str | None = None
     status: MatchStatusEnum
     time_control_seconds: int
     player1: MatchPlayerResponse
@@ -117,11 +130,12 @@ class MatchCastResponse(BaseModel):
     match_id: str
     turn_number: int
     player_id: str
-    word: str | None = None
-    glyphs_used: list[str] = Field(default_factory=list)
-    perks_activated: list[str] = Field(default_factory=list)
+    word_played: str
+    glyphs_payload: dict[str, Any] = Field(default_factory=dict)
+    status_effects_applied: dict[str, Any] | None = None
     damage_dealt: int = 0
-    healing_done: int = 0
+    defense_gained: int = 0
+    heal_amount: int = 0
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -11,7 +11,7 @@ from backend.core.exceptions import (
 from backend.core.identifiers import user_id_to_bytes
 from backend.models.match import Match, MatchCast, MatchStatus
 from backend.repositories.base import BaseRepository
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -81,15 +81,22 @@ class MatchRepository(BaseRepository[Match]):
         invite_code: str,
     ) -> Match:
         """Finds a WAITING lobby by invite code, assigns player2_id, and activates the match."""
-        stmt = select(Match).where(
-            Match.invite_code == invite_code.upper(),
-            Match.status == MatchStatus.WAITING,
+        stmt = (
+            select(Match)
+            .where(Match.invite_code == invite_code.upper())
+            .with_for_update()
         )
         result = await self.session.execute(stmt)
         match = result.scalar_one_or_none()
 
         if not match:
             raise EntityNotFoundException("Invalid or expired invite code")
+
+        if match.status != MatchStatus.WAITING or match.player2_id is not None:
+            raise BadRequestException(
+                "This match lobby is already full or no longer available."
+            )
+
         # 1. Validate lobby age (abandon if > 15 minutes old)
         if match.created_at:
             created_at = (
@@ -102,14 +109,31 @@ class MatchRepository(BaseRepository[Match]):
                 await self.session.flush()
                 await self.session.commit()
                 raise EntityNotFoundException("Invalid or expired invite code.")
+
         if match.player1_id == joiner_id_bytes:
             raise BadRequestException("You cannot join your own custom match lobby")
 
-        match.player2_id = joiner_id_bytes
-        match.status = MatchStatus.ACTIVE
-        match.started_at = func.now()
+        # Atomic conditional update to guarantee only one join succeeds under concurrency
+        update_stmt = (
+            update(Match)
+            .where(
+                Match.id == match.id,
+                Match.status == MatchStatus.WAITING,
+                Match.player2_id.is_(None),
+            )
+            .values(
+                player2_id=joiner_id_bytes,
+                status=MatchStatus.ACTIVE,
+                started_at=func.now(),
+            )
+        )
+        res = await self.session.execute(update_stmt)
+        if res.rowcount == 0:
+            raise BadRequestException(
+                "This match lobby is already full or no longer available."
+            )
 
-        await self.session.flush()
+        await self.session.commit()
         await self.session.refresh(match)
         return match
 

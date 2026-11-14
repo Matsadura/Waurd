@@ -27,12 +27,10 @@ def upgrade() -> None:
         existing_type=sa.BINARY(length=16),
         nullable=True,
     )
-    op.drop_index(op.f('uq_users_oauth_provider_id'), table_name='users')
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.create_index(op.f('uq_users_oauth_provider_id'), 'users', ['oauth_provider', 'oauth_id'], unique=True)
     op.alter_column(
         'matches',
         'player2_id',

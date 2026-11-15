@@ -60,8 +60,9 @@ class Match(Base, TimestampMixin):
     player2_id: Mapped[bytes] = mapped_column(
         BINARY(16),
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
+    invite_code = mapped_column(String(6), nullable=True, unique=True, index=True)
     is_ai_match: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     ai_difficulty: Mapped[AIDifficulty | None] = mapped_column(
         Enum(AIDifficulty), nullable=True

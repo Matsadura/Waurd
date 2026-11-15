@@ -7,7 +7,7 @@
 <div class="perk relative w-full font-bold">
 	<div
 		class="art absolute bg-cover bg-center"
-		style:background-image={`url("${artBackground || 'https://cataas.com/avatar/cute?format=webp'}")`}
+		style:background-image={`url('https://cataas.com/avatar/${artBackground}?format=webp')`}
 	></div>
 	<img src={perkFrame} alt="park frame" class="absolute select-none" draggable="false" />
 
@@ -21,7 +21,7 @@
 		class="rarity absolute text-center font-kreon text-white uppercase text-shadow-sm text-shadow-taupe-300/80"
 		>Uncommon</span
 	>
-	<p class="desc absolute text-center font-normal text-white text-shadow-amber-800 text-shadow-sm">
+	<p class="desc absolute text-center font-normal text-white text-shadow-gray-800 text-shadow-sm">
 		Transform this glyph into "RE" and increase its effect value by 5.
 	</p>
 	<span class="divider absolute w-1/2"></span>
@@ -32,6 +32,7 @@
 	.perk {
 		container-type: inline-size;
 		font-family: 'Times New Roman', Times, serif;
+		aspect-ratio: 13 / 21;
 	}
 	.art {
 		width: 78cqi;

@@ -27,8 +27,8 @@
 		<main class="card__body">{letter}</main>
 
 		<footer class="card__footer">
-			<p class="card__description">Deal <b class="text-red-300">90</b> damage</p>
-			<p class="card__modifier">x5 if at end of word</p>
+			<p class="card__description">Heal <b class="text-red-300">90</b> HP.</p>
+			<p class="card__modifier"><b class="font-bold text-green-400">x5</b> if at end of word.</p>
 		</footer>
 	</div>
 </article>

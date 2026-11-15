@@ -16,7 +16,7 @@
 				() => arena.toggle(glyphId)
 			)}
 		>
-			<div class="card__visual pulse">
+			<div class="pulse">
 				<GlyphFace letter={arena.glyph(glyphId)?.letter} />
 			</div>
 		</button>
@@ -30,6 +30,9 @@
 		--step: min(2deg, calc(var(--max-spread) / max(var(--n) - 1, 1)));
 
 		--easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+		--animation-duration: 900ms;
+		--animation-delay: 50ms;
+		--z-index-delay: 300ms;
 	}
 
 	.card {
@@ -48,35 +51,21 @@
 
 		z-index: calc(1 + var(--i));
 
-		transition: translate 900ms var(--easing);
-
-		/**
-		 * Animation source: https://easingwizard.com/
-		 */
-		animation-timing-function: ease-in-out;
-	}
-
-	.card__visual {
-		--rot: var(--angle);
-		--scale: 1;
-		--pulse-delay: calc(var(--i) * 60ms);
-
-		width: 100%;
-		transform-origin: center bottom;
-
-		rotate: var(--rot);
-		scale: var(--scale);
+		transition:
+			translate var(--animation-duration) var(--easing) var(--animation-delay),
+			scale var(--animation-duration) var(--easing) var(--animation-delay);
 	}
 
 	.card:hover {
 		--lift: calc(1rem * abs(var(--offset)));
+
 		z-index: 50;
 		scale: 1.2;
-	}
 
-	.card:hover .card__visual {
-		--rot: 0deg;
-		--scale: 1.12;
+		transition:
+			z-index 0s var(--z-index-delay),
+			translate var(--animation-duration) var(--easing) var(--animation-delay),
+			scale var(--animation-duration) var(--easing) var(--animation-delay);
 	}
 
 	.card:hover ~ .card {
@@ -93,38 +82,31 @@
 		inset: 100% 0 -5rem;
 	}
 
-	.card:global([data-dragging]) {
-		--lift: 0px;
-		--push: 0px;
-
-		transition: none;
-		z-index: 99;
-		scale: 1;
-	}
-
-	.card:global([data-dragging]) .card__visual {
-		--rot: 0deg;
-		--scale: 1.08;
-
-		transition: none;
-	}
-
-	.hand:has(:global([data-dragging])) .card:not(:global([data-dragging])) {
-		--push: 0px;
-	}
-
 	.card:first-child::after {
-		content: '';
 		width: 100%;
 		height: 100%;
 		top: 0;
 		left: -30%;
 	}
+
 	.card:last-child::after {
-		content: '';
 		width: 100%;
 		height: 100%;
 		top: 0;
 		left: 30%;
+	}
+
+	.card:global([data-dragging]) {
+		--lift: 0px;
+		--push: 0px;
+
+		z-index: 99;
+		scale: 1;
+		transition: none;
+		--animation-delay: none;
+	}
+
+	.hand:has(:global([data-dragging])) .card:not(:global([data-dragging])) {
+		--push: 0px;
 	}
 </style>

@@ -1,7 +1,8 @@
-// arena.svelte.ts
 import { getContext, setContext } from 'svelte';
 
 export type Glyph = { id: string; letter: string };
+type ElementList = (HTMLElement | undefined)[];
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export const FEEL = {
 	cardBottom: -12,
@@ -16,11 +17,16 @@ export const FEEL = {
 	bounceStagger: 60 // time to wait between glyphs
 };
 
+export type activeView = 'slots' | 'perks' | 'draw' | 'discard';
+export type WordSubmitPhase = 'idle' | 'checking' | 'invalid' | 'valid';
+
 export class Arena {
 	readonly slotCount = 8;
 
 	glyphs = $state<Record<string, Glyph>>(
-		Object.fromEntries([...'ABCDEFYGHIJKL'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }]))
+		Object.fromEntries(
+			[...'ABCDEFYGHIGKL', 'ER'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }])
+		)
 	);
 	drawPile = $state<Record<string, Glyph>>(
 		Object.fromEntries([...'ABCDEFYGHIJ!L'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }]))
@@ -31,16 +37,15 @@ export class Arena {
 	slots = $state<(string | null)[]>(Array(this.slotCount).fill(null));
 	hand = $derived(Object.keys(this.glyphs).filter((g) => !this.slots.includes(g)));
 
-	overSlot = $state(-1);
+	overIndex = $state(-1); // index of the thing the glyph is over in current time
 
-	#slotEls: (HTMLElement | undefined)[] = [];
+	#slotEls: ElementList = [];
+	#perksEls: ElementList = [];
 
 	dragging = false;
+	currentView: activeView = $state('slots');
 
-	// This is should only be true when the user submit a word
-	isBouncing = $state(false);
-	isError = $state(false);
-	isGood = $state(false);
+	phase: WordSubmitPhase = $state('idle');
 
 	async playWrongErrorAnimatino() {}
 
@@ -54,40 +59,45 @@ export class Arena {
 
 	async playSubmitAnimation() {
 		const count = this.slots.filter(Boolean).length;
-		if (this.isBouncing || count === 0) return;
+		if (this.phase !== 'idle') return;
 
-		this.isBouncing = true;
-		const r = await fetch(`http://localhost:8001/check?word=${this.constructSlotWord()}`).catch(
-			console.log
-		);
-		await new Promise((r) => setTimeout(r, FEEL.bounceDuration + (count - 1) * FEEL.bounceStagger));
-		this.isBouncing = false;
+		// const r = await fetch(`http://localhost:8001/check?word=${this.constructSlotWord()}`).catch(
+		// 	console.log
+		// );
+		// await new Promise((r) => setTimeout(r, FEEL.bounceDuration + (count - 1) * FEEL.bounceStagger));
+		// this.isBouncing = false;
 
-		const json = await r?.json();
+		// const json = await r?.json();
 
-		console.log(json);
-		if (!json?.exists) {
-			// if (Math.random() > 0.5) {
-			this.isError = true;
-			await new Promise((r) =>
-				setTimeout(r, FEEL.bounceDuration + (count - 1) * FEEL.bounceStagger)
-			);
-			this.isError = false;
+		// console.log(json);'
+		this.phase = 'checking';
+		await sleep(1000);
+		if (Math.random() > 0.5) {
+			// if (false) {
+			this.phase = 'valid';
 		} else {
-			this.isGood = true;
-			await new Promise((r) =>
-				setTimeout(r, FEEL.bounceDuration + (count - 1) * FEEL.bounceStagger)
-			);
-			this.isGood = false;
+			this.phase = 'invalid';
 		}
+		await sleep(300);
+		this.phase = 'idle';
+	}
+
+	#register(list: ElementList, i: number) {
+		return (el: HTMLElement) => {
+			list[i] = el;
+			return () => {
+				if (list[i] === el) list[i] = undefined;
+			};
+		};
+	}
+	/** use as {@attach arena.slot(i)} */
+	slotEl(i: number) {
+		return this.#register(this.#slotEls, i);
 	}
 
 	/** use as {@attach arena.slot(i)} */
-	slot(i: number) {
-		return (el: HTMLElement) => {
-			this.#slotEls[i] = el;
-			return () => (this.#slotEls[i] = undefined);
-		};
+	perkEl(i: number) {
+		return this.#register(this.#perksEls, i);
 	}
 
 	setDragging(isDragging: boolean) {
@@ -128,10 +138,12 @@ export class Arena {
 	 * Use when a glyph is clicked on
 	 */
 	toggle(id: string) {
-		if (this.slots.includes(id)) {
-			this.remove(id);
-		} else {
-			this.place(id, this.slots.indexOf(null));
+		if (this.currentView === 'slots') {
+			if (this.slots.includes(id)) {
+				this.remove(id);
+			} else {
+				this.place(id, this.slots.indexOf(null));
+			}
 		}
 	}
 
@@ -139,28 +151,39 @@ export class Arena {
 	 * Should be called while moving card using mouse or finger?
 	 */
 	dragOver(x: number, y: number) {
+		const elements = this.currentView === 'perks' ? this.#perksEls : this.#slotEls;
+
 		let best = -1;
 		let bestDist = Infinity;
 
-		this.#slotEls.forEach((el, i) => {
+		elements.forEach((el, i) => {
 			if (!el) return;
 			const r = el.getBoundingClientRect();
 			const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
 			if (d < r.height * 0.9 && d < bestDist) [best, bestDist] = [i, d];
 		});
-		this.overSlot = best;
+		this.overIndex = best;
 	}
 
 	/**
 	 * Should be called when the glyph is dropeed, for example canceling while dragging
 	 */
 	drop(id: string) {
-		if (this.overSlot >= 0) {
-			this.place(id, this.overSlot);
-		} else {
-			this.remove(id);
+		if (this.currentView === 'slots') {
+			if (this.overIndex >= 0) {
+				this.place(id, this.overIndex);
+			} else {
+				this.remove(id);
+			}
+		} else if (this.currentView === 'perks') {
+			console.log('You used perks number', this.overIndex);
 		}
-		this.overSlot = -1;
+		this.overIndex = -1;
+	}
+
+	showPerksView() {
+		this.currentView = 'perks';
+		this.slots.fill(null);
 	}
 }
 

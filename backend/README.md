@@ -95,3 +95,31 @@ Uses the same Gmail settings as two-factor authentication. Neither request needs
 3. `POST /auth/password/reset` with `{"token": "...", "new_password": "..."}` sets the new password and signs the user out of every session. A used, expired, replaced or made-up token returns `400`.
 
 A link works once and expires after 30 minutes. Asking again invalidates the previous link, and each user gets at most one reset email per minute. Only a hash of the token is stored in Redis. If 2FA is on, logging in after a reset still asks for a 2FA code.
+
+## Roles
+
+Every user is either `USER` (the default) or `GAME_MASTER`. The role is in every user response (`GET /users/me` and others), so the frontend can show game master tools.
+
+Apply the migration that adds the column, then promote the first game master from the command line:
+
+```bash
+uv run alembic upgrade head
+uv run python scripts/set_role.py someone@example.com GAME_MASTER
+```
+
+Game masters can also view any user's profile, stats and matches, and manage users under `/api/v1/admin/users`. Everyone else gets `403`.
+
+- `GET /admin/users?q=&limit=50&offset=0` lists users, newest first. `q` matches part of a username or email.
+- `GET /admin/users/{id}` shows one user, including role, sign-in provider and 2FA status.
+- `PATCH /admin/users/{id}` changes `username`, `email`, `avatar_url` or `role`. Omitted fields stay the same.
+- `DELETE /admin/users/{id}` deletes the user, their friendships, stats and matches, their sessions and their avatar.
+
+Game masters cannot change their own role or delete their own account here, so there is always at least one game master.
+
+## Avatars
+
+- `PUT /users/me/avatar` uploads a PNG, JPEG, WebP or GIF of up to 2 MB as multipart form field `file`. The type is checked from the file's contents, not its name.
+- `DELETE /users/me/avatar` removes it.
+- `GET /users/{id}/avatar` returns the uploaded image, redirects to an external picture (such as a Google profile photo), or returns a built-in default avatar. Use it as the `src` of every avatar `<img>`.
+
+Uploads are stored under `MEDIA_DIR/avatars` (default `backend/media`, which is gitignored).

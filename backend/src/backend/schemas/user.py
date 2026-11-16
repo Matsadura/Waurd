@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from backend.core.identifiers import user_id_to_string
+from backend.models.user import UserRole
 from backend.schemas.match import MatchResponse
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -82,6 +83,9 @@ class UserResponse(UserBase):
         None,
         description="URL for the user's avatar image",
         example="https://example.com/avatar.png",
+    )
+    role: UserRole = Field(
+        ..., description="USER or GAME_MASTER; the frontend shows admin tools to GMs"
     )
 
     @field_validator("id", mode="before")

@@ -21,6 +21,11 @@ class OAuthProvider(str, enum.Enum):
     GOOGLE = "GOOGLE"
 
 
+class UserRole(str, enum.Enum):
+    USER = "USER"
+    GAME_MASTER = "GAME_MASTER"
+
+
 class User(Base, TimestampMixin):
     __tablename__ = "users"
 
@@ -50,6 +55,12 @@ class User(Base, TimestampMixin):
     oauth_provider: Mapped[OAuthProvider] = mapped_column(
         Enum(OAuthProvider, values_callable=lambda obj: [e.value for e in obj]),
         default=OAuthProvider.LOCAL,
+        nullable=False,
+    )
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole, values_callable=lambda obj: [e.value for e in obj]),
+        default=UserRole.USER,
+        server_default=UserRole.USER.value,
         nullable=False,
     )
     oauth_id: Mapped[str | None] = mapped_column(

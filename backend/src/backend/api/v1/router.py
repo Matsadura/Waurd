@@ -1,5 +1,6 @@
 from backend.api.dependencies.auth import verify_csrf
 from backend.api.v1.endpoints import (
+    admin,
     auth,
     friendship,
     matchmaking,
@@ -31,5 +32,11 @@ api_v1_router.include_router(
 
 api_v1_router.include_router(
     matchmaking.router,
+    dependencies=[Depends(verify_csrf)],
+)
+
+# Game master only: user management.
+api_v1_router.include_router(
+    admin.router,
     dependencies=[Depends(verify_csrf)],
 )

@@ -2,6 +2,7 @@
 	import FormField from '#lib/components/auth/FormField.svelte';
 	import AuthButton from '#lib/components/auth/AuthButton.svelte';
 	import SocialLogin from '#lib/components/auth/SocialLogin.svelte';
+	import { PUBLIC_BACKEND_URL } from '$app/env/public';
 	import type { ActionData } from './$types';
 
 	let { form }: { form: ActionData | null } = $props();
@@ -13,7 +14,7 @@
 	let termsAccepted = $state(false);
 
 	function handleGoogle() {
-		// TODO: google sign-in
+		window.location.assign(`${PUBLIC_BACKEND_URL}/api/v1/auth/google`);
 	}
 </script>
 

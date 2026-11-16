@@ -1,14 +1,18 @@
 import re
 import secrets
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
+from backend.api.cookies import set_session_cookies, set_two_factor_cookie
 from backend.api.dependencies.auth import (
     cookie_scheme,
     get_session_store,
+    get_two_factor_store,
     verify_csrf,
 )
+from backend.api.v1.endpoints.two_factor import start_login_challenge
 from backend.core.config import settings
+from backend.core.email import EmailSender, get_email_sender
 from backend.core.exceptions import (
     BadGatewayException,
     BadRequestException,
@@ -18,36 +22,19 @@ from backend.core.exceptions import (
 )
 from backend.core.security import hash_password, verify_password
 from backend.core.session_store import RedisSessionStore
+from backend.core.two_factor import TwoFactorStore
 from backend.db.session import get_db
 from backend.db.uow import UnitOfWork
 from backend.models.user import OAuthProvider, User
 from backend.repositories.user import UserRepository
 from backend.schemas.auth import LoginRequest
+from backend.schemas.two_factor import TwoFactorChallengeResponse
 from backend.schemas.user import UserCreateRequest, UserResponse
 from fastapi import APIRouter, Cookie, Depends, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
-
-
-def _set_session_cookies(response: Response, session_id: str) -> None:
-    response.set_cookie(
-        key=settings.SESSION_COOKIE_NAME,
-        value=session_id,
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite=settings.SESSION_COOKIE_SAMESITE,
-        max_age=settings.SESSION_TTL_SECONDS,
-    )
-    response.set_cookie(
-        key=settings.CSRF_COOKIE_NAME,
-        value=secrets.token_urlsafe(32),
-        httponly=False,
-        secure=settings.COOKIE_SECURE,
-        samesite=settings.SESSION_COOKIE_SAMESITE,
-        max_age=settings.SESSION_TTL_SECONDS,
-    )
 
 
 async def _google_username(
@@ -64,14 +51,35 @@ async def _google_username(
     return f"{base[:23]}_{secrets.token_hex(4)}"
 
 
-@router.post("/login", response_model=UserResponse)
+def _with_query_param(url: str, key: str, value: str) -> str:
+    parts = urlsplit(url)
+    query = urlencode([*parse_qsl(parts.query), (key, value)])
+    return urlunsplit(parts._replace(query=query))
+
+
+@router.post(
+    "/login",
+    response_model=UserResponse,
+    responses={
+        status.HTTP_202_ACCEPTED: {
+            "model": TwoFactorChallengeResponse,
+            "description": "Password accepted; a code was emailed. "
+            "Finish with POST /auth/2fa/verify",
+        }
+    },
+)
 async def login(
     credentials: LoginRequest,
     response: Response,
     db: AsyncSession = Depends(get_db),
     session_store: RedisSessionStore = Depends(get_session_store),
-) -> UserResponse:
-    """Authenticate a user and create a new session."""
+    two_factor_store: TwoFactorStore = Depends(get_two_factor_store),
+    email_sender: EmailSender = Depends(get_email_sender),
+) -> UserResponse | JSONResponse:
+    """Authenticate a user and create a new session.
+
+    Users with 2FA enabled are emailed a code and get a 202 challenge instead.
+    """
     user_repo = UserRepository(db)
     user = await user_repo.get_by_email(credentials.email)
 
@@ -82,10 +90,18 @@ async def login(
     ):
         raise UnauthorizedException("Invalid email or password")
 
+    if user.two_factor_enabled:
+        token, body = await start_login_challenge(user, two_factor_store, email_sender)
+        challenge = JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED, content=body.model_dump()
+        )
+        set_two_factor_cookie(challenge, token)
+        return challenge
+
     session_id = await session_store.create_session(
         user_id=user.id,
     )
-    _set_session_cookies(response, session_id)
+    set_session_cookies(response, session_id)
 
     return UserResponse.model_validate(user)
 
@@ -136,6 +152,8 @@ async def google_callback(
     error: str | None = None,
     state_cookie: str | None = Cookie(None, alias="google_oauth_state"),
     session_store: RedisSessionStore = Depends(get_session_store),
+    two_factor_store: TwoFactorStore = Depends(get_two_factor_store),
+    email_sender: EmailSender = Depends(get_email_sender),
 ) -> RedirectResponse:
     """Exchange Google's code, create or find the user, and start a session."""
     if error:
@@ -210,12 +228,25 @@ async def google_callback(
         await uow.commit()
         await uow.session.refresh(user)
 
+    if user.two_factor_enabled:
+        # The frontend sees ?two_factor=required and asks for the emailed code.
+        token, _ = await start_login_challenge(user, two_factor_store, email_sender)
+        response = RedirectResponse(
+            _with_query_param(
+                settings.GOOGLE_FRONTEND_REDIRECT_URI, "two_factor", "required"
+            ),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+        set_two_factor_cookie(response, token)
+        response.delete_cookie("google_oauth_state", path="/")
+        return response
+
     session_id = await session_store.create_session(user.id)
     response = RedirectResponse(
         settings.GOOGLE_FRONTEND_REDIRECT_URI,
         status_code=status.HTTP_303_SEE_OTHER,
     )
-    _set_session_cookies(response, session_id)
+    set_session_cookies(response, session_id)
     response.delete_cookie("google_oauth_state", path="/")
     return response
 

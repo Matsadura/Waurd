@@ -16,10 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.api.v1.router import api_v1_router
 from backend.core.config import settings
 from backend.core.exceptions import AppException
-from backend.db.session import engine, get_db
+from backend.core.matchmakerworker import MatchmakerWorker
+from backend.core.matchmaking_store import MatchmakingQueueStore
+from backend.db.session import async_session_maker, engine, get_db
 
 logger = logging.getLogger("uvicorn.error")
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -35,10 +36,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         raise RuntimeError(
             f"Failed to connect to Redis at {settings.REDIS_URL}"
         ) from err
+    # 2. Launch background matchmaker worker task
+    queue_store = MatchmakingQueueStore(app.state.redis)
+    worker = MatchmakerWorker(
+        queue_store=queue_store,
+        session_factory=async_session_maker,
+    )
+    worker_task = asyncio.create_task(worker.start_loop())
 
     yield
+    # 3. Teardown: cancel worker, close Redis pool, and dispose engine
+    worker_task.cancel()
+    try:
+        await worker_task
+    except asyncio.CancelledError:
+        pass
 
-    # 2. Teardown: close Redis client and dispose SQLAlchemy pool
     await app.state.redis.aclose()
     await engine.dispose()
 
@@ -85,6 +98,9 @@ async def request_validation_error_handler(
         "target_user_id": "User ID",
         "user_id": "User ID",
         "request_id": "Request ID",
+        "code": "Code",
+        "new_password": "Password",
+        "token": "Reset token",
     }
     field_name = field_names.get(field, "Value")
 

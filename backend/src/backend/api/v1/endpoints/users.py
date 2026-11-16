@@ -12,7 +12,7 @@ from backend.core.session_store import RedisSessionStore
 from backend.db.uow import UnitOfWork
 from backend.models.user import User
 from backend.schemas.match import MatchResponse
-from backend.schemas.user import UserCreateRequest, UserResponse, UserStatsResponse
+from backend.schemas.user import UserResponse, UserStatsResponse, UserUpdateRequest
 from fastapi import APIRouter, Depends
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -26,7 +26,7 @@ async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse
 
 @router.patch("/me", response_model=UserResponse)
 async def update_me(
-    user_update: UserCreateRequest,
+    user_update: UserUpdateRequest,
     current_user: User = Depends(get_current_user),
     session_store: RedisSessionStore = Depends(get_session_store),
     uow: UnitOfWork = Depends(),
@@ -66,7 +66,8 @@ async def update_me(
         response = UserResponse.model_validate(user)
 
     # Invalidate the user's session to force re-authentication
-    await session_store.invalidate_session(current_user.id)
+    if attributes:
+        await session_store.invalidate_session(current_user.id)
 
     return response
 

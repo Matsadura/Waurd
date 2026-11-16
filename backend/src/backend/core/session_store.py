@@ -55,6 +55,9 @@ class RedisSessionStore:
         """Revoke all sessions for a specific user (e.g., password reset)."""
         pattern = f"{self.prefix}*"
         async for key in self.redis.scan_iter(match=pattern):
+            # OAuth state keys share the prefix but do not hold session JSON.
+            if key.startswith(self._oauth_state_key("")):
+                continue
             val = await self.redis.get(key)
             if val and json.loads(val).get("user_id") == user_id_to_string(user_id):
                 await self.redis.delete(key)

@@ -30,6 +30,11 @@ class UserAlreadyExistsException(AppException):
         super().__init__(message=message, status_code=409)
 
 
+class TooManyRequestsException(AppException):
+    def __init__(self, message: str = "Too many requests") -> None:
+        super().__init__(message=message, status_code=429)
+
+
 class ServiceUnavailableException(AppException):
     def __init__(self, message: str = "Service unavailable") -> None:
         super().__init__(message=message, status_code=503)

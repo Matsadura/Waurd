@@ -228,10 +228,21 @@ async def block_user(
     if target_bytes == current_user.id:
         raise BadRequestException("Cannot block yourself")
 
+    if not await UserRepository(db).get_by_id(target_bytes):
+        raise EntityNotFoundException("Target user not found")
+
     friend_repo = FriendshipRepository(db)
     existing = await friend_repo.get_by_users(current_user.id, target_bytes)
 
     if existing:
+        # A pair shares one row, so taking over the other user's block would
+        # let the blocked user remove it through the unblock endpoint.
+        if (
+            existing.status == FriendshipStatus.BLOCKED
+            and existing.requester_id != current_user.id
+        ):
+            raise BadRequestException("Cannot block this user")
+
         updated = await friend_repo.update(
             existing,
             {
@@ -250,9 +261,11 @@ async def block_user(
         )
 
     created = await friend_repo.create(
-        requester_id=current_user.id,
-        addressee_id=target_bytes,
-        status=FriendshipStatus.BLOCKED,
+        Friendship(
+            requester_id=current_user.id,
+            addressee_id=target_bytes,
+            status=FriendshipStatus.BLOCKED,
+        )
     )
 
     return FriendshipResponse(

@@ -15,7 +15,7 @@ from backend.models.tournament import (
     TournamentParticipant,
     TournamentStatus,
 )
-from backend.models.user import OAuthProvider, User
+from backend.models.user import OAuthProvider, User, UserRole
 from backend.models.user_achievements import UserAchievement
 from backend.models.user_stats import UserStats
 
@@ -40,5 +40,6 @@ __all__ = [
     "TournamentStatus",
     "User",
     "UserAchievement",
+    "UserRole",
     "UserStats",
 ]

@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     PASSWORD_RESET_TTL_SECONDS: int = 1800
     PASSWORD_RESET_COOLDOWN_SECONDS: int = 60
 
+    # Uploaded files. Relative paths resolve from the working directory, which
+    # is backend/ (or /app in Docker, where it is the mounted backend folder).
+    MEDIA_DIR: str = "media"
+    AVATAR_MAX_BYTES: int = 2 * 1024 * 1024
+
     # Outgoing email. Defaults suit Gmail; MAIL_PASSWORD must be a Google app
     # password, not the account password.
     MAIL_USERNAME: str | None = None

@@ -31,7 +31,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "aiosqlite>=0.22.1",
-    "fakeredis>=2.40.0",
+    "fakeredis[lua]>=2.40.0",
     "mypy>=2.4.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",

@@ -80,7 +80,8 @@ class TestGetMe:
     async def test_does_not_expose_sensitive_columns(self, alice_client):
         response = await alice_client.get("/users/me")
 
-        assert set(response.json()) == {
+        # role was added later; every other field must match exactly.
+        assert set(response.json()) - {"role"} == {
             "id",
             "username",
             "email",

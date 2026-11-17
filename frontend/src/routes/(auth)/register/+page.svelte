@@ -74,7 +74,7 @@
 				href="/terms"
 				target="_blank"
 				rel="noopener noreferrer"
-				class="font-bold underline"
+				class="font-bold underline hover:text-accent"
 				onclick={(event) => event.stopPropagation()}
 			>
 				Terms of Service

@@ -73,6 +73,30 @@ export const actions = {
 			});
 		}
 
+		if (response.status === 202) { // it provides only two_factor_token
+			const twoFactorToken = getCookieValue(
+				response.headers.getSetCookie(),
+				'two_factor_token'
+			);
+
+			if (!twoFactorToken) {
+				return fail(502, {
+					error: 'Could not start two-factor verification. Please try again.',
+					values
+				});
+			}
+
+			cookies.set('two_factor_token', twoFactorToken, {
+				path: '/',
+				httpOnly: true,
+				secure: false, // Local development over HTTP
+				sameSite: 'lax',
+				maxAge: 600
+			});
+
+			redirect(303, '/verify-2fa');
+		}
+
 		const setCookieHeaders = response.headers.getSetCookie();
 		const sessionId = getCookieValue(setCookieHeaders, 'session_id');
 		const csrfToken = getCookieValue(setCookieHeaders, 'csrf_token');
@@ -103,6 +127,6 @@ export const actions = {
 		});
 
 		// TODO: Redirect to /play once the app routes are merged
-		redirect(303, '/');
+		redirect(303, '/play');
 	}
 } satisfies Actions;

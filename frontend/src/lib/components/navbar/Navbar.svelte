@@ -40,8 +40,8 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <nav
-	class="sticky top-0 z-50 w-full min-w-0 border-b border-white/10
-         px-3 py-3 backdrop-blur-md sm:px-2"
+	class="sticky top-0 z-50 w-full min-w-0
+         px-3 py-3 sm:px-2"
 	aria-label="Main navigation"
 >
 	<div class="flex min-w-0 items-center justify-between gap-3">

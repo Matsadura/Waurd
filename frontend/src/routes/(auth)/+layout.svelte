@@ -12,7 +12,7 @@
 </script>
 
 <div
-	class="auth-page relative flex min-h-dvh w-full min-w-0 flex-col items-center overflow-hidden bg-background bg-[url('/images/background.png')]
+	class="auth-page relative flex min-h-dvh w-full min-w-0 flex-col items-center overflow-hidden bg-gray-950
 		bg-cover bg-center bg-no-repeat pt-12 font-rajdhani font-bold text-text-primary"
 >
 	<header class="auth-header my-4">
@@ -28,7 +28,7 @@
 							rounded-md bg-accent-red
 							text-center leading-[1.33] whitespace-nowrap
 							text-white no-underline
-							shadow-[0_0.42em_0.5em_rgba(0,0,0,0.45)]"
+							shadow-[0_0.42em_0.5em_rgba(0,0,0,0.45)] transition-all focus:scale-105 focus:ring-2 focus:ring-amber-400"
 					aria-current={page.url.pathname === tab.href ? 'page' : undefined}
 				>
 					{tab.label}
@@ -43,6 +43,9 @@
 </div>
 
 <style>
+	/* .bg {
+		background: linear-gradient(to bottom, var(--color-gray-50), var(--color-gray-950) 116px) no-repeat;
+	} */
 	.auth-tabs a[aria-current='page']::before {
 		content: '';
 		position: absolute;

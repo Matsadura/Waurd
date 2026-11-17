@@ -14,7 +14,7 @@
 
 <form
 	role="search"
-	class={`group flex min-w-0 items-center border-b border-white/20
+	class={`group flex min-w-0 items-center
 		transition-colors focus-within:border-accent
 		${mobile ? 'w-full gap-3 py-3' : 'w-40 shrink-0 gap-2 py-2 lg:w-48'}`}
 	onsubmit={handleSearch}

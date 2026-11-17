@@ -6,54 +6,85 @@
 
 	const tabs = [
 		{ href: '/login', label: 'LOGIN' },
-		{ href: '/register', label: 'REGISTER' },
-		{ href: '/reset-password', label: 'RESET PASSWORD' }
+		{ href: '/register', label: 'REGISTER' }
 	];
+
+	const isActive = (href: string) => page.url.pathname === href;
+
+
 </script>
 
 <div
-	class="auth-page relative flex min-h-dvh w-full min-w-0 flex-col items-center overflow-hidden bg-gray-950
-		bg-cover bg-center bg-no-repeat pt-12 font-rajdhani font-bold text-text-primary"
+	class="font-serif auth-page relative flex min-h-dvh w-full min-w-0 flex-col items-center overflow-hidden
+		px-4 pt-8 font-bold text-text-primary sm:pt-12"
 >
-	<header class="auth-header my-4">
+
+
+	<header class="relative z-10 my-4">
 		<WaurdLogo href="/login" size="large" />
 	</header>
 
-	<div class="auth-column @container w-full max-w-2xl">
-		<nav class="auth-tabs mb-6 flex flex-wrap justify-center gap-2 px-5 text-lg sm:flex-row">
+	<div
+		class="auth-column @container relative z-10 mb-10 w-full max-w-2xl border border-white/30
+			bg-gray-950/60 p-4 pb-10 shadow-xl shadow-accent/10 backdrop-blur-sm"
+	>
+		<nav aria-label="Account" class="mb-10 flex sm:px-4">
 			{#each tabs as tab (tab.href)}
 				<a
 					href={tab.href}
-					class="relative flex min-h-10 min-w-0 grow items-center justify-center
-							rounded-md bg-accent-red
-							text-center leading-[1.33] whitespace-nowrap
-							text-white no-underline
-							shadow-[0_0.42em_0.5em_rgba(0,0,0,0.45)] transition-all focus:scale-105 focus:ring-2 focus:ring-amber-400"
-					aria-current={page.url.pathname === tab.href ? 'page' : undefined}
+					aria-current={isActive(tab.href) ? 'page' : undefined}
+					class={[
+						'auth-tab min-h-12 w-1/2 border-b-2 px-3 py-4 text-center text-xl font-bold transition-colors',
+						isActive(tab.href)
+							? 'border-b-accent text-accent'
+							: 'border-b-white/20 text-text-primary/50 hover:border-b-accent/60 hover:text-text-primary'
+					]}
 				>
 					{tab.label}
 				</a>
 			{/each}
 		</nav>
 
-		<main class="mx-auto w-[max(65%,min(88%,20rem))]">
+		<main class="mx-auto w-full max-w-md">
 			{@render children()}
 		</main>
 	</div>
 </div>
 
 <style>
-	/* .bg {
-		background: linear-gradient(to bottom, var(--color-gray-50), var(--color-gray-950) 116px) no-repeat;
-	} */
-	.auth-tabs a[aria-current='page']::before {
+	.auth-page {
+		background: linear-gradient(to bottom, var(--color-gray-900), var(--color-gray-950) 306px)
+			no-repeat;
+		background-color: var(--color-gray-950);
+	}
+
+	/* Orange corner brackets give the card a "game panel" feel without clipping its border */
+	.auth-column::before,
+	.auth-column::after {
 		content: '';
 		position: absolute;
-		left: 50%;
-		top: -0.62em;
-		transform: translateX(-50%);
-		border-left: 0.42em solid transparent;
-		border-right: 0.42em solid transparent;
-		border-top: 0.62em solid var(--color-accent-red);
+		width: 18px;
+		height: 18px;
+		border: 2px solid var(--color-accent);
+		pointer-events: none;
 	}
+	.auth-column::before {
+		top: -2px;
+		left: -2px;
+		border-right: 0;
+		border-bottom: 0;
+	}
+	.auth-column::after {
+		right: -2px;
+		bottom: -2px;
+		border-left: 0;
+		border-top: 0;
+	}
+
+	.auth-tab:focus-visible {
+		outline: 2px solid var(--color-accent);
+		outline-offset: -2px;
+	}
+
+	
 </style>

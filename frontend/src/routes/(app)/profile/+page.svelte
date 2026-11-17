@@ -86,14 +86,10 @@
 </svelte:head>
 
 <section class="mx-auto w-full max-w-4xl space-y-5 px-3 py-5 text-text-primary sm:px-4 sm:py-6">
-
 	<!-- Profile header -->
-	<header class="overflow-hidden  border border-white/50 bg-gray-900/40">
-
+	<header class="overflow-hidden border border-white/30 bg-gray-950">
 		<div class="flex flex-col gap-5 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-
 			<div class="flex min-w-0 items-center gap-4 sm:gap-5">
-
 				<!-- Avatar, will be replaced later with an image maybe :) -->
 				<div
 					class="flex size-20 shrink-0 items-center justify-center
@@ -105,9 +101,8 @@
 				</div>
 
 				<div class="min-w-0 flex-1 space-y-2">
-
 					<div class="flex flex-wrap items-center gap-2">
-						<h1 class="wrap-break-word text-2xl font-bold sm:text-3xl">
+						<h1 class="text-2xl font-bold wrap-break-word sm:text-3xl">
 							{player.username}
 						</h1>
 
@@ -172,57 +167,41 @@
 		</div>
 
 		<!-- Profile navigation -->
-		 <nav
-			aria-label="Profile sections"
-			class="overflow-x-auto border-t border-white/10 px-2 py-3 sm:px-4"
-		>
-			<div class="flex min-w-max justify-center items-center gap-2">
+		<nav aria-label="Profile sections" class="border-t border-white/20 max-md:overflow-x-auto">
+			<div class="flex min-w-max items-center gap-1 px-2 sm:gap-3 sm:px-4">
 				{#each profileTabs as tab (tab.href)}
 					<a
 						href={tab.href}
 						aria-current={isActiveTab(tab.href) ? 'page' : undefined}
-						class="profile-tab relative inline-flex min-h-10 items-center
-							justify-center rounded-md bg-accent-red px-4 py-2
-							text-sm font-bold text-white shadow-[0_4px_8px_rgba(0,0,0,0.3)]
-							transition-opacity hover:opacity-90 sm:px-5 sm:text-base"
+						class={[
+							'profile-tab relative inline-flex min-h-12 items-center border-t-2  px-3 text-sm font-bold text-text-primary/60 transition-colors hover:border-t-accent hover:text-text-primary sm:px-4 sm:text-base',
+							isActiveTab(tab.href) ? 'border-b-white' : 'border-transparent'
+						]}
 					>
 						{tab.label}
 					</a>
 				{/each}
 			</div>
 		</nav>
-		<!-- <nav
-			aria-label="Profile sections"
-			class="max-md:overflow-x-auto border-t border-white/10"
-		>
-			<div class="flex min-w-max items-center gap-1 px-2 sm:gap-3 sm:px-4">
-				{#each profileTabs as tab (tab.href)}
-					<a
-						href={tab.href}
-						aria-current={isActiveTab(tab.href) ? 'page' : undefined}
-						class="profile-tab relative inline-flex min-h-12 items-center
-							px-3 text-sm font-bold text-text-primary/60
-							transition-colors hover:text-text-primary sm:px-4 sm:text-base"
-					>
-						{tab.label}
-					</a>
-				{/each}
-			</div>
-		</nav> -->
 	</header>
 
 	<!-- Player statistics -->
 	<section aria-label="Player statistics">
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 			{#each stats as stat (stat.label)}
-				<div class="flex min-w-0 items-center gap-3  border border-white/50 bg-gray-900/40 p-3 sm:p-4">
-					<span class="flex size-9 shrink-0 items-center justify-center text-2xl text-accent" aria-hidden="true">
+				<div
+					class="flex min-w-0 items-center gap-3 border border-white/30 bg-gray-900/40 p-3 sm:p-4"
+				>
+					<span
+						class="flex size-9 shrink-0 items-center justify-center text-2xl text-accent"
+						aria-hidden="true"
+					>
 						{stat.icon}
 					</span>
 
 					<div class="min-w-0">
 						<p class="text-sm text-text-primary/60">{stat.label}</p>
-						<p class="text-2xl font-bold leading-tight sm:text-3xl">{stat.value}</p>
+						<p class="text-2xl leading-tight font-bold sm:text-3xl">{stat.value}</p>
 					</div>
 				</div>
 			{/each}
@@ -232,7 +211,7 @@
 	<!-- Game history -->
 	<section
 		aria-labelledby="history-heading"
-		class="overflow-hidden  border border-white/10 shadow-md shadow-gray-500/30 bg-gray-900/40"
+		class="overflow-hidden border border-white/10 bg-gray-900/40 shadow-md shadow-gray-500/30"
 	>
 		<div class="border-b border-white/10 px-4 py-4 sm:px-5">
 			<h2 id="history-heading" class="text-lg font-bold sm:text-xl">
@@ -278,7 +257,7 @@
 								{match.score}
 							</td>
 
-							<td class="whitespace-nowrap px-3 py-4 text-text-primary/70">
+							<td class="px-3 py-4 whitespace-nowrap text-text-primary/70">
 								<span class="text-accent">⚡</span>
 								{match.mode}
 							</td>
@@ -287,7 +266,7 @@
 								{match.turns}
 							</td>
 
-							<td class="whitespace-nowrap px-4 py-4 text-right text-text-primary/55">
+							<td class="px-4 py-4 text-right whitespace-nowrap text-text-primary/55">
 								{match.date}
 							</td>
 						</tr>
@@ -302,14 +281,14 @@
 				<article class="space-y-3 p-4">
 					<div class="flex items-start justify-between gap-3">
 						<div class="min-w-0 space-y-1">
-							<p class="wrap-break-word font-bold">
+							<p class="font-bold wrap-break-word">
 								{player.username}
 								<span class="text-sm font-normal text-text-primary/50">
 									({match.playerElo})
 								</span>
 							</p>
 
-							<p class="wrap-break-word text-sm text-text-primary/70">
+							<p class="text-sm wrap-break-word text-text-primary/70">
 								vs. {match.opponent}
 								<span class="text-text-primary/50">
 									({match.opponentElo})
@@ -348,7 +327,7 @@
 		color: var(--color-accent);
 	} */
 
-	.profile-tab[aria-current='page']::before {
+	/* .profile-tab[aria-current='page']::before {
 		content: '';
 		position: absolute;
 		top: -0.5rem;
@@ -357,5 +336,5 @@
 		border-top: 0.5rem solid var(--color-accent-red);
 		border-left: 0.4rem solid transparent;
 		border-right: 0.4rem solid transparent;
-	}
+	} */
 </style>

@@ -30,5 +30,5 @@
 			d="M24 11.5c3 0 5.7 1 7.8 3.1l5.8-5.8A19.4 19.4 0 0 0 24 4 20 20 0 0 0 5.8 14.7l6.8 5.2c1.6-4.8 6.1-8.4 11.4-8.4Z"
 		/>
 	</svg>
-	<span class="mt-1">Connect with Google</span>
+	<span class="mt-1 font-bold text-gray-700 uppercase">Connect with Google</span>
 </button>

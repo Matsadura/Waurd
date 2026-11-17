@@ -35,6 +35,6 @@
 		{autocomplete}
 		{required}
 		bind:value
-		class="h-10 w-full rounded-md border-0 bg-[#2d353c] transition-all px-4 text-center text-white shadow-sm shadow-accent/40 focus:ring-white"
+		class="bg h-10 w-full bg-gray-800 rounded-md border-0 px-4 text-center text-white shadow-sm shadow-accent/40 transition-all focus:ring-2 focus:ring-white/40 focus:shadow-md focus:shadow-accent/30"
 	/>
 </div>

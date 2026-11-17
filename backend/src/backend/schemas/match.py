@@ -13,7 +13,9 @@ class MatchResponse(BaseModel):
         None, description="Unique identifier for the tournament (if applicable)"
     )
     player1_id: str = Field(..., description="Unique identifier for player 1")
-    player2_id: str = Field(..., description="Unique identifier for player 2")
+    player2_id: str | None = Field(
+        None, description="Unique identifier for player 2 (empty while waiting)"
+    )
     is_ai_match: bool = Field(
         ..., description="Indicates if the match is against an AI opponent"
     )

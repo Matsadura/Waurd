@@ -13,7 +13,7 @@ from backend.core.password_reset import PasswordResetStore
 from backend.core.session_store import RedisSessionStore
 from backend.core.two_factor import TwoFactorStore
 from backend.db.session import get_db
-from backend.models.user import User
+from backend.models.user import User, UserRole
 from backend.repositories.user import UserRepository
 
 cookie_scheme = APIKeyCookie(name=settings.SESSION_COOKIE_NAME, auto_error=False)
@@ -65,6 +65,15 @@ async def get_current_user(
     if not user:
         raise UnauthorizedException("User not found")
     return user
+
+
+async def require_game_master(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Allow only game masters through."""
+    if current_user.role != UserRole.GAME_MASTER:
+        raise ForbiddenException("Game master role required")
+    return current_user
 
 
 async def verify_csrf(

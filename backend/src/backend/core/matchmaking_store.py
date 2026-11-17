@@ -214,6 +214,26 @@ class MatchmakingQueueStore:
         )
         return bool(res)
 
+    async def release_pair(self, player1_id_str: str, player2_id_str: str) -> None:
+        """Return claimed players to QUEUED when their match could not be saved."""
+        for uid in (player1_id_str, player2_id_str):
+            ticket = await self.get_user_ticket(uid)
+            if ticket and ticket.get("status") == "CLAIMING":
+                ticket["status"] = "QUEUED"
+                await self.redis.set(self._user_key(uid), json.dumps(ticket), ex=600)
+
+    async def clear_matched_ticket(self, user_id_str: str) -> None:
+        """Forget a MATCHED ticket once its match is over, so the player can
+        queue or host again right away."""
+        ticket = await self.get_user_ticket(user_id_str)
+        if ticket and ticket.get("status") == "MATCHED":
+            await self.redis.delete(self._user_key(user_id_str))
+
+    async def is_waiting_in_queue(self, user_id_str: str) -> bool:
+        """True while the user is queued or being paired, not after a match."""
+        ticket = await self.get_user_ticket(user_id_str)
+        return bool(ticket and ticket.get("status") in ("QUEUED", "CLAIMING"))
+
     async def finalize_matched_pair(
         self,
         player1_id_str: str,

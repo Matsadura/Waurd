@@ -4,7 +4,7 @@
 	let { artBackground = '' } = $props();
 </script>
 
-<div class="perk relative w-full font-bold">
+<div class="perk relative h-full font-bold">
 	<div
 		class="art absolute bg-cover bg-center"
 		style:background-image={`url('https://cataas.com/avatar/${artBackground}?format=webp')`}

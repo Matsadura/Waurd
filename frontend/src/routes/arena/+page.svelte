@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getArena, setArena } from '#lib/utils/arena.svelte.ts';
+	import { FEEL, getArena, setArena } from '#lib/utils/arena.svelte.ts';
 	import './layout.css';
 
 	import Slots from './Slots.svelte';
@@ -14,16 +14,24 @@
 	let arena = getArena();
 </script>
 
-<div class="bg relative flex h-dvh flex-col justify-end gap-5 overflow-hidden select-none">
+<div
+	class="bg relative flex h-dvh flex-col justify-end gap-10 overflow-hidden select-none md:gap-0"
+>
 	<Hand />
 	<div class="contents" inert={arena.currentView === 'perks'}>
 		<Slots />
-		<div class="mr-10 flex w-fit gap-4 self-end lg:mr-32">
+		<div class="mt-4 mr-10 flex w-fit gap-4 self-end lg:mr-32">
 			<CastButton />
 			<PerksButton />
 		</div>
-		<div class="my-0 flex w-dvw items-end justify-between px-20 md:my-10">
+
+		<div class="flex w-dvw items-end justify-between px-8 md:pb-5">
 			<PileButton glyphs={Object.values(arena.drawPile)} title="Draw pile" />
+			<!-- NOTE(ALI): This is a dirty hack to up left the slots and make them not touch the hand, do somthing better! -->
+			<div
+				class={['invisible cursor-pointer touch-none', FEEL.CardWidth]}
+				style:aspect-ratio={FEEL.glyphAspectRatio}
+			></div>
 			<PileButton glyphs={Object.values(arena.discardPile)} title="Discard pile" />
 		</div>
 	</div>

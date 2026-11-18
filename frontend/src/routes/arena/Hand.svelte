@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getArena, setArena, type Glyph } from '#lib/utils/arena.svelte.ts';
+	import { FEEL, getArena, setArena, type Glyph } from '#lib/utils/arena.svelte.ts';
 	import draggable from '#lib/utils/draggable.ts';
 	import GlyphFace from '#lib/components/arena/GlyphFace.svelte';
 	const arena = getArena();
@@ -8,7 +8,10 @@
 <div class="hand fixed inset-x-0 bottom-0 z-40 flex" style:--n={arena.hand.length}>
 	{#each arena.hand as glyphId, i (glyphId)}
 		<button
-			class="card absolute bottom-0 left-1/2 -ml-24 w-[10%] cursor-pointer touch-none hover:shadow-2xl hover:shadow-amber-200/20"
+			class={[
+				'card absolute bottom-0 left-1/2 ml-[-6%] cursor-pointer touch-none hover:shadow-2xl hover:shadow-amber-200/20',
+				FEEL.CardWidth
+			]}
 			style:--i={i}
 			{@attach draggable(
 				(x, y) => arena.dragOver(x, y),
@@ -25,7 +28,7 @@
 
 <style>
 	.hand {
-		--radius: 2050px;
+		--radius: 1000%;
 		--max-spread: 30deg;
 		--step: min(2deg, calc(var(--max-spread) / max(var(--n) - 1, 1)));
 
@@ -57,7 +60,7 @@
 	}
 
 	.card:hover {
-		--lift: calc(1rem * abs(var(--offset)));
+		--lift: calc(1.1rem * abs(var(--offset)));
 
 		z-index: 50;
 		scale: 1.2;
@@ -69,11 +72,11 @@
 	}
 
 	.card:hover ~ .card {
-		--push: 9rem;
+		--push: 60%;
 	}
 
 	.card:has(~ .card:hover) {
-		--push: -4rem;
+		--push: -10%;
 	}
 
 	.card::after {

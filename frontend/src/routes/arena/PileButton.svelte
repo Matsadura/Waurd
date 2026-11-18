@@ -32,7 +32,7 @@
 		animation: bubble-anim 2s ease-out infinite;
 	}
 	.draw-button .tooltip {
-		opacity: 0;
+		display: none;
 		transform: translateY(10px);
 		transform-origin: 50% 100%;
 		transition:
@@ -42,7 +42,7 @@
 	}
 
 	.draw-button:hover .tooltip {
-		opacity: 1;
+		display: block;
 		transform: translateY(0px);
 	}
 

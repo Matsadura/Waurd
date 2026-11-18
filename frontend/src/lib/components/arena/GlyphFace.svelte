@@ -40,7 +40,6 @@
 		--card-subtext: #fee2e2;
 		--card-border: #fff1c3;
 		--card-bg: #063528;
-		--card-border-light: #3c836f7e;
 
 		container-type: inline-size;
 		width: 100%;
@@ -48,7 +47,7 @@
 		background-color: var(--card-bg);
 		color: var(--card-text);
 		font-family: 'Kreon', serif;
-		border: 1px solid var(--card-border-light);
+		border: 1px solid var(--color-green-800);
 		user-select: none;
 	}
 

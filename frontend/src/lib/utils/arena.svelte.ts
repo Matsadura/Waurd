@@ -5,6 +5,7 @@ type ElementList = (HTMLElement | undefined)[];
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export const FEEL = {
+	CardWidth: 'w-[18%] md:w-[11%]',
 	cardBottom: -12,
 	spacing: 62,
 	curvature: 3.2,

@@ -240,3 +240,14 @@ class MatchRepository(BaseRepository[Match]):
         await self.session.flush()
         await self.session.refresh(match)
         return match
+
+    async def get_by_id(self, match_id: bytes) -> Match | None:
+        return await self.get_one_or_none(Match.id == match_id)
+
+    async def get_all_matches_for_user(self, user_id: bytes) -> list[Match]:
+        return list(
+            await self.list(
+                (Match.player1_id == user_id) | (Match.player2_id == user_id),
+                order_by=[Match.created_at.desc()],
+            )
+        )

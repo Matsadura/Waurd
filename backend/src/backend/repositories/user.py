@@ -1,11 +1,10 @@
 # app/repositories/user.py
 from collections.abc import Sequence
 
-from sqlalchemy import or_
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from backend.models.user import OAuthProvider, User
 from backend.repositories.base import BaseRepository
+from sqlalchemy import or_
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # from sqlalchemy.orm import selectinload
 

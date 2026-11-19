@@ -1,3 +1,6 @@
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.api.dependencies.auth import get_current_user
 from backend.db.session import get_db
 from backend.models.user import User
@@ -9,8 +12,6 @@ from backend.schemas.perks import (
     UserAchievementResponse,
     UserLoadoutResponse,
 )
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(tags=["Perks, Deckbuilding & Achievements"])
 

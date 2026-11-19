@@ -1,9 +1,8 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
 from backend.models.perk import ModificationType, Rarity, TargetGlyphType
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 MAX_LOADOUT_SLOTS: int = 3
 

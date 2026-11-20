@@ -51,6 +51,7 @@ def full_state() -> MatchState:
                 PerkInstance("pk-1", "amplify", 2),
                 PerkInstance("pk-2", "double_or_halve", None),
             ],
+            draft_offer=["ing", "erase"],
             rerolls_left=1,
             clock_ms=123_456,
             reshuffles=4,

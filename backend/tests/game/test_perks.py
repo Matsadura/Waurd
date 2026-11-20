@@ -6,6 +6,7 @@ import pytest
 
 pytest.importorskip("backend.game.perks", reason="Perks are not merged yet")
 
+from backend.game.config import Effect, GlyphType, Rarity
 from backend.game.perks import (
     CatalogError,
     PerkError,
@@ -24,8 +25,6 @@ from backend.game.perks.catalog import (
     MAX_NAME,
     parse_catalog,
 )
-
-from backend.game.config import Effect, GlyphType, Rarity
 from backend.game.piles import new_match
 from backend.game.resolution import Stage, resolve_word
 from backend.game.state import Glyph, MatchState

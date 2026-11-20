@@ -21,7 +21,6 @@ from backend.models.user_achievements import UserAchievement
 from backend.models.user_stats import UserStats
 
 if TYPE_CHECKING:
-    from backend.models.tournament import Tournament, TournamentParticipant
     from backend.models.user_loadout import UserLoadout
 
 
@@ -92,19 +91,10 @@ class User(Base, TimestampMixin):
         default=False,
         nullable=False,
     )
-    two_factor_secret: Mapped[str | None] = mapped_column(
-        String(64),
-        nullable=True,
-    )  # Might Remove if not needed
 
     xp: Mapped[int] = mapped_column(
         Integer,
         default=0,
-        nullable=False,
-    )
-    elo: Mapped[int] = mapped_column(
-        Integer,
-        default=1,
         nullable=False,
     )
     level: Mapped[int] = mapped_column(
@@ -158,21 +148,5 @@ class User(Base, TimestampMixin):
         "ChatMessage",
         foreign_keys="[ChatMessage.receiver_id]",
         back_populates="receiver",
-        cascade="all, delete-orphan",
-    )
-    created_tournaments: Mapped[list["Tournament"]] = relationship(
-        "Tournament",
-        foreign_keys="[Tournament.created_by]",
-        back_populates="creator",
-        cascade="all, delete-orphan",
-    )
-    won_tournaments: Mapped[list["Tournament"]] = relationship(
-        "Tournament",
-        foreign_keys="[Tournament.winner_id]",
-        back_populates="winner",
-    )
-    tournament_participations: Mapped[list["TournamentParticipant"]] = relationship(
-        "TournamentParticipant",
-        back_populates="user",
         cascade="all, delete-orphan",
     )

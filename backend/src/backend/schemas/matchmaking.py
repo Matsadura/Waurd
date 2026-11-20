@@ -36,7 +36,7 @@ class QueueJoinRequest(BaseModel):
     @classmethod
     def validate_time_control(cls, time: int) -> int:
         if time not in (60, 180, 300):
-            raise ValueError("time_control_seconds must be 60, 180, or 300 seconds.")
+            raise ValueError("Time control must be 60, 180 or 300 seconds.")
         return time
 
 
@@ -49,7 +49,7 @@ class QueueLeaveRequest(BaseModel):
     @classmethod
     def validate_time_control(cls, time: int) -> int:
         if time not in (60, 180, 300):
-            raise ValueError("time_control_seconds must be 60, 180, or 300 seconds.")
+            raise ValueError("Time control must be 60, 180 or 300 seconds.")
         return time
 
 
@@ -72,7 +72,7 @@ class CustomMatchCreateRequest(BaseModel):
     @classmethod
     def validate_time_control(cls, time: int) -> int:
         if time not in (60, 180, 300):
-            raise ValueError("time_control_seconds must be 60, 180, or 300 seconds.")
+            raise ValueError("Time control must be 60, 180 or 300 seconds.")
         return time
 
 

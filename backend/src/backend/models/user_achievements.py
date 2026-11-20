@@ -33,7 +33,7 @@ class UserAchievement(Base):
     )
     current_progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    unlocked_at: Mapped[DateTime] = mapped_column(
+    unlocked_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
 

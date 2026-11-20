@@ -26,6 +26,7 @@ from backend.core.two_factor import TwoFactorStore
 from backend.db.session import get_db
 from backend.db.uow import UnitOfWork
 from backend.models.user import OAuthProvider, User
+from backend.models.user_stats import UserStats
 from backend.repositories.user import UserRepository
 from backend.schemas.auth import LoginRequest
 from backend.schemas.two_factor import TwoFactorChallengeResponse
@@ -223,6 +224,7 @@ async def google_callback(
                     oauth_provider=OAuthProvider.GOOGLE,
                     oauth_id=google_id,
                     avatar_url=profile.get("picture"),
+                    stats=UserStats(),
                 )
             )
         await uow.commit()
@@ -315,6 +317,7 @@ async def register_user(
                 username=user_create.username,
                 email=user_create.email,
                 password_hash=hash_password(user_create.password),
+                stats=UserStats(),
             )
         )
         await uow.commit()

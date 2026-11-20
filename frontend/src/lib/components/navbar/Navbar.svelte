@@ -4,6 +4,7 @@
 	import SearchBar from './SearchBar.svelte';
 	import ProfileMenu from './ProfileMenu.svelte';
 	import MobileNav from './MobileNav.svelte';
+	import { session } from '#lib/session.svelte.ts';
 
 	const navLinks = [
 		{ href: '/play', label: 'PLAY', icon: 'gamepad-2' },
@@ -13,7 +14,7 @@
 
 	let mobileMenuOpen = $state(false);
 	let profileMenuOpen = $state(false);
-	const username = 'PlayerName'; // TODO: Replace with authenticated user data.
+	const username = $derived(session.user?.username ?? '');
 
 	function openMobileMenu() {
 		profileMenuOpen = false;

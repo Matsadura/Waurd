@@ -1,3 +1,16 @@
+# Waurd frontend
+
+SvelteKit 3 needs Node 22 or newer.
+
+```sh
+npm ci
+npm run dev        # http://localhost:5173
+npm run check      # types
+npm test           # unit tests (Vitest)
+```
+
+The dev server forwards `/api` (including the match socket) to the backend, by default `http://localhost:8000`; set `BACKEND_URL` to point it elsewhere. Pages: register or log in, then **Play** to find a match, open a private lobby or join one with a code.
+
 # sv
 
 Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).

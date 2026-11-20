@@ -3,6 +3,7 @@ from backend.api.v1.endpoints import (
     admin,
     auth,
     friendship,
+    match_socket,
     matchmaking,
     password,
     perks,
@@ -14,6 +15,9 @@ from fastapi import APIRouter, Depends
 api_v1_router = APIRouter()
 
 api_v1_router.include_router(auth.router)
+
+# The match socket checks the session and Origin itself (no CSRF on sockets).
+api_v1_router.include_router(match_socket.router)
 
 # CSRF is applied per route: the login verification step has no session yet.
 api_v1_router.include_router(two_factor.router)

@@ -19,6 +19,7 @@ from backend.core.exceptions import AppException
 from backend.core.matchmakerworker import MatchmakerWorker
 from backend.core.matchmaking_store import MatchmakingQueueStore
 from backend.core.perk_import import import_perks_on_startup
+from backend.live.hub import MatchHub
 from backend.db.session import async_session_maker, engine, get_db
 
 logger = logging.getLogger("uvicorn.error")
@@ -42,7 +43,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with async_session_maker() as session:
         await import_perks_on_startup(session)
 
-    # 3. Launch background matchmaker worker task
+    # 3. Live matches over WebSockets
+    app.state.match_hub = MatchHub(
+        app.state.redis,
+        async_session_maker,
+        grace_seconds=settings.MATCH_DISCONNECT_GRACE_SECONDS,
+        arrival_seconds=settings.MATCH_ARRIVAL_SECONDS,
+    )
+
+    # 4. Launch background matchmaker worker task
     queue_store = MatchmakingQueueStore(app.state.redis)
     worker = MatchmakerWorker(
         queue_store=queue_store,
@@ -51,7 +60,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     worker_task = asyncio.create_task(worker.start_loop())
 
     yield
-    # 4. Teardown: cancel worker, close Redis pool, and dispose engine
+    # 5. Teardown: stop live matches and the worker, close Redis and the engine
+    await app.state.match_hub.close()
     worker_task.cancel()
     try:
         await worker_task

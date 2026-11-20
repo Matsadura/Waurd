@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,7 @@ from backend.core.exceptions import (
 from backend.core.identifiers import user_id_to_bytes, user_id_to_string
 from backend.core.matchmaking_store import MatchmakingQueueStore
 from backend.db.session import get_db
+from backend.live.hub import MatchAccessError, MatchHub
 from backend.models.user import User
 from backend.repositories.match import MatchRepository, MatchStatus
 from backend.repositories.user import UserRepository
@@ -383,30 +384,28 @@ async def cancel_custom_match(
 )
 async def abandon_active_match(
     match_id: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
 ):
     """
-    Abandons an active match. Marks the match as ABANDONED and unlocks the user.
+    Resign an active match: the opponent wins. Same code path as the match
+    socket's SURRENDER message.
     """
     try:
-        match_bytes = user_id_to_bytes(match_id)
+        match_id = str(uuid.UUID(match_id))
     except ValueError:
         raise BadRequestException("Invalid match UUID format.")
 
-    match_repo = MatchRepository(db)
-    match = await match_repo.abandon_active_match(
-        match_id_bytes=match_bytes,
-        user_id_bytes=current_user.id,
-    )
-    # Commit before clearing tickets, so a status poll never sees neither.
-    await db.commit()
+    hub: MatchHub = request.app.state.match_hub
+    try:
+        await hub.resign(match_id, user_id_to_string(current_user.id))
+    except MatchAccessError as error:
+        if error.status == 404:
+            raise EntityNotFoundException("Match not found.")
+        if error.status == 403:
+            raise ForbiddenException("You are not a participant in this match.")
+        raise BadRequestException(
+            "Cannot abandon a match that is not in ACTIVE status."
+        )
 
-    # Both players' MATCHED tickets point at this match; drop them so the
-    # players can queue or host again immediately.
-    for player_id in (match.player1_id, match.player2_id):
-        if player_id:
-            await queue_store.clear_matched_ticket(user_id_to_string(player_id))
-
-    return {"detail": "Active match abandoned successfully"}
+    return {"detail": "Match abandoned"}

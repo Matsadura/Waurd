@@ -155,3 +155,16 @@ def last_plus_5(glyph: Glyph, ctx: WordContext, value: int) -> int:
 ```
 
 The import refuses to run, and the tests fail, if a row has no function or a function has no row.
+
+## Live matches
+
+Matches are played over a WebSocket at `/api/v1/ws/matches/{match_id}` (actions and events are in the WebSockets tab of the API spec). `backend/live/hub.py` runs the game engine for the connected players:
+
+- The live state is saved in Redis after every move, so a reconnect (or a backend restart) picks it up.
+- A timer ends the match when the active player's clock runs out.
+- A player who disconnects has `MATCH_DISCONNECT_GRACE_SECONDS` (30) to come back; one who never shows up after being matched loses after `MATCH_ARRIVAL_SECONDS` (60).
+- When a match ends, `backend/live/results.py` saves the result, each word cast, both players' stats and their new Elo ratings. `DELETE /matchmaking/matches/{id}/abandon` resigns through the same code.
+
+The socket only accepts browsers from `CORS_ORIGINS`. If your `.env` sets it, include the frontend: `CORS_ORIGINS='["http://localhost:5173","http://127.0.0.1:5173"]'`.
+
+Live matches are kept in one backend process's memory, so run a single worker (as `fastapi dev` does).

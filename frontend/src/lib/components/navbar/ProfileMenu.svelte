@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { logout } from '#lib/session.svelte.ts';
 	let {
 		open = $bindable(false),
 		username,
@@ -113,11 +115,14 @@
 			<button
 				type="button"
 				class="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-accent-red"
-				onclick={closeMenu}
+				onclick={async () => {
+					closeMenu();
+					await logout();
+					await goto('/login');
+				}}
 			>
 				Log out
 			</button>
-			<!-- TODO: Connect logout to the backend authentication endpoint -->
 		</div>
 	{/if}
 </div>

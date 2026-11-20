@@ -446,6 +446,7 @@ def match_state(state: MatchState, player: int, now_ms: int | None = None) -> Ev
     data: JSONDict = {
         "turn": state.turn,
         "phase": state.phase.value,
+        "max_hp": DEFAULT_CONFIG.max_hp,
         "active_player_id": state.player(state.active_player).user_id,
         "players": [
             {

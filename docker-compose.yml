@@ -6,6 +6,9 @@ services:
     volumes:
       - ./frontend:/frontend_inside_container
       - /frontend_inside_container/node_modules
+    environment:
+      # Vite forwards /api and the match socket to the backend container.
+      - BACKEND_URL=http://backend:8000
 
   backend:
     build:
@@ -26,6 +29,8 @@ services:
       - DB_PASSWORD=${DB_USER_PASSWORD:-app_password}
       - DB_NAME=${DB_NAME:-app_db}
       - REDIS_URL=redis://redis:6379
+      # Browsers on the Vite dev server may open match sockets.
+      - CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173","http://localhost:3000"]
     depends_on:
       db:
         condition: service_healthy

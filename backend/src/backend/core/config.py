@@ -90,7 +90,17 @@ class Settings(BaseSettings):
     SESSION_COOKIE_SAMESITE: str = "lax"  # Options: 'strict', 'lax', 'none'
 
     # CORS (Must specify exact origins when allow_credentials=True)
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
+    # Live matches: seconds a disconnected player has to come back, and to
+    # show up at all once matched, before they lose.
+    MATCH_DISCONNECT_GRACE_SECONDS: int = 30
+    MATCH_ARRIVAL_SECONDS: int = 60
 
 
 settings = Settings()

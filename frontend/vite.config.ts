@@ -2,7 +2,11 @@ import { enhancedImages } from '@sveltejs/enhanced-img';
 import tailwindcss from '@tailwindcss/vite';
 import adapter from '@sveltejs/adapter-auto';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
+
+// Node's process, without needing @types/node.
+const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env;
+const backendUrl = env?.BACKEND_URL ?? 'http://localhost:8000';
 
 export default defineConfig({
 	plugins: [
@@ -20,5 +24,18 @@ export default defineConfig({
 			// See https://svelte.dev/docs/kit/adapters for more information about adapters.
 			adapter: adapter()
 		})
-	]
+	],
+	test: {
+		include: ['src/**/*.test.ts']
+	},
+	server: {
+		// The browser talks to the backend through Vite, on the same origin, so the
+		// session cookie and the match socket just work. Docker sets BACKEND_URL.
+		proxy: {
+			'/api': {
+				target: backendUrl,
+				ws: true
+			}
+		}
+	}
 });

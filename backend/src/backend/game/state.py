@@ -12,7 +12,8 @@ from typing import Any
 from backend.game.config import Effect, GlyphType
 
 # 2: PlayerState.draft_offer. 3: Status.applied_turn, PlayerState.ready.
-STATE_VERSION = 3
+# 4: MatchState.clock_started_ms.
+STATE_VERSION = 4
 
 JSONDict = dict[str, Any]
 
@@ -212,6 +213,9 @@ class MatchState:
     phase: Phase = Phase.WAITING
     winner: int | None = None
     end_reason: EndReason | None = None
+    # When the active player's clock was last charged (the runtime's
+    # milliseconds); None while no clock runs (before the start, after the end).
+    clock_started_ms: int | None = None
 
     def __post_init__(self) -> None:
         if len(self.players) != 2:
@@ -236,6 +240,7 @@ class MatchState:
             "phase": self.phase.value,
             "winner": self.winner,
             "end_reason": self.end_reason.value if self.end_reason else None,
+            "clock_started_ms": self.clock_started_ms,
         }
 
     @classmethod
@@ -257,4 +262,5 @@ class MatchState:
             phase=Phase(_require(data, "phase")),
             winner=_require(data, "winner"),
             end_reason=EndReason(end_reason) if end_reason is not None else None,
+            clock_started_ms=_require(data, "clock_started_ms"),
         )

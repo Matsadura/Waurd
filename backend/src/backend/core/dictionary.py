@@ -7,6 +7,7 @@ runtime passes it in as a backend.game.spelling.Dictionary.
 """
 
 import gzip
+from collections.abc import Iterator
 from functools import lru_cache
 from importlib import resources
 
@@ -22,6 +23,9 @@ class WordList:
 
     def __len__(self) -> int:
         return len(self._words)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._words)
 
 
 @lru_cache(maxsize=1)

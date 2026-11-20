@@ -3,8 +3,10 @@
     state, events = apply(state, action, now_ms, rules)
 
 A match goes WAITING (until both players send PLAYER_READY), then turn by
-turn: ACTION (apply perks, then cast a word), DRAFT (reroll, pick perks),
-then the opponent's turn. A cast that brings the target to 0 HP ends it.
+turn: ACTION (apply perks, then cast a word or pass), DRAFT (reroll, pick
+perks), then the opponent's turn. A cast that brings the target to 0 HP ends
+it. PASS_TURN discards the hand without casting, so a hand that spells
+nothing doesn't have to wait for the clock; the next turn draws a new one.
 
 Actions and events follow the WebSockets tab of the API spec. Events name
 their recipients, because hands and drafts are private: the active player
@@ -55,6 +57,7 @@ class ActionType(enum.StrEnum):
     CAST_WORD = "CAST_WORD"
     REROLL_PERKS = "REROLL_PERKS"
     SELECT_PERKS = "SELECT_PERKS"
+    PASS_TURN = "PASS_TURN"
 
 
 class EventType(enum.StrEnum):
@@ -65,6 +68,7 @@ class EventType(enum.StrEnum):
     PERK_APPLIED = "PERK_APPLIED"
     WORD_RESOLVED = "WORD_RESOLVED"
     PERK_DRAFT_OPTIONS = "PERK_DRAFT_OPTIONS"
+    TURN_PASSED = "TURN_PASSED"
     ACTION_REJECTED = "ACTION_REJECTED"
     MATCH_ENDED = "MATCH_ENDED"
 
@@ -334,12 +338,25 @@ def _select(state: MatchState, action: Action, rules: MatchRules) -> list[Event]
     return _end_turn(state, rules.config)
 
 
+def _pass(state: MatchState, action: Action, rules: MatchRules) -> list[Event]:
+    """Give up the cast (for example a hand that spells nothing): the hand is
+    discarded and the opponent's turn starts. Only before casting."""
+    _check_turn(state, action, Phase.ACTION)
+    passed = Event(
+        EventType.TURN_PASSED,
+        {"turn": state.turn, "player_id": state.player(action.player).user_id},
+        BOTH,
+    )
+    return [passed, *_end_turn(state, rules.config)]
+
+
 _HANDLERS = {
     ActionType.PLAYER_READY: _ready,
     ActionType.APPLY_PERK: _apply_perk,
     ActionType.CAST_WORD: _cast,
     ActionType.REROLL_PERKS: _reroll,
     ActionType.SELECT_PERKS: _select,
+    ActionType.PASS_TURN: _pass,
 }
 
 

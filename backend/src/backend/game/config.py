@@ -55,33 +55,36 @@ _P, _S = GlyphType.POWER, GlyphType.SKILL
 _D, _DEF, _H = Effect.DAMAGE, Effect.DEFENSE, Effect.HEAL
 _V, _W = Effect.VULNERABLE, Effect.WEAK
 
-# PLACEHOLDER: the whole table. Values follow the GDD example (B 20 damage,
-# R 15 defense, A 10 heal, V and E statuses for 2 turns). J, Q and X are not
-# in the deck yet. The copies add up to a 40-glyph deck.
+# PLACEHOLDER: the whole table. Started from the GDD example (B 20 damage,
+# R 15 defense, A 10 heal, V and E statuses for 2 turns), then balanced with
+# scripts/simulate.py (2026-11-20): damage x1.15, defense and heal x0.9. With
+# a human-paced bot that gives a median match of 15 turns without perks (80%
+# between 11 and 21) and 13 with every perk. J, Q and X are not in the deck
+# yet. The copies add up to a 40-glyph deck.
 DEFAULT_LETTERS: tuple[LetterSpec, ...] = (
-    _letter("A", _S, _H, 10, 3),
+    _letter("A", _S, _H, 9, 3),
     _letter("E", _S, _W, 2, 4),
-    _letter("I", _S, _H, 8, 3),
-    _letter("O", _S, _DEF, 10, 3),
-    _letter("U", _S, _H, 6, 1),
-    _letter("N", _P, _D, 8, 2),
-    _letter("R", _S, _DEF, 15, 2),
-    _letter("S", _P, _D, 8, 3),
-    _letter("T", _P, _D, 8, 3),
-    _letter("L", _S, _DEF, 8, 2),
-    _letter("D", _P, _D, 10, 2),
-    _letter("C", _P, _D, 12, 1),
-    _letter("M", _P, _D, 12, 1),
-    _letter("P", _P, _D, 12, 1),
-    _letter("H", _S, _DEF, 12, 1),
-    _letter("G", _P, _D, 14, 1),
-    _letter("B", _P, _D, 20, 1),
-    _letter("F", _P, _D, 16, 1),
-    _letter("K", _P, _D, 18, 1),
-    _letter("W", _S, _DEF, 18, 1),
-    _letter("Y", _S, _H, 14, 1),
+    _letter("I", _S, _H, 7, 3),
+    _letter("O", _S, _DEF, 9, 3),
+    _letter("U", _S, _H, 5, 1),
+    _letter("N", _P, _D, 9, 2),
+    _letter("R", _S, _DEF, 14, 2),
+    _letter("S", _P, _D, 9, 3),
+    _letter("T", _P, _D, 9, 3),
+    _letter("L", _S, _DEF, 7, 2),
+    _letter("D", _P, _D, 12, 2),
+    _letter("C", _P, _D, 14, 1),
+    _letter("M", _P, _D, 14, 1),
+    _letter("P", _P, _D, 14, 1),
+    _letter("H", _S, _DEF, 11, 1),
+    _letter("G", _P, _D, 16, 1),
+    _letter("B", _P, _D, 23, 1),
+    _letter("F", _P, _D, 18, 1),
+    _letter("K", _P, _D, 21, 1),
+    _letter("W", _S, _DEF, 16, 1),
+    _letter("Y", _S, _H, 13, 1),
     _letter("V", _S, _V, 2, 1),
-    _letter("Z", _P, _D, 25, 1),
+    _letter("Z", _P, _D, 29, 1),
 )
 
 # PLACEHOLDER: the GDD's 60/28/15/3 adds up to 106%; these add up to 100.
@@ -107,8 +110,11 @@ class GameConfig:
     starting_hp: int = 100
     max_hp: int = 100
 
-    # PLACEHOLDER: each player's clock is the match's time control, in seconds.
-    time_controls: tuple[int, ...] = (60, 180, 300)
+    # Each player's clock is the match's time control, in seconds: 3 minutes
+    # (fast: about 1 in 10 simulated matches with perks ends on time), 5
+    # (standard: the slowest 1% of players use about 4) and 10 (relaxed).
+    # 1 and 2 minutes ended most matches on time.
+    time_controls: tuple[int, ...] = (180, 300, 600)
 
     # PLACEHOLDER: Vulnerable raises damage taken, Weak lowers Power glyph
     # values, both by this many percent.
@@ -117,6 +123,12 @@ class GameConfig:
 
     # PLACEHOLDER: Defense resets at the start of its owner's next turn.
     defense_carries_over: bool = False
+
+    # The second player starts with this much Defense, which soaks up the
+    # first player's opening word (it resets when their own first turn starts).
+    # Without it the first player wins about 60-70% of simulated matches; with
+    # 30 it's about 50%.
+    second_player_shield: int = 30
 
     rarity_weights: tuple[tuple[Rarity, int], ...] = DEFAULT_RARITY_WEIGHTS
     letters: tuple[LetterSpec, ...] = field(default=DEFAULT_LETTERS)
@@ -177,6 +189,8 @@ class GameConfig:
             raise ValueError("time_controls must be positive numbers of seconds.")
         if len(set(self.time_controls)) != len(self.time_controls):
             raise ValueError("time_controls has a duplicate.")
+        if self.second_player_shield < 0:
+            raise ValueError("second_player_shield can't be negative.")
         for name in ("vulnerable_percent", "weak_percent"):
             if not 0 <= getattr(self, name) <= 100:
                 raise ValueError(f"{name} must be between 0 and 100.")

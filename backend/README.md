@@ -123,3 +123,35 @@ Game masters cannot change their own role or delete their own account here, so t
 - `GET /users/{id}/avatar` returns the uploaded image, redirects to an external picture (such as a Google profile photo), or returns a built-in default avatar. Use it as the `src` of every avatar `<img>`.
 
 Uploads are stored under `MEDIA_DIR/avatars` (default `backend/media`, which is gitignored).
+
+## Perks
+
+The perk catalog is [`src/backend/game/perks/catalog.csv`](src/backend/game/perks/catalog.csv), exported from the team's perk sheet. Each row's behaviour is a Python function in [`src/backend/game/perks/builtin.py`](src/backend/game/perks/builtin.py), registered under the row's `id`.
+
+The app copies the CSV into the database `perks` table when it starts. After editing the CSV, either restart the backend or run:
+
+```bash
+uv run python scripts/import_perks.py
+```
+
+- Rows are matched by `id` (lowercase letters, digits and `_`, at most 32 characters): new ids are added, existing ones updated.
+- `status` = `ready` makes a perk available (`is_enabled`); `not_ready` hides it.
+- A perk deleted from the CSV is disabled, not deleted, since loadouts and achievements may point at it.
+- `durability` empty means unlimited. `target_type` is `power`, `skill` or `"power, skill"`.
+- Limits: name 20 characters, description and quote 120.
+
+To add a perk, add its row and its function:
+
+```python
+@perk("amplify", PerkKind.POWER_VALUE)
+def amplify(glyph: Glyph, ctx: PerkContext) -> bool:
+    glyph.value *= 2
+    return True  # False means it didn't apply, and costs no durability
+
+
+@conditional("last_plus_5")  # checked when the word resolves
+def last_plus_5(glyph: Glyph, ctx: WordContext, value: int) -> int:
+    return value + 5 if ctx.is_last else value
+```
+
+The import refuses to run, and the tests fail, if a row has no function or a function has no row.

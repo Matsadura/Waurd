@@ -10,10 +10,13 @@ random, and it only uses random.Random.
 import random
 import secrets
 
+# The generator type, for annotations elsewhere in the engine.
+Rng = random.Random
+
 
 def rng_for(
     seed: str, turn: int, purpose: str, player: int | None = None
-) -> random.Random:
+) -> Rng:
     """Return the generator for one random decision.
 
     String seeds are hashed with SHA-512 by random.Random, so the numbers are

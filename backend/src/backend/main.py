@@ -18,6 +18,7 @@ from backend.core.config import settings
 from backend.core.exceptions import AppException
 from backend.core.matchmakerworker import MatchmakerWorker
 from backend.core.matchmaking_store import MatchmakingQueueStore
+from backend.core.perk_import import import_perks_on_startup
 from backend.db.session import async_session_maker, engine, get_db
 
 logger = logging.getLogger("uvicorn.error")
@@ -37,7 +38,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         raise RuntimeError(
             f"Failed to connect to Redis at {settings.REDIS_URL}"
         ) from err
-    # 2. Launch background matchmaker worker task
+    # 2. Copy the perk catalog (catalog.csv) into the perks table
+    async with async_session_maker() as session:
+        await import_perks_on_startup(session)
+
+    # 3. Launch background matchmaker worker task
     queue_store = MatchmakingQueueStore(app.state.redis)
     worker = MatchmakerWorker(
         queue_store=queue_store,
@@ -46,7 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     worker_task = asyncio.create_task(worker.start_loop())
 
     yield
-    # 3. Teardown: cancel worker, close Redis pool, and dispose engine
+    # 4. Teardown: cancel worker, close Redis pool, and dispose engine
     worker_task.cancel()
     try:
         await worker_task

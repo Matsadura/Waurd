@@ -57,12 +57,14 @@ def new_match(
             )
         )
 
+    first = rng_for(seed, 0, "first_player").randrange(2)
+    players[1 - first].defense = config.second_player_shield
     return MatchState(
         match_id=match_id,
         seed=seed,
         time_control_seconds=time_control_seconds,
         players=players,
-        active_player=rng_for(seed, 0, "first_player").randrange(2),
+        active_player=first,
     )
 
 

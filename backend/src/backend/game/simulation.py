@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from itertools import combinations
 
 from backend.game.clock import deadline_ms
-from backend.game.config import DEFAULT_CONFIG, GameConfig
+from backend.game.config import DEFAULT_CONFIG, Effect, GameConfig
 from backend.game.perks import PerkSpec, load_catalog
 from backend.game.piles import new_match
 from backend.game.rng import Rng, rng_for
@@ -89,9 +89,16 @@ def _spell_order(word: str, pieces: list[tuple[int, str]]) -> list[int] | None:
 
 @dataclass(frozen=True, slots=True)
 class BotStyle:
-    """How the bot plays. Times are in milliseconds."""
+    """How the bot plays. Times are in milliseconds, drawn evenly from each
+    range; the defaults are a guess at an ordinary human player."""
 
-    think_ms: tuple[int, int] = (500, 4_000)
+    cast_ms: tuple[int, int] = (4_000, 20_000)
+    perk_ms: tuple[int, int] = (1_500, 5_000)
+    draft_ms: tuple[int, int] = (2_000, 8_000)
+    # Pick among this many best-scoring words; None picks any word at random.
+    choose_from_best: int | None = 5
+    # Pass when the hand spells nothing; False waits for the clock instead.
+    pass_when_stuck: bool = True
     perk_chance: float = 0.5
     max_perks_per_turn: int = 2
     reroll_chance: float = 0.2
@@ -111,6 +118,7 @@ class MatchSummary:
     perks_applied: int = 0
     glyphs_erased: int = 0
     turns_without_a_word: int = 0
+    seconds_used: list[float] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -143,7 +151,12 @@ class SimulationReport:
             else 0,
             "perks_applied": sum(m.perks_applied for m in self.matches),
             "glyphs_erased": sum(m.glyphs_erased for m in self.matches),
-            "turns_without_a_word": sum(m.turns_without_a_word for m in self.matches),
+            "turns_passed_or_stuck": sum(m.turns_without_a_word for m in self.matches),
+            "timeout_share": round(
+                sum(m.end_reason == EndReason.TIMEOUT for m in self.matches)
+                / len(self.matches),
+                3,
+            ),
         }
 
 
@@ -162,7 +175,9 @@ class _Run:
         self.config = rules.config
         self.style = style
         self.catalog = rules.perk_catalog()
-        self.state = new_match(f"match-{seed}", USERS, time_control, seed=seed)
+        self.state = new_match(
+            f"match-{seed}", USERS, time_control, seed=seed, config=rules.config
+        )
         self.now = 0
         self.actions = 0
         self.erased = [0, 0]
@@ -183,8 +198,30 @@ class _Run:
         return InvariantError(f"seed {self.seed!r}, action {self.actions}: {message}")
 
     def think(self, purpose: str) -> None:
-        low, high = self.style.think_ms
+        style = self.style
+        low, high = {
+            "cast": style.cast_ms,
+            "pass": style.cast_ms,
+            "reroll": style.draft_ms,
+            "select": style.draft_ms,
+        }.get(purpose, style.perk_ms)
         self.now += self.rng(f"think:{purpose}").randint(low, high)
+
+    def score(self, player: int, play: list[int]) -> float:
+        """Roughly how good a word is, the way a decent player would judge."""
+        side = self.state.player(player)
+        total = 0.0
+        for position in play:
+            glyph = side.hand[position]
+            if glyph.effect == Effect.DAMAGE:
+                total += glyph.value
+            elif glyph.effect == Effect.DEFENSE:
+                total += glyph.value * 0.6
+            elif glyph.effect == Effect.HEAL:
+                total += glyph.value * 0.6 if side.hp < self.config.max_hp else 0
+            else:
+                total += glyph.value * 4
+        return total
 
     def send(self, player: int, kind: ActionType, **data: object) -> list[Event]:
         before_turn = self.state.turn
@@ -293,8 +330,13 @@ class _Run:
 
     def cast(self, player: int) -> None:
         plays = self.finder.plays(self.state.player(player).hand)
+        if not plays and self.style.pass_when_stuck:
+            self.summary.turns_without_a_word += 1
+            self.think("pass")
+            self.send(player, ActionType.PASS_TURN, turn=self.state.turn)
+            return
         if not plays:
-            # Nothing to spell: the clock runs out.
+            # Nothing to spell and no passing: the clock runs out.
             self.summary.turns_without_a_word += 1
             deadline = deadline_ms(self.state)
             assert deadline is not None
@@ -305,6 +347,10 @@ class _Run:
                 raise self.fail("the deadline passed without a timeout")
             self.after(events, before)
             return
+        best = self.style.choose_from_best
+        if best is not None:
+            plays.sort(key=lambda play: self.score(player, play), reverse=True)
+            plays = plays[:best]
         self.think("cast")
         self.send(
             player,
@@ -347,6 +393,10 @@ class _Run:
                 self.draft(player)
             else:
                 raise self.fail(f"stuck in {self.state.phase.value}")
+        limit = self.state.time_control_seconds * 1000
+        self.summary.seconds_used = [
+            (limit - side.clock_ms) / 1000 for side in self.state.players
+        ]
         self.summary.winner = self.state.winner
         self.summary.end_reason = self.state.end_reason
         self.summary.turns = self.state.turn

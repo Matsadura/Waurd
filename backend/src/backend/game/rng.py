@@ -14,9 +14,7 @@ import secrets
 Rng = random.Random
 
 
-def rng_for(
-    seed: str, turn: int, purpose: str, player: int | None = None
-) -> Rng:
+def rng_for(seed: str, turn: int, purpose: str, player: int | None = None) -> Rng:
     """Return the generator for one random decision.
 
     String seeds are hashed with SHA-512 by random.Random, so the numbers are

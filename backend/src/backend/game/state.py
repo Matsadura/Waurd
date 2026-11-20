@@ -11,7 +11,8 @@ from typing import Any
 
 from backend.game.config import Effect, GlyphType
 
-STATE_VERSION = 1
+# 2: PlayerState.draft_offer.
+STATE_VERSION = 2
 
 JSONDict = dict[str, Any]
 
@@ -137,6 +138,8 @@ class PlayerState:
     hand: list[Glyph] = field(default_factory=list)
     discard_pile: list[Glyph] = field(default_factory=list)
     perks: list[PerkInstance] = field(default_factory=list)
+    # Perk ids offered in the current draft; empty when no draft is open.
+    draft_offer: list[str] = field(default_factory=list)
     # How many times the discard pile was shuffled into the draw pile; gives
     # every reshuffle its own random generator.
     reshuffles: int = 0
@@ -155,6 +158,7 @@ class PlayerState:
             "hand": [glyph.to_dict() for glyph in self.hand],
             "discard_pile": [glyph.to_dict() for glyph in self.discard_pile],
             "perks": [perk.to_dict() for perk in self.perks],
+            "draft_offer": list(self.draft_offer),
             "rerolls_left": self.rerolls_left,
             "clock_ms": self.clock_ms,
             "reshuffles": self.reshuffles,
@@ -171,6 +175,7 @@ class PlayerState:
             hand=_glyphs(data, "hand"),
             discard_pile=_glyphs(data, "discard_pile"),
             perks=[PerkInstance.from_dict(p) for p in _require(data, "perks")],
+            draft_offer=list(_require(data, "draft_offer")),
             rerolls_left=_require(data, "rerolls_left"),
             clock_ms=_require(data, "clock_ms"),
             reshuffles=_require(data, "reshuffles"),

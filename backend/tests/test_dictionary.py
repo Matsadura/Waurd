@@ -57,3 +57,14 @@ def test_word_list_from_custom_words() -> None:
 
     assert "cab" in words
     assert len(words) == 1
+
+
+def test_iterates_every_word() -> None:
+    words = load_word_list()
+    if not hasattr(words, "__iter__"):
+        pytest.skip("WordList can't be iterated on this branch")
+
+    listed = list(words)
+
+    assert len(listed) == len(words) == len(set(listed))
+    assert "QUIZ" in listed

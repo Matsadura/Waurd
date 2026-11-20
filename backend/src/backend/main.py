@@ -16,7 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.api.v1.router import api_v1_router
 from backend.core.config import settings
 from backend.core.exceptions import AppException
-from backend.db.session import engine, get_db
+from backend.core.matchmakerworker import MatchmakerWorker
+from backend.core.matchmaking_store import MatchmakingQueueStore
+from backend.db.session import async_session_maker, engine, get_db
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -35,10 +37,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         raise RuntimeError(
             f"Failed to connect to Redis at {settings.REDIS_URL}"
         ) from err
+    # 2. Launch background matchmaker worker task
+    queue_store = MatchmakingQueueStore(app.state.redis)
+    worker = MatchmakerWorker(
+        queue_store=queue_store,
+        session_factory=async_session_maker,
+    )
+    worker_task = asyncio.create_task(worker.start_loop())
 
     yield
+    # 3. Teardown: cancel worker, close Redis pool, and dispose engine
+    worker_task.cancel()
+    try:
+        await worker_task
+    except asyncio.CancelledError:
+        pass
 
-    # 2. Teardown: close Redis client and dispose SQLAlchemy pool
     await app.state.redis.aclose()
     await engine.dispose()
 
@@ -88,23 +102,43 @@ async def request_validation_error_handler(
         "code": "Code",
         "new_password": "Password",
         "token": "Reset token",
+        "perk_ids": "Perks",
+        "perk_id": "Perk",
     }
     field_name = field_names.get(field, "Value")
 
     if field == "email" or error_type == "email_parsing":
         detail = "Email must be a valid email address."
-    elif error_type == "string_too_short":
-        detail = (
-            f"{field_name} must be at least {context.get('min_length')} characters."
-        )
-    elif error_type == "string_too_long":
-        detail = f"{field_name} must be at most {context.get('max_length')} characters."
+    elif error_type in {"string_too_short", "too_short"}:
+        if context.get("field_type") == "List":
+            detail = (
+                f"{field_name} must have at least {context.get('min_length')} items."
+            )
+        else:
+            detail = (
+                f"{field_name} must be at least {context.get('min_length')} characters."
+            )
+    elif error_type in {"string_too_long", "too_long"}:
+        if context.get("field_type") == "List":
+            detail = (
+                f"{field_name} must have at most {context.get('max_length')} items."
+            )
+        else:
+            detail = (
+                f"{field_name} must be at most {context.get('max_length')} characters."
+            )
     elif error_type == "missing":
         detail = f"{field_name} is required."
     elif error_type in {"uuid_parsing", "uuid_type"}:
         detail = f"{field_name} is invalid."
     elif error_type == "value_error":
-        detail = "Provide a target user ID or username."
+        raw_msg = str(error.get("msg", ""))
+        if raw_msg.startswith("Value error, "):
+            detail = raw_msg.removeprefix("Value error, ").strip()
+        elif raw_msg and raw_msg != "Value error":
+            detail = raw_msg
+        else:
+            detail = "Provide a target user ID or username."
     else:
         detail = f"{field_name} is invalid."
 

@@ -9,16 +9,9 @@ class MatchResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
     id: str = Field(..., description="Unique identifier for the match")
-    tournament_id: str | None = Field(
-        None, description="Unique identifier for the tournament (if applicable)"
-    )
     player1_id: str = Field(..., description="Unique identifier for player 1")
-    player2_id: str = Field(..., description="Unique identifier for player 2")
-    is_ai_match: bool = Field(
-        ..., description="Indicates if the match is against an AI opponent"
-    )
-    ai_difficulty: str | None = Field(
-        None, description="Difficulty level of the AI opponent (if applicable)"
+    player2_id: str | None = Field(
+        None, description="Unique identifier for player 2 (empty while waiting)"
     )
     time_control_seconds: int = Field(
         ..., description="Time control for the match in seconds"
@@ -48,10 +41,20 @@ class MatchResponse(BaseModel):
     ended_at: datetime | None = Field(
         None, description="Timestamp when the match ended (if applicable)"
     )
-
-    @field_validator(
-        "id", "tournament_id", "player1_id", "player2_id", "winner_id", mode="before"
+    player1_elo_before: int | None = Field(
+        None, description="Player 1's rating before the match (once it ended)"
     )
+    player1_elo_after: int | None = Field(
+        None, description="Player 1's rating after the match (once it ended)"
+    )
+    player2_elo_before: int | None = Field(
+        None, description="Player 2's rating before the match (once it ended)"
+    )
+    player2_elo_after: int | None = Field(
+        None, description="Player 2's rating after the match (once it ended)"
+    )
+
+    @field_validator("id", "player1_id", "player2_id", "winner_id", mode="before")
     @classmethod
     def serialize_ids(cls, value: bytes | str | None) -> str | None:
         return None if value is None else user_id_to_string(value)

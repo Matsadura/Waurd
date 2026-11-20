@@ -66,7 +66,12 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
-
+  adminer:
+    image: adminer:latest
+    container_name: adminer-container
+    restart: always
+    ports:
+      - '8080:8080'
 volumes:
   redis_data:
     driver: local

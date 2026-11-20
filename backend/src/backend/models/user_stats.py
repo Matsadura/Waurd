@@ -9,6 +9,9 @@ if TYPE_CHECKING:
     from backend.models.user import User
 
 
+DEFAULT_RATING = 1200
+
+
 class UserStats(Base):
     """
     Stores game performance statistics for each user.
@@ -24,10 +27,17 @@ class UserStats(Base):
         primary_key=True,
     )
     matches_played: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    wins: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    wins: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
     losses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     draws: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    rating_elo: Mapped[int] = mapped_column(Integer, default=1200, nullable=False)
+    # The one Elo rating; the leaderboard sorts on it.
+    rating_elo: Mapped[int] = mapped_column(
+        Integer,
+        default=DEFAULT_RATING,
+        server_default=str(DEFAULT_RATING),
+        nullable=False,
+        index=True,
+    )
     highest_scoring_word: Mapped[str | None] = mapped_column(String(32), nullable=True)
     highest_word_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_damage_dealt: Mapped[int] = mapped_column(

@@ -3,7 +3,15 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BINARY, TIMESTAMP, Boolean, Enum, Integer, String
+from sqlalchemy import (
+    BINARY,
+    TIMESTAMP,
+    Boolean,
+    Enum,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base, TimestampMixin
@@ -13,12 +21,17 @@ from backend.models.user_achievements import UserAchievement
 from backend.models.user_stats import UserStats
 
 if TYPE_CHECKING:
-    from backend.models.tournament import Tournament, TournamentParticipant
+    from backend.models.user_loadout import UserLoadout
 
 
 class OAuthProvider(str, enum.Enum):
     LOCAL = "LOCAL"
     GOOGLE = "GOOGLE"
+
+
+class UserRole(str, enum.Enum):
+    USER = "USER"
+    GAME_MASTER = "GAME_MASTER"
 
 
 class User(Base, TimestampMixin):
@@ -28,6 +41,12 @@ class User(Base, TimestampMixin):
         BINARY(16),
         primary_key=True,
         default=lambda: uuid.uuid4().bytes,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "oauth_provider", "oauth_id", name="uq_users_oauth_provider_id"
+        ),
     )
 
     username: Mapped[str] = mapped_column(
@@ -52,6 +71,12 @@ class User(Base, TimestampMixin):
         default=OAuthProvider.LOCAL,
         nullable=False,
     )
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole, values_callable=lambda obj: [e.value for e in obj]),
+        default=UserRole.USER,
+        server_default=UserRole.USER.value,
+        nullable=False,
+    )
     oauth_id: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
@@ -66,19 +91,10 @@ class User(Base, TimestampMixin):
         default=False,
         nullable=False,
     )
-    two_factor_secret: Mapped[str | None] = mapped_column(
-        String(64),
-        nullable=True,
-    )  # Might Remove if not needed
 
     xp: Mapped[int] = mapped_column(
         Integer,
         default=0,
-        nullable=False,
-    )
-    elo: Mapped[int] = mapped_column(
-        Integer,
-        default=1,
         nullable=False,
     )
     level: Mapped[int] = mapped_column(
@@ -101,6 +117,11 @@ class User(Base, TimestampMixin):
     )
     achievements: Mapped[list["UserAchievement"]] = relationship(
         "UserAchievement", back_populates="user", cascade="all, delete-orphan"
+    )
+    loadout: Mapped[list["UserLoadout"]] = relationship(
+        "UserLoadout",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
     # Sent and Received Friend Requests
@@ -127,21 +148,5 @@ class User(Base, TimestampMixin):
         "ChatMessage",
         foreign_keys="[ChatMessage.receiver_id]",
         back_populates="receiver",
-        cascade="all, delete-orphan",
-    )
-    created_tournaments: Mapped[list["Tournament"]] = relationship(
-        "Tournament",
-        foreign_keys="[Tournament.created_by]",
-        back_populates="creator",
-        cascade="all, delete-orphan",
-    )
-    won_tournaments: Mapped[list["Tournament"]] = relationship(
-        "Tournament",
-        foreign_keys="[Tournament.winner_id]",
-        back_populates="winner",
-    )
-    tournament_participations: Mapped[list["TournamentParticipant"]] = relationship(
-        "TournamentParticipant",
-        back_populates="user",
         cascade="all, delete-orphan",
     )

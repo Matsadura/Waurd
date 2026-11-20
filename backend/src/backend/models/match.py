@@ -6,26 +6,19 @@ from sqlalchemy import (
     BINARY,
     JSON,
     BigInteger,
-    Boolean,
     DateTime,
     Enum,
     ForeignKey,
     Integer,
     String,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
-    from backend.models.tournament import Tournament
     from backend.models.user import User
-
-
-class AIDifficulty(str, enum.Enum):
-    EASY = "EASY"
-    MEDIUM = "MEDIUM"
-    HARD = "HARD"
 
 
 class MatchStatus(str, enum.Enum):
@@ -46,25 +39,18 @@ class Match(Base, TimestampMixin):
     __tablename__ = "matches"
 
     id: Mapped[bytes] = mapped_column(BINARY(16), primary_key=True)
-    tournament_id: Mapped[bytes | None] = mapped_column(
-        BINARY(16),
-        ForeignKey("tournaments.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    tournament_round: Mapped[int | None] = mapped_column(Integer, nullable=True)
     player1_id: Mapped[bytes] = mapped_column(
         BINARY(16),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    player2_id: Mapped[bytes] = mapped_column(
+    player2_id: Mapped[bytes | None] = mapped_column(
         BINARY(16),
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
-    is_ai_match: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    ai_difficulty: Mapped[AIDifficulty | None] = mapped_column(
-        Enum(AIDifficulty), nullable=True
+    invite_code: Mapped[str | None] = mapped_column(
+        String(6), nullable=True, unique=True, index=True
     )
     time_control_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[MatchStatus] = mapped_column(
@@ -82,14 +68,16 @@ class Match(Base, TimestampMixin):
     player2_final_hp: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_turns: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     duration_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    started_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
-    ended_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Each player's rating before and after the match, filled when it ends.
+    player1_elo_before: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    player1_elo_after: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    player2_elo_before: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    player2_elo_after: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    tournament: Mapped[Optional["Tournament"]] = relationship(
-        "Tournament", back_populates="matches"
-    )
     player1: Mapped["User"] = relationship("User", foreign_keys=[player1_id])
-    player2: Mapped["User"] = relationship("User", foreign_keys=[player2_id])
+    player2: Mapped[Optional["User"]] = relationship("User", foreign_keys=[player2_id])
     winner: Mapped[Optional["User"]] = relationship("User", foreign_keys=[winner_id])
     casts: Mapped[list["MatchCast"]] = relationship(
         "MatchCast", back_populates="match", cascade="all, delete-orphan"
@@ -98,6 +86,10 @@ class Match(Base, TimestampMixin):
 
 class MatchCast(Base):
     __tablename__ = "match_casts"
+    # One cast per turn: a retried write can't record the same turn twice.
+    __table_args__ = (
+        UniqueConstraint("match_id", "turn_number", name="uq_match_casts_match_turn"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     match_id: Mapped[bytes] = mapped_column(
@@ -119,7 +111,7 @@ class MatchCast(Base):
         JSON, nullable=True
     )
     glyphs_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
 

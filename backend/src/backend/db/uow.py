@@ -1,11 +1,12 @@
 from types import TracebackType
 from typing import Self
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.db.session import async_session_maker
-from backend.repositories.matches import MatchRepository
+from backend.repositories.match import MatchRepository
 from backend.repositories.user import UserRepository
 from backend.repositories.user_stats import UserStatsRepository
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class UnitOfWork:

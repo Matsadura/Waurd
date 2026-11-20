@@ -383,8 +383,8 @@ class TestPayload:
             "final_value": 40,
         }
         assert payload["statuses_applied"] == [
-            {"effect": "VULNERABLE", "turns_left": 2},
-            {"effect": "WEAK", "turns_left": 2},
+            {"effect": "VULNERABLE", "turns_left": 2, "applied_turn": 0},
+            {"effect": "WEAK", "turns_left": 2, "applied_turn": 0},
         ]
         assert payload["caster_after"] == {"hp": 100, "defense": 15, "statuses": []}
         assert payload["target_after"]["hp"] == 65

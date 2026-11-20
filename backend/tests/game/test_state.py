@@ -40,7 +40,7 @@ def full_state() -> MatchState:
             user_id=user,
             hp=73,
             defense=15,
-            statuses=[Status(Effect.VULNERABLE, 2), Status(Effect.WEAK, 1)],
+            statuses=[Status(Effect.VULNERABLE, 2, 6), Status(Effect.WEAK, 1, 5)],
             draw_pile=[glyph(1), glyph(2, letters="ING", value=12)],
             hand=[
                 glyph(3, type=GlyphType.SKILL, effect=Effect.HEAL, value=10),
@@ -52,6 +52,7 @@ def full_state() -> MatchState:
                 PerkInstance("pk-2", "double_or_halve", None),
             ],
             draft_offer=["ing", "erase"],
+            ready=True,
             rerolls_left=1,
             clock_ms=123_456,
             reshuffles=4,

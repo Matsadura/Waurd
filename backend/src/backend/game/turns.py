@@ -16,8 +16,10 @@ malformed message) returns the state unchanged and one ACTION_REJECTED event
 for the sender. `apply` never changes the state it was given; it returns a
 new one.
 
-Clocks, timeouts and surrender are step 10; `now_ms` is accepted already so
-the signature doesn't change then.
+Clocks run on `now_ms` (see clock.py): each call first charges the active
+player, and a clock at 0 ends the match with TIMEOUT. The runtime also calls
+check_timeout() when deadline_ms() passes, and forfeit() on surrender or when
+a disconnected player's grace period runs out.
 
 PLACEHOLDER rules, to confirm with the team:
 - After a cast the whole hand is discarded; the next turn draws a new one.
@@ -31,6 +33,7 @@ from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.game.clock import RUNNING_PHASES, charge, clocks, is_running
 from backend.game.config import DEFAULT_CONFIG, GameConfig
 from backend.game.drafting import (
     DraftError,
@@ -121,10 +124,6 @@ class _Rejected(Exception):
 BOTH = (0, 1)
 
 
-def _clocks(state: MatchState) -> JSONDict:
-    return {side.user_id: side.clock_ms for side in state.players}
-
-
 def _draft_event(state: MatchState, offer: DraftOffer) -> Event:
     data = offer.to_dict()
     return Event(
@@ -148,7 +147,7 @@ def _turn_start_events(state: MatchState) -> list[Event]:
             {
                 "turn": state.turn,
                 "hand_glyphs": [glyph.to_dict() for glyph in side.hand],
-                "clocks": _clocks(state),
+                "clocks": clocks(state),
             },
             (active,),
         ),
@@ -158,7 +157,7 @@ def _turn_start_events(state: MatchState) -> list[Event]:
                 "turn": state.turn,
                 "active_player_id": side.user_id,
                 "hand_size": len(side.hand),
-                "clocks": _clocks(state),
+                "clocks": clocks(state),
             },
             (1 - active,),
         ),
@@ -194,6 +193,9 @@ def _end_match(state: MatchState, winner: int, reason: EndReason) -> Event:
     state.phase = Phase.ENDED
     state.winner = winner
     state.end_reason = reason
+    state.clock_started_ms = None
+    for side in state.players:
+        side.draft_offer = []
     return Event(
         EventType.MATCH_ENDED,
         {
@@ -201,6 +203,7 @@ def _end_match(state: MatchState, winner: int, reason: EndReason) -> Event:
             "end_reason": reason.value,
             "p1_hp": state.players[0].hp,
             "p2_hp": state.players[1].hp,
+            "clocks": clocks(state),
         },
         BOTH,
     )
@@ -255,7 +258,7 @@ def _ready(state: MatchState, action: Action, rules: MatchRules) -> list[Event]:
         {
             "players": [{"id": p.user_id, "hp": p.hp} for p in state.players],
             "first_player_id": state.player(state.active_player).user_id,
-            "clocks": _clocks(state),
+            "clocks": clocks(state),
         },
         BOTH,
     )
@@ -297,7 +300,7 @@ def _cast(state: MatchState, action: Action, rules: MatchRules) -> list[Event]:
     resolved.update(
         turn=state.turn,
         player_id=side.user_id,
-        clocks=_clocks(state),
+        clocks=clocks(state),
     )
     events = [Event(EventType.WORD_RESOLVED, resolved, BOTH)]
 
@@ -356,7 +359,12 @@ def apply(
             raise _Rejected(Rejection.MATCH_ENDED, "The match is over.")
         # Work on a copy, so a rejection halfway through changes nothing.
         new_state = MatchState.from_dict(state.to_dict())
+        if charge(new_state, now_ms):
+            # Out of time: whatever the action was, the match is over.
+            return new_state, [_timeout(new_state)]
         events = _HANDLERS[action.type](new_state, action, rules)
+        if is_waiting_to_start(new_state):
+            new_state.clock_started_ms = now_ms
     except _Rejected as rejected:
         code, reason = rejected.code, rejected.reason
     except (SpellingError, PerkError, DraftError) as error:
@@ -371,9 +379,48 @@ def apply(
     return state, [rejection]
 
 
-def match_state(state: MatchState, player: int) -> Event:
+def _timeout(state: MatchState) -> Event:
+    return _end_match(state, 1 - state.active_player, EndReason.TIMEOUT)
+
+
+def is_waiting_to_start(state: MatchState) -> bool:
+    """True right after the match started, before its first clock runs."""
+    return state.phase in RUNNING_PHASES and state.clock_started_ms is None
+
+
+def check_timeout(state: MatchState, now_ms: int) -> tuple[MatchState, list[Event]]:
+    """End the match with TIMEOUT if the active player's clock has run out
+    by `now_ms`. Otherwise the same state comes back with no events."""
+    if not is_running(state):
+        return state, []
+    new_state = MatchState.from_dict(state.to_dict())
+    if not charge(new_state, now_ms):
+        return state, []
+    return new_state, [_timeout(new_state)]
+
+
+def forfeit(
+    state: MatchState, player: int, reason: EndReason, now_ms: int
+) -> tuple[MatchState, list[Event]]:
+    """`player` gives up (RESIGNATION) or didn't come back (DISCONNECT); the
+    other player wins. Works in any phase until the match has ended. If the
+    active clock had already run out, the match ends with TIMEOUT instead."""
+    if player not in BOTH:
+        raise ValueError(f"Player index must be 0 or 1, not {player!r}.")
+    if reason not in (EndReason.RESIGNATION, EndReason.DISCONNECT):
+        raise ValueError("A forfeit is a RESIGNATION or a DISCONNECT.")
+    if state.phase == Phase.ENDED:
+        return state, []
+    new_state = MatchState.from_dict(state.to_dict())
+    if charge(new_state, now_ms):
+        return new_state, [_timeout(new_state)]
+    return new_state, [_end_match(new_state, 1 - player, reason)]
+
+
+def match_state(state: MatchState, player: int, now_ms: int | None = None) -> Event:
     """The MATCH_STATE snapshot for one player, sent on every (re)connect.
-    The hand and an open draft are included only on that player's own turn."""
+    The hand and an open draft are included only on that player's own turn.
+    With `now_ms`, the clocks show the time left right now."""
     side = state.player(player)
     own_turn = state.active_player == player and state.phase in (
         Phase.ACTION,
@@ -400,7 +447,10 @@ def match_state(state: MatchState, player: int) -> Event:
         "draft_offer": list(side.draft_offer) if own_turn else None,
         "perks": [perk.to_dict() for perk in side.perks],
         "rerolls_left": side.rerolls_left,
-        "clocks": _clocks(state),
+        "clocks": clocks(state, now_ms),
+        "clock_running_for": (
+            state.player(state.active_player).user_id if is_running(state) else None
+        ),
         "winner_id": (
             None if state.winner is None else state.player(state.winner).user_id
         ),
@@ -429,6 +479,9 @@ __all__ = [
     "MatchRules",
     "Rejection",
     "apply",
+    "check_timeout",
+    "forfeit",
+    "is_waiting_to_start",
     "match_state",
     "parse_action",
 ]

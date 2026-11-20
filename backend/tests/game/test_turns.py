@@ -9,7 +9,7 @@ pytest.importorskip(
     "backend.game.turns", reason="The turn state machine is not merged yet"
 )
 
-from backend.game.config import Effect, GameConfig, GlyphType
+from backend.game.config import DEFAULT_CONFIG, Effect, GameConfig, GlyphType
 from backend.game.perks import grant_perk, load_catalog
 from backend.game.piles import new_match
 from backend.game.state import EndReason, Glyph, MatchState, Phase, Status
@@ -26,8 +26,12 @@ from backend.game.turns import (
 
 P, S = GlyphType.POWER, GlyphType.SKILL
 WORDS = frozenset({"CAB", "BAT", "TAB", "EVE", "AT", "TA", "SAT", "TATS"})
-RULES = MatchRules(WORDS)
 ALL_READY = {pid: replace(spec, ready=True) for pid, spec in load_catalog().items()}
+# Nothing to draft, so a cast ends the turn; drafting has its own tests.
+NO_PERKS = {pid: replace(spec, ready=False) for pid, spec in load_catalog().items()}
+RULES = MatchRules(WORDS, catalog=NO_PERKS)
+HP = DEFAULT_CONFIG.starting_hp
+SHIELD = DEFAULT_CONFIG.second_player_shield
 DRAFTING = MatchRules(WORDS, catalog=ALL_READY)
 USERS = ("user-a", "user-b")
 
@@ -103,7 +107,7 @@ class TestStart:
         start, mine, theirs = events
         assert start.to == (0, 1)
         assert start.data["first_player_id"] == USERS[active]
-        assert start.data["players"] == [{"id": u, "hp": 100} for u in USERS]
+        assert start.data["players"] == [{"id": u, "hp": HP} for u in USERS]
         assert mine.to == (active,)
         assert len(mine.data["hand_glyphs"]) == 7
         assert theirs.to == (1 - active,)
@@ -247,9 +251,11 @@ class TestApplyPerk:
         assert event.type == EventType.PERK_APPLIED
         assert event.to == (active,)
         assert event.data["perk_instance_id"] == instance.instance_id
-        assert event.data["durability_left"] == 3
-        assert event.data["glyph"]["value"] == 40
-        assert state.players[active].hand[2].value == 40
+        # Amplify: x1.5, 3 uses.
+        assert event.data["durability_left"] == 2
+        assert event.data["glyph"]["value"] == 30
+        assert state.players[active].hand[2].value == 30
+        assert [g["id"] for g in event.data["hand"]] == [g.id for g in cab()]
         assert state.phase == Phase.ACTION
 
     def test_perk_errors_are_rejections(self) -> None:
@@ -303,7 +309,7 @@ class TestCast:
         assert resolved.data["player_id"] == USERS[active]
         assert resolved.data["turn"] == 1
         assert resolved.data["totals"] == {"damage": 32, "defense": 0, "heal": 10}
-        assert state.players[other].hp == 68
+        assert state.players[other].hp == HP - 32
         assert (state.turn, state.active_player, state.phase) == (
             2,
             other,
@@ -319,7 +325,7 @@ class TestCast:
     def test_achievement_words_count(self) -> None:
         state = started()
         active = with_hand(state, *cab())
-        rules = MatchRules(frozenset(), achievement_words=["cab"])
+        rules = MatchRules(frozenset(), achievement_words=["cab"], catalog=NO_PERKS)
 
         _, events = act(
             state, active, ActionType.CAST_WORD, rules, turn=1, glyph_sequence=[0, 1, 2]
@@ -542,8 +548,8 @@ class TestOpeningShield:
             state, first, ActionType.CAST_WORD, turn=1, glyph_sequence=[0, 1, 2]
         )
 
-        assert events[0].data["damage_blocked"] == 30
-        assert state.players[second].hp == 100 - (32 - 30)
+        assert events[0].data["damage_blocked"] == min(32, SHIELD)
+        assert state.players[second].hp == HP - max(0, 32 - SHIELD)
 
     def test_gone_once_the_second_player_moves(self) -> None:
         state = started(shield=True)
@@ -584,14 +590,14 @@ class TestBetweenTurns:
         state = self.pass_turn(
             state, g(3, "A", S, Effect.HEAL, 1), g(4, "T", value=8), word=[0, 1]
         )
-        assert state.players[attacker].hp == 100 - 6
+        assert state.players[attacker].hp == HP - 6
         assert {s.turns_left for s in state.players[target].statuses} == {1}
 
         # Turn 3: the target is still Vulnerable; the attacker's hit grows 25%.
         state = self.pass_turn(
             state, g(5, "A", S, Effect.HEAL, 0), g(6, "T", value=8), word=[0, 1]
         )
-        assert state.players[target].hp == 100 - 10
+        assert state.players[target].hp == HP - 10
         assert state.players[target].statuses == []
 
     def test_reapplied_status_counts_from_the_new_turn(self) -> None:
@@ -632,10 +638,12 @@ class TestBetweenTurns:
         # Then the first player's turn starts, and the rest is gone.
         assert state.active_player == first
         assert state.players[first].defense == 0
-        assert state.players[first].hp == 100
+        assert state.players[first].hp == HP
 
     def test_defense_can_carry_over(self) -> None:
-        rules = MatchRules(WORDS, config=GameConfig(defense_carries_over=True))
+        rules = MatchRules(
+            WORDS, catalog=NO_PERKS, config=GameConfig(defense_carries_over=True)
+        )
         state = started(rules=rules)
         first = with_hand(
             state, g(0, "A", S, Effect.HEAL, 0), g(1, "T", S, Effect.DEFENSE, 15)

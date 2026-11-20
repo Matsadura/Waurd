@@ -27,9 +27,9 @@ class TestDefaults:
         assert config.perks_per_turn == 3
         assert config.perks_to_select == 1
         assert config.rerolls_per_match == 3
-        assert config.starting_hp == 100
+        assert config.starting_hp == config.max_hp == 130
         assert config.time_controls == (180, 300, 600)
-        assert config.second_player_shield == 30
+        assert config.second_player_shield == 35
         assert config.vulnerable_percent == config.weak_percent == 25
         assert config.defense_carries_over is False
 

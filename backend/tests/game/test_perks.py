@@ -1,6 +1,7 @@
 """Perks: the CSV catalog, the registered functions and the shared rules."""
 
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -65,11 +66,23 @@ class TestBundledCatalog:
     def test_known_rows(self) -> None:
         catalog = load_catalog()
 
+        assert len(catalog) == 41
         assert catalog["amplify"].rarity == Rarity.RARE
-        assert catalog["amplify"].durability == 4
-        assert catalog["erase"].targets == {S}
-        assert catalog["matching_ends_x2"].targets == {P, S}
-        assert catalog["last_plus_5"].durability is None
+        assert catalog["amplify"].durability == 3
+        assert catalog["erase"].targets == {P, S}
+        assert catalog["matching_ends"].targets == {P, S}
+        assert catalog["last_bonus"].durability == 3
+        assert catalog["overcharge"].rarity == Rarity.LEGENDARY
+
+    def test_every_rarity_is_represented(self) -> None:
+        rarities = {spec.rarity for spec in load_catalog().values()}
+        assert rarities == set(Rarity)
+
+    def test_every_perk_is_ready_and_lasts(self) -> None:
+        for spec in load_catalog().values():
+            assert spec.ready, spec.id
+            # Draft perks always wear out; unlimited is for achievement rewards.
+            assert spec.durability is not None and spec.durability >= 1, spec.id
 
     def test_conditional_perks_are_registered_as_conditionals(self) -> None:
         definitions = registered()
@@ -154,13 +167,13 @@ class TestParseCatalog:
 
 
 class TestDirectPerks:
-    def test_amplify_doubles(self) -> None:
-        state = match(g(0, "B", value=20))
+    def test_amplify_adds_half(self) -> None:
+        state = match(g(0, "B", value=23))
 
         result = use(state, "amplify")
 
         assert result.applied is True
-        assert state.players[0].hand[0].value == 40
+        assert state.players[0].hand[0].value == 34
 
     @pytest.mark.parametrize(
         ("perk_id", "letters", "bonus"),
@@ -208,8 +221,12 @@ class TestDirectPerks:
 
         assert result.applied is True
         assert result.glyph is None
-        assert [x.id for x in state.players[0].hand] == ["p0-h1"]
+        hand = state.players[0].hand
+        # Gone for good, and a replacement comes from the draw pile.
+        assert hand[0].id == "p0-h1" and len(hand) == 2
+        assert "p0-h0" not in {x.id for x in state.players[0].all_glyphs()}
         assert len(state.players[0].all_glyphs()) == before - 1
+        assert [x["id"] for x in result.to_dict()["hand"]] == [x.id for x in hand]
 
     def test_double_or_halve_is_seeded(self) -> None:
         outcomes = []
@@ -286,25 +303,28 @@ class TestSharedRules:
         assert caught.value.problem == PerkProblem.UNKNOWN_PERK
 
     def test_durability_drops_and_perk_breaks_at_zero(self) -> None:
-        state = match(g(0, "S", value=1))
+        state = match(g(0, "S", value=4))
         instance = grant_perk(state, 0, "amplify")
-        assert instance.durability == 4
+        assert instance.durability == 3
 
-        left = [apply_perk(state, 0, instance.instance_id, "p0-h0") for _ in range(4)]
+        left = [apply_perk(state, 0, instance.instance_id, "p0-h0") for _ in range(3)]
 
-        assert [r.durability_left for r in left] == [3, 2, 1, 0]
-        assert [r.destroyed for r in left] == [False, False, False, True]
+        assert [r.durability_left for r in left] == [2, 1, 0]
+        assert [r.destroyed for r in left] == [False, False, True]
         assert state.players[0].perks == []
-        assert state.players[0].hand[0].value == 16
+        assert state.players[0].hand[0].value == 13  # 4 -> 6 -> 9 -> 13
         with pytest.raises(PerkError):
             apply_perk(state, 0, instance.instance_id, "p0-h0")
 
     def test_unlimited_durability_never_breaks(self) -> None:
+        # No draft perk is unlimited; achievement rewards can be.
+        catalog = dict(load_catalog())
+        catalog["last_bonus"] = replace(catalog["last_bonus"], durability=None)
         state = match(g(0, "S"), g(1, "T"))
-        instance = grant_perk(state, 0, "last_plus_5")
+        instance = grant_perk(state, 0, "last_bonus", catalog)
 
         for glyph_id in ("p0-h0", "p0-h1") * 5:
-            result = apply_perk(state, 0, instance.instance_id, glyph_id)
+            result = apply_perk(state, 0, instance.instance_id, glyph_id, catalog)
             assert result.durability_left is None
 
         assert state.players[0].perks == [instance]
@@ -316,7 +336,7 @@ class TestSharedRules:
             instance = grant_perk(state, 0, "amplify")
             ids.append(instance.instance_id)
         # Break one, then grant again: the new id must not clash.
-        for _ in range(4):
+        for _ in range(3):
             apply_perk(state, 0, ids[0], "p0-h0")
         ids.append(grant_perk(state, 0, "amplify").instance_id)
 
@@ -328,52 +348,52 @@ class TestConditionalPerks:
     def test_fills_the_slot(self) -> None:
         state = match(g(0, "S"))
 
-        result = use(state, "last_plus_5")
+        result = use(state, "last_bonus")
 
         assert result.applied is True
-        assert state.players[0].hand[0].conditional_slot == "last_plus_5"
+        assert state.players[0].hand[0].conditional_slot == "last_bonus"
 
     def test_same_conditional_again_does_nothing(self) -> None:
         state = match(g(0, "S"))
-        use(state, "last_plus_5")
+        use(state, "last_bonus")
 
-        result = use(state, "last_plus_5")
+        result = use(state, "last_bonus")
 
         assert result.applied is False
 
     def test_new_conditional_replaces_the_old(self) -> None:
         state = match(g(0, "S"))
-        use(state, "last_plus_5")
+        use(state, "last_bonus")
 
-        result = use(state, "first_plus_5")
+        result = use(state, "first_bonus")
 
         assert result.applied is True
-        assert state.players[0].hand[0].conditional_slot == "first_plus_5"
+        assert state.players[0].hand[0].conditional_slot == "first_bonus"
 
     def test_does_not_change_the_value_until_the_word_resolves(self) -> None:
         state = match(g(0, "S", value=8))
 
-        use(state, "first_times_2")
+        use(state, "first_double")
 
         assert state.players[0].hand[0].value == 8
 
     @pytest.mark.parametrize(
         ("perk_id", "letters", "slot_at", "expected"),
         [
-            ("last_plus_5", ["C", "A", "T"], 2, 13),
-            ("last_plus_5", ["C", "A", "T"], 0, 8),
-            ("first_plus_5", ["C", "A", "T"], 0, 13),
-            ("first_plus_5", ["C", "A", "T"], 1, 8),
-            ("last_times_2", ["C", "A", "T"], 2, 16),
-            ("last_times_2", ["C", "A", "T"], 1, 8),
-            ("first_times_2", ["C", "A", "T"], 0, 16),
-            ("first_times_2", ["C", "A", "T"], 2, 8),
-            ("vowel_start_plus_10", ["A", "C", "T"], 2, 18),
-            ("vowel_start_plus_10", ["C", "A", "T"], 2, 8),
-            ("five_letters_plus_8", ["S", "ING", "S"], 0, 16),
-            ("five_letters_plus_8", ["S", "ING"], 0, 8),
-            ("matching_ends_x2", ["T", "A", "T"], 1, 16),
-            ("matching_ends_x2", ["C", "A", "T"], 1, 8),
+            ("last_bonus", ["C", "A", "T"], 2, 17),
+            ("last_bonus", ["C", "A", "T"], 0, 8),
+            ("first_bonus", ["C", "A", "T"], 0, 17),
+            ("first_bonus", ["C", "A", "T"], 1, 8),
+            ("last_double", ["C", "A", "T"], 2, 16),
+            ("last_double", ["C", "A", "T"], 1, 8),
+            ("first_double", ["C", "A", "T"], 0, 16),
+            ("first_double", ["C", "A", "T"], 2, 8),
+            ("vowel_start", ["A", "C", "T"], 2, 20),
+            ("vowel_start", ["C", "A", "T"], 2, 8),
+            ("five_letters", ["S", "ING", "S"], 0, 16),
+            ("five_letters", ["S", "ING"], 0, 8),
+            ("matching_ends", ["T", "A", "T"], 1, 24),
+            ("matching_ends", ["C", "A", "T"], 1, 8),
         ],
     )
     def test_rules_at_resolution(
@@ -406,6 +426,7 @@ class TestPayload:
             "applied": True,
             "durability_left": 3,
             "destroyed": False,
+            "hand": [payload["glyph"]],
             "glyph": {
                 "id": "p0-h0",
                 "letters": "ING",

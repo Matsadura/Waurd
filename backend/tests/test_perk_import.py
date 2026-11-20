@@ -7,11 +7,11 @@ import pytest
 
 pytest.importorskip("backend.core.perk_import", reason="Perk import is not merged yet")
 
-from backend.core.perk_import import import_perks, import_perks_on_startup
-from backend.game.perks import load_catalog
 from sqlalchemy import select
 
 from backend.core import perk_import
+from backend.core.perk_import import import_perks, import_perks_on_startup
+from backend.game.perks import load_catalog
 from backend.models import Perk
 from backend.models.perk import ModificationType, Rarity, TargetGlyphType
 
@@ -55,22 +55,25 @@ class TestImport:
         assert ing.target_glyph_type == TargetGlyphType.POWER
         assert ing.modification_type == ModificationType.LETTERS
         assert ing.durability == 4
-        assert ing.quote is None and ing.image_url is None
+        assert ing.quote == "Action is a verb with a suffix."
+        assert ing.image_url is None
         assert ing.effect_payload == {}
-        assert rows["erase"].target_glyph_type == TargetGlyphType.SKILL
+        assert ing.is_enabled is True
+        assert rows["wild_power"].target_glyph_type == TargetGlyphType.SKILL
+        assert rows["wild_power"].modification_type == ModificationType.TYPE
+        assert rows["hex"].modification_type == ModificationType.EFFECT
+        assert rows["erase"].target_glyph_type == TargetGlyphType.ANY
         assert rows["erase"].modification_type == ModificationType.DECK
-        assert rows["matching_ends_x2"].target_glyph_type == TargetGlyphType.ANY
-        assert (
-            rows["last_plus_5"].modification_type == ModificationType.CONDITIONAL_SLOT
-        )
-        assert rows["last_plus_5"].durability is None
+        assert rows["overcharge"].rarity == Rarity.LEGENDARY
+        assert rows["last_bonus"].modification_type == ModificationType.CONDITIONAL_SLOT
+        assert rows["last_bonus"].durability == 3
 
     async def test_ready_status_becomes_is_enabled(self, session_maker):
-        await run(session_maker, catalog_with(amplify={"ready": True}))
+        await run(session_maker, catalog_with(amplify={"ready": False}))
         rows = await perks(session_maker)
 
-        assert rows["amplify"].is_enabled is True
-        assert rows["ing"].is_enabled is False
+        assert rows["amplify"].is_enabled is False
+        assert rows["ing"].is_enabled is True
 
     async def test_running_again_changes_nothing(self, session_maker):
         await run(session_maker)
@@ -113,7 +116,7 @@ class TestImport:
     async def test_perks_removed_from_the_csv_are_disabled_not_deleted(
         self, session_maker
     ):
-        await run(session_maker, catalog_with(amplify={"ready": True}))
+        await run(session_maker, catalog_with(amplify={"ready": False}))
         async with session_maker() as session:
             session.add(
                 Perk(
@@ -134,7 +137,7 @@ class TestImport:
         rows = await perks(session_maker)
         assert report.disabled == ["old_perk"]
         assert rows["old_perk"].is_enabled is False
-        # Back to the bundled CSV, where amplify is not_ready.
+        # Back to the bundled CSV, where amplify is ready again.
         assert report.updated == ["amplify"]
 
     async def test_row_without_a_function_aborts_before_writing(self, session_maker):

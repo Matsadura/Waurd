@@ -51,7 +51,7 @@ class TestGddExample:
         assert result.word == "BRAVE"
         assert (result.caster, result.target) == (0, 1)
         assert (result.damage, result.defense, result.heal) == (40, 15, 10)
-        assert state.players[1].hp == 60
+        assert state.players[1].hp == DEFAULT_CONFIG.max_hp - 40
         assert state.players[0].defense == 15
         assert state.players[0].hp == 90
         assert {(s.effect, s.turns_left) for s in state.players[1].statuses} == {
@@ -389,8 +389,12 @@ class TestPayload:
             {"effect": "VULNERABLE", "turns_left": 2, "applied_turn": 0},
             {"effect": "WEAK", "turns_left": 2, "applied_turn": 0},
         ]
-        assert payload["caster_after"] == {"hp": 100, "defense": 15, "statuses": []}
-        assert payload["target_after"]["hp"] == 65
+        assert payload["caster_after"] == {
+            "hp": DEFAULT_CONFIG.max_hp,
+            "defense": 15,
+            "statuses": [],
+        }
+        assert payload["target_after"]["hp"] == DEFAULT_CONFIG.max_hp - 35
         assert payload["target_after"]["defense"] == 0
         assert len(payload["target_after"]["statuses"]) == 2
 

@@ -126,7 +126,9 @@ class TestQueue:
         assert response.json()["time_control_seconds"] == 300
 
     async def test_worker_checks_every_time_control(self, queue_store, session_maker):
-        worker = MatchmakerWorker(queue_store=queue_store, session_factory=session_maker)
+        worker = MatchmakerWorker(
+            queue_store=queue_store, session_factory=session_maker
+        )
         assert worker.time_controls == [180, 300, 600]
 
     async def test_leave(self, alice_client, redis):

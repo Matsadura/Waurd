@@ -62,14 +62,20 @@ class TestOffer:
             offer = open_draft(match(str(seed)), 0, catalog)
             assert {s.id for s in offer.options} <= {"amplify", "ing", "erase", "er"}
 
-    def test_bundled_catalog_has_nothing_ready_yet(self) -> None:
+    def test_bundled_catalog_is_all_draftable(self) -> None:
+        offer = open_draft(match(), 0)
+
+        assert len(offer.options) == 3
+        assert all(spec.ready for spec in offer.options)
+
+    def test_nothing_ready_means_an_empty_draft(self) -> None:
         state = match()
 
-        offer = open_draft(state, 0)
+        offer = open_draft(state, 0, ready_only())
 
         assert offer.options == ()
         assert offer.picks_required == 0
-        assert select_perks(state, 0, []) == []
+        assert select_perks(state, 0, [], ready_only()) == []
         assert state.players[0].perks == []
 
     def test_small_pool_offers_what_there_is(self) -> None:
@@ -104,24 +110,38 @@ class TestOffer:
 
     def test_zero_weight_rarities_are_never_drawn(self) -> None:
         # Two rare perks and plenty of commons are ready; only rares have weight.
-        catalog = ready_only("amplify", "last_times_2", "er", "re", "last_plus_5")
+        catalog = ready_only("amplify", "last_double", "er", "re", "last_bonus")
         for seed in range(20):
             offer = open_draft(match(str(seed)), 0, catalog, RARE_ONLY)
 
             # The offer stops when the rares run out instead of using commons.
-            assert {s.id for s in offer.options} == {"amplify", "last_times_2"}
+            assert {s.id for s in offer.options} == {"amplify", "last_double"}
 
     def test_rarities_follow_the_weights(self) -> None:
-        # No legendary perks exist, so their 3% is shared: 60/97, 25/97, 12/97.
         counts: Counter[Rarity] = Counter()
         runs = 3000
         for seed in range(runs):
             offer = open_draft(match(f"w{seed}"), 0, ALL_READY)
             counts[offer.options[0].rarity] += 1
 
+        assert counts[Rarity.COMMON] / runs == pytest.approx(0.60, abs=0.04)
+        assert counts[Rarity.UNCOMMON] / runs == pytest.approx(0.25, abs=0.04)
+        assert counts[Rarity.RARE] / runs == pytest.approx(0.12, abs=0.03)
+        assert counts[Rarity.LEGENDARY] / runs == pytest.approx(0.03, abs=0.015)
+
+    def test_a_missing_rarity_shares_its_weight(self) -> None:
+        # No legendary perks ready: their 3% is shared, 60/97, 25/97, 12/97.
+        catalog = {
+            pid: replace(spec, ready=spec.rarity != Rarity.LEGENDARY)
+            for pid, spec in ALL_READY.items()
+        }
+        counts: Counter[Rarity] = Counter()
+        runs = 3000
+        for seed in range(runs):
+            counts[open_draft(match(f"m{seed}"), 0, catalog).options[0].rarity] += 1
+
         assert counts[Rarity.LEGENDARY] == 0
         assert counts[Rarity.COMMON] / runs == pytest.approx(60 / 97, abs=0.04)
-        assert counts[Rarity.UNCOMMON] / runs == pytest.approx(25 / 97, abs=0.04)
         assert counts[Rarity.RARE] / runs == pytest.approx(12 / 97, abs=0.03)
 
     def test_cannot_open_a_second_offer(self) -> None:
@@ -136,7 +156,7 @@ class TestOffer:
         assert state.to_dict() == before
 
     def test_payload_is_json_safe(self) -> None:
-        offer = open_draft(match(), 0, ready_only("matching_ends_x2"))
+        offer = open_draft(match(), 0, ready_only("matching_ends"))
 
         payload = json.loads(json.dumps(offer.to_dict()))
 
@@ -144,14 +164,14 @@ class TestOffer:
             "player": 0,
             "options": [
                 {
-                    "perk_id": "matching_ends_x2",
-                    "name": "Matching Ends x2",
+                    "perk_id": "matching_ends",
+                    "name": "Matching Ends x3",
                     "rarity": "COMMON",
-                    "description": ALL_READY["matching_ends_x2"].description,
-                    "durability": None,
+                    "description": ALL_READY["matching_ends"].description,
+                    "durability": 3,
                     "targets": ["POWER", "SKILL"],
                     "image": None,
-                    "quote": None,
+                    "quote": "What goes around comes around.",
                 }
             ],
             "picks_required": 1,

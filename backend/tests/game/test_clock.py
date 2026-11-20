@@ -23,8 +23,9 @@ from backend.game.turns import (
 )
 
 P, S = GlyphType.POWER, GlyphType.SKILL
-RULES = MatchRules(frozenset({"AT", "CAB"}))
 ALL_READY = {pid: replace(spec, ready=True) for pid, spec in load_catalog().items()}
+NO_PERKS = {pid: replace(spec, ready=False) for pid, spec in load_catalog().items()}
+RULES = MatchRules(frozenset({"AT", "CAB"}), catalog=NO_PERKS)
 DRAFTING = MatchRules(frozenset({"AT"}), catalog=ALL_READY)
 USERS = ("user-a", "user-b")
 CLOCK = 180_000

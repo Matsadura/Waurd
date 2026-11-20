@@ -11,6 +11,10 @@ pytest.importorskip(
     "backend.game.simulation", reason="The simulation is not merged yet"
 )
 
+from backend.core.dictionary import load_word_list
+from backend.game import simulation, turns
+from backend.game.config import Effect, GameConfig, GlyphType
+from backend.game.perks import load_catalog
 from backend.game.simulation import (
     BotStyle,
     InvariantError,
@@ -19,11 +23,6 @@ from backend.game.simulation import (
     WordFinder,
     simulate,
 )
-
-from backend.core.dictionary import load_word_list
-from backend.game import simulation, turns
-from backend.game.config import Effect, GameConfig, GlyphType
-from backend.game.perks import load_catalog
 from backend.game.state import EndReason, Glyph, Status
 
 ALL_READY = {pid: replace(spec, ready=True) for pid, spec in load_catalog().items()}
@@ -53,8 +52,10 @@ class TestThousandMatches:
         assert summary["glyphs_erased"] > 0
         assert 0 < summary["first_player_win_rate"] < 1
 
-    def test_rules_hold_with_the_catalog_as_it_is(self, finder: WordFinder) -> None:
-        report = simulate(finder, matches=300)
+    def test_rules_hold_with_no_perks(self, finder: WordFinder) -> None:
+        none_ready = {pid: replace(s, ready=False) for pid, s in ALL_READY.items()}
+
+        report = simulate(finder, matches=300, catalog=none_ready)
 
         assert report.summary()["perks_applied"] == 0
         assert {m.end_reason for m in report.matches} <= {
@@ -80,30 +81,39 @@ class TestBalance:
     CSV and these say whether matches got too long, too short or one-sided."""
 
     @pytest.fixture(scope="class")
-    def csv_report(self, finder: WordFinder) -> SimulationReport:
+    def report(self, finder: WordFinder) -> SimulationReport:
         return simulate(finder, matches=600, seed_prefix="balance")
 
-    @pytest.fixture(scope="class")
-    def perks_report(self, finder: WordFinder) -> SimulationReport:
-        return simulate(finder, matches=600, catalog=ALL_READY, seed_prefix="balance")
+    def test_matches_are_neither_long_nor_short(self, report: SimulationReport) -> None:
+        summary = report.summary()
 
-    @pytest.mark.parametrize("report", ["csv_report", "perks_report"])
-    def test_matches_are_neither_long_nor_short(self, report: str, request) -> None:  # type: ignore[no-untyped-def]
-        summary = request.getfixturevalue(report).summary()
+        assert 10 <= summary["turns_median"] <= 16
+        assert summary["turns_min"] >= 3
+        assert summary["turns_max"] <= 40
 
-        assert 10 <= summary["turns_median"] <= 20
-        assert summary["turns_max"] <= 60
+    def test_turn_order_is_fair(self, report: SimulationReport) -> None:
+        assert 0.44 <= report.first_player_win_rate <= 0.56
 
-    @pytest.mark.parametrize("report", ["csv_report", "perks_report"])
-    def test_turn_order_is_fair(self, report: str, request) -> None:  # type: ignore[no-untyped-def]
-        assert 0.42 <= request.getfixturevalue(report).first_player_win_rate <= 0.58
+    def test_perks_get_used(self, report: SimulationReport) -> None:
+        summary = report.summary()
+        assert summary["perks_applied"] > summary["words_cast"]
 
-    @pytest.mark.parametrize("report", ["csv_report", "perks_report"])
-    def test_the_clock_rarely_decides(self, report: str, request) -> None:  # type: ignore[no-untyped-def]
-        assert request.getfixturevalue(report).summary()["timeout_share"] < 0.05
+    def test_bot_passes_instead_of_waiting(self, report: SimulationReport) -> None:
+        assert report.summary()["turns_passed_or_stuck"] > 0
 
-    def test_bot_passes_instead_of_waiting(self, csv_report: SimulationReport) -> None:
-        assert csv_report.summary()["turns_passed_or_stuck"] > 0
+    @pytest.mark.parametrize(
+        ("seconds", "limit"), [(300, 0.02), (600, 0.01), (180, 0.25)]
+    )
+    def test_the_clock_rarely_decides(
+        self, finder: WordFinder, seconds: int, limit: float
+    ) -> None:
+        config = GameConfig(time_controls=(seconds,))
+
+        summary = simulate(
+            finder, matches=300, config=config, seed_prefix="clock"
+        ).summary()
+
+        assert summary["timeout_share"] < limit
 
 
 class TestBotOptions:
@@ -124,6 +134,20 @@ class TestBotOptions:
         stuck = [m for m in report.matches if m.turns_without_a_word]
         assert stuck
         assert all(m.end_reason == EndReason.TIMEOUT for m in stuck)
+
+    def test_random_perk_use_still_keeps_the_rules(self, finder: WordFinder) -> None:
+        report = simulate(finder, matches=100, style=BotStyle(smart_perks=False))
+
+        assert report.summary()["perks_applied"] > 0
+
+    def test_smart_perk_use_ends_matches_sooner(self, finder: WordFinder) -> None:
+        # Well-used perks hit harder, so matches are shorter.
+        smart = simulate(finder, matches=200, seed_prefix="style")
+        random = simulate(
+            finder, matches=200, seed_prefix="style", style=BotStyle(smart_perks=False)
+        )
+
+        assert smart.summary()["turns_mean"] < random.summary()["turns_mean"]
 
     def test_random_word_choice(self, finder: WordFinder) -> None:
         random = simulate(finder, matches=100, style=BotStyle(choose_from_best=None))
@@ -328,5 +352,5 @@ def test_script_prints_the_stats() -> None:
     )
 
     assert "6 matches in" in result.stdout
-    assert "13 perks in drafts" in result.stdout
+    assert "41 perks in drafts" in result.stdout
     assert "first_player_win_rate:" in result.stdout

@@ -60,7 +60,7 @@ class TestNewMatch:
             first = state.active_player
 
             assert state.players[first].defense == 0
-            assert state.players[1 - first].defense == 30
+            assert state.players[1 - first].defense == 35
 
     def test_shield_is_configurable(self) -> None:
         state = match(config=GameConfig(second_player_shield=0))
@@ -75,7 +75,7 @@ class TestNewMatch:
         assert state.time_control_seconds == 180
         for player, user in zip(state.players, USERS, strict=True):
             assert player.user_id == user
-            assert player.hp == 100
+            assert player.hp == 130
             assert player.clock_ms == 180_000
             assert player.rerolls_left == 3
             assert player.hand == [] and player.discard_pile == []

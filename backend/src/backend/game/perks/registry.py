@@ -50,6 +50,9 @@ class PerkContext:
     player: int
     rng: Rng
     config: GameConfig
+    # How many times this perk was used before (its catalog durability minus
+    # what's left); 0 for perks with unlimited durability.
+    uses: int = 0
 
 
 DirectPerk = Callable[[Glyph, PerkContext], bool]

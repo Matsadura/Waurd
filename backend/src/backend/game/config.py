@@ -57,10 +57,8 @@ _V, _W = Effect.VULNERABLE, Effect.WEAK
 
 # PLACEHOLDER: the whole table. Started from the GDD example (B 20 damage,
 # R 15 defense, A 10 heal, V and E statuses for 2 turns), then balanced with
-# scripts/simulate.py (2026-11-20): damage x1.15, defense and heal x0.9. With
-# a human-paced bot that gives a median match of 15 turns without perks (80%
-# between 11 and 21) and 13 with every perk. J, Q and X are not in the deck
-# yet. The copies add up to a 40-glyph deck.
+# scripts/simulate.py (2026-11-20): damage x1.15, defense and heal x0.9.
+# J, Q and X are not in the deck yet. The copies add up to a 40-glyph deck.
 DEFAULT_LETTERS: tuple[LetterSpec, ...] = (
     _letter("A", _S, _H, 9, 3),
     _letter("E", _S, _W, 2, 4),
@@ -106,14 +104,16 @@ class GameConfig:
     perks_to_select: int = 1
     rerolls_per_match: int = 3
 
-    # PLACEHOLDER: HP. Healing can't go above max_hp.
-    starting_hp: int = 100
-    max_hp: int = 100
+    # HP. Healing can't go above max_hp. 130 since every perk in the catalog
+    # became draftable (2026-11-20): with 100, perk-boosted matches had a
+    # median of 10 turns; with 130 it is 12 (80% between 9 and 16).
+    starting_hp: int = 130
+    max_hp: int = 130
 
     # Each player's clock is the match's time control, in seconds: 3 minutes
-    # (fast: about 1 in 10 simulated matches with perks ends on time), 5
-    # (standard: the slowest 1% of players use about 4) and 10 (relaxed).
-    # 1 and 2 minutes ended most matches on time.
+    # (fast: about 1 in 7 simulated matches ends on time), 5 (standard: the
+    # slowest 1% of players use about 4.5) and 10 (relaxed). 1 and 2 minutes
+    # ended most matches on time.
     time_controls: tuple[int, ...] = (180, 300, 600)
 
     # PLACEHOLDER: Vulnerable raises damage taken, Weak lowers Power glyph
@@ -127,8 +127,8 @@ class GameConfig:
     # The second player starts with this much Defense, which soaks up the
     # first player's opening word (it resets when their own first turn starts).
     # Without it the first player wins about 60-70% of simulated matches; with
-    # 30 it's about 50%.
-    second_player_shield: int = 30
+    # 35 (at 130 HP) it's about 50%.
+    second_player_shield: int = 35
 
     rarity_weights: tuple[tuple[Rarity, int], ...] = DEFAULT_RARITY_WEIGHTS
     letters: tuple[LetterSpec, ...] = field(default=DEFAULT_LETTERS)

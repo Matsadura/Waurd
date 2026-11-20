@@ -19,6 +19,15 @@ class WordContext:
     word: str
     glyphs: tuple[Glyph, ...]
     index: int
+    # HP before the word resolves, for perks that care how the fight is going.
+    caster_hp: int = 0
+    target_hp: int = 0
+    max_hp: int = 100
+
+    @property
+    def position(self) -> int:
+        """1 for the first glyph of the word, 2 for the second..."""
+        return self.index + 1
 
     @property
     def is_first(self) -> bool:

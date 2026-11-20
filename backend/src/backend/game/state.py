@@ -157,6 +157,17 @@ class PlayerState:
     # every reshuffle its own random generator.
     reshuffles: int = 0
 
+    def add_status(self, effect: Effect, turns: int, turn: int) -> None:
+        """Put on a status for `turns` turns, applied in `turn`. If it's
+        already on, the longer duration wins (and counts from `turn`)."""
+        for status in self.statuses:
+            if status.effect == effect:
+                if turns > status.turns_left:
+                    status.turns_left = turns
+                    status.applied_turn = turn
+                return
+        self.statuses.append(Status(effect, turns, turn))
+
     def all_glyphs(self) -> list[Glyph]:
         """Every glyph the player owns, wherever it is."""
         return [*self.draw_pile, *self.hand, *self.discard_pile]

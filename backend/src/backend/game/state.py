@@ -11,8 +11,8 @@ from typing import Any
 
 from backend.game.config import Effect, GlyphType
 
-# 2: PlayerState.draft_offer.
-STATE_VERSION = 2
+# 2: PlayerState.draft_offer. 3: Status.applied_turn, PlayerState.ready.
+STATE_VERSION = 3
 
 JSONDict = dict[str, Any]
 
@@ -77,19 +77,29 @@ class Glyph:
 
 @dataclass(slots=True)
 class Status:
-    """A status effect (VULNERABLE or WEAK) and the turns it has left."""
+    """A status effect (VULNERABLE or WEAK) and the turns it has left.
+
+    `applied_turn` is the turn it was put on (or last extended); it doesn't
+    count down at the end of that turn.
+    """
 
     effect: Effect
     turns_left: int
+    applied_turn: int = 0
 
     def to_dict(self) -> JSONDict:
-        return {"effect": self.effect.value, "turns_left": self.turns_left}
+        return {
+            "effect": self.effect.value,
+            "turns_left": self.turns_left,
+            "applied_turn": self.applied_turn,
+        }
 
     @classmethod
     def from_dict(cls, data: JSONDict) -> "Status":
         return cls(
             effect=Effect(_require(data, "effect")),
             turns_left=_require(data, "turns_left"),
+            applied_turn=_require(data, "applied_turn"),
         )
 
 
@@ -138,6 +148,8 @@ class PlayerState:
     hand: list[Glyph] = field(default_factory=list)
     discard_pile: list[Glyph] = field(default_factory=list)
     perks: list[PerkInstance] = field(default_factory=list)
+    # Sent PLAYER_READY; the match starts when both are ready.
+    ready: bool = False
     # Perk ids offered in the current draft; empty when no draft is open.
     draft_offer: list[str] = field(default_factory=list)
     # How many times the discard pile was shuffled into the draw pile; gives
@@ -158,6 +170,7 @@ class PlayerState:
             "hand": [glyph.to_dict() for glyph in self.hand],
             "discard_pile": [glyph.to_dict() for glyph in self.discard_pile],
             "perks": [perk.to_dict() for perk in self.perks],
+            "ready": self.ready,
             "draft_offer": list(self.draft_offer),
             "rerolls_left": self.rerolls_left,
             "clock_ms": self.clock_ms,
@@ -175,6 +188,7 @@ class PlayerState:
             hand=_glyphs(data, "hand"),
             discard_pile=_glyphs(data, "discard_pile"),
             perks=[PerkInstance.from_dict(p) for p in _require(data, "perks")],
+            ready=_require(data, "ready"),
             draft_offer=list(_require(data, "draft_offer")),
             rerolls_left=_require(data, "rerolls_left"),
             clock_ms=_require(data, "clock_ms"),

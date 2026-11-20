@@ -95,7 +95,9 @@ class SideResult:
 
     @classmethod
     def of(cls, player: PlayerState) -> "SideResult":
-        statuses = tuple(Status(s.effect, s.turns_left) for s in player.statuses)
+        statuses = tuple(
+            Status(s.effect, s.turns_left, s.applied_turn) for s in player.statuses
+        )
         return cls(hp=player.hp, defense=player.defense, statuses=statuses)
 
     def to_dict(self) -> JSONDict:
@@ -200,12 +202,14 @@ def _resolve_glyph(
     )
 
 
-def _add_status(player: PlayerState, effect: Effect, turns: int) -> None:
+def _add_status(player: PlayerState, effect: Effect, turns: int, turn: int) -> None:
     for status in player.statuses:
         if status.effect == effect:
-            status.turns_left = max(status.turns_left, turns)
+            if turns > status.turns_left:
+                status.turns_left = turns
+                status.applied_turn = turn
             return
-    player.statuses.append(Status(effect, turns))
+    player.statuses.append(Status(effect, turns, turn))
 
 
 def resolve_word(
@@ -260,7 +264,7 @@ def resolve_word(
     caster_side.hp += hp_healed
 
     for effect, turns in statuses.items():
-        _add_status(target_side, effect, turns)
+        _add_status(target_side, effect, turns, state.turn)
 
     return WordResolution(
         caster=caster,
@@ -273,7 +277,7 @@ def resolve_word(
         damage_blocked=damage_blocked,
         hp_damage=hp_damage,
         hp_healed=hp_healed,
-        statuses_applied=tuple(Status(e, t) for e, t in statuses.items()),
+        statuses_applied=tuple(Status(e, t, state.turn) for e, t in statuses.items()),
         caster_after=SideResult.of(caster_side),
         target_after=SideResult.of(target_side),
         target_defeated=target_side.hp == 0,

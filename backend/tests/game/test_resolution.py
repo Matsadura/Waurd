@@ -23,6 +23,9 @@ def g(n: int, letters: str, type_: GlyphType, effect: Effect, value: int) -> Gly
 
 def match(*hand: Glyph, caster: int = 0) -> MatchState:
     state = new_match("match-1", ("user-a", "user-b"), 180, seed="seed")
+    for player in state.players:
+        # No opening shield: these tests set any Defense they need.
+        player.defense = 0
     state.players[caster].hand = list(hand)
     return state
 

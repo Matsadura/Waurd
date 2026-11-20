@@ -349,7 +349,7 @@ class TestMessages:
 
         assert response.status_code == 422
         assert response.json() == {
-            "detail": "Time control must be 60, 180 or 300 seconds."
+            "detail": "Time control must be 180, 300 or 600 seconds."
         }
 
     async def test_bad_lobby_time_control_message(self, alice_client):
@@ -358,5 +358,5 @@ class TestMessages:
         )
 
         assert response.json() == {
-            "detail": "Time control must be 60, 180 or 300 seconds."
+            "detail": "Time control must be 180, 300 or 600 seconds."
         }

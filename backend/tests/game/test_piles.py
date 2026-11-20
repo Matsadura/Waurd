@@ -35,7 +35,7 @@ class TestBuildDeck:
         counts = Counter(g.letters for g in deck)
         assert counts == {spec.letter: spec.copies for spec in DEFAULT_CONFIG.letters}
         b = next(g for g in deck if g.letters == "B")
-        assert (b.type, b.effect, b.value) == (GlyphType.POWER, Effect.DAMAGE, 20)
+        assert (b.type, b.effect, b.value) == (GlyphType.POWER, Effect.DAMAGE, 23)
         assert all(g.conditional_slot is None for g in deck)
 
     def test_ids_are_unique_and_name_the_player(self) -> None:
@@ -54,6 +54,18 @@ class TestBuildDeck:
 
 
 class TestNewMatch:
+    def test_second_player_starts_with_the_shield(self) -> None:
+        for seed in ("a", "b", "c", "d"):
+            state = match(seed)
+            first = state.active_player
+
+            assert state.players[first].defense == 0
+            assert state.players[1 - first].defense == 30
+
+    def test_shield_is_configurable(self) -> None:
+        state = match(config=GameConfig(second_player_shield=0))
+        assert [p.defense for p in state.players] == [0, 0]
+
     def test_starting_state(self) -> None:
         state = match()
 
@@ -64,7 +76,6 @@ class TestNewMatch:
         for player, user in zip(state.players, USERS, strict=True):
             assert player.user_id == user
             assert player.hp == 100
-            assert player.defense == 0
             assert player.clock_ms == 180_000
             assert player.rerolls_left == 3
             assert player.hand == [] and player.discard_pile == []
@@ -90,8 +101,8 @@ class TestNewMatch:
         assert firsts == {0, 1}
 
     def test_generates_a_seed_when_none_is_given(self) -> None:
-        a = new_match("m", USERS, 60)
-        b = new_match("m", USERS, 60)
+        a = new_match("m", USERS, 180)
+        b = new_match("m", USERS, 180)
 
         assert a.seed != b.seed
 
@@ -101,7 +112,7 @@ class TestNewMatch:
 
     def test_rejects_playing_yourself(self) -> None:
         with pytest.raises(ValueError, match="against themselves"):
-            new_match("m", ("same", "same"), 60, seed="s")
+            new_match("m", ("same", "same"), 180, seed="s")
 
     def test_uses_a_custom_config(self) -> None:
         config = GameConfig(

@@ -7,7 +7,6 @@ import pytest
 pytest.importorskip("backend.game.clock", reason="Clocks are not merged yet")
 
 from backend.game.clock import clocks, deadline_ms, remaining_ms
-
 from backend.game.config import Effect, GlyphType
 from backend.game.perks import load_catalog
 from backend.game.piles import new_match
@@ -28,11 +27,11 @@ RULES = MatchRules(frozenset({"AT", "CAB"}))
 ALL_READY = {pid: replace(spec, ready=True) for pid, spec in load_catalog().items()}
 DRAFTING = MatchRules(frozenset({"AT"}), catalog=ALL_READY)
 USERS = ("user-a", "user-b")
-MINUTE = 60_000
+CLOCK = 180_000
 START = 10_000
 
 
-def started(rules: MatchRules = RULES, seconds: int = 60) -> MatchState:
+def started(rules: MatchRules = RULES, seconds: int = 180) -> MatchState:
     state = new_match("match-1", USERS, seconds, seed="seed")
     state, _ = apply(state, Action(0, ActionType.PLAYER_READY), 1_000, rules)
     state, _ = apply(state, Action(1, ActionType.PLAYER_READY), START, rules)
@@ -66,11 +65,11 @@ class TestRunningClock:
         state = started()
 
         assert state.clock_started_ms == START
-        assert deadline_ms(state) == START + MINUTE
-        assert [p.clock_ms for p in state.players] == [MINUTE, MINUTE]
+        assert deadline_ms(state) == START + CLOCK
+        assert [p.clock_ms for p in state.players] == [CLOCK, CLOCK]
 
     def test_no_clock_before_the_start(self) -> None:
-        state = new_match("match-1", USERS, 60, seed="seed")
+        state = new_match("match-1", USERS, 180, seed="seed")
         state, _ = apply(state, Action(0, ActionType.PLAYER_READY), 1_000, RULES)
 
         assert state.clock_started_ms is None
@@ -84,11 +83,11 @@ class TestRunningClock:
         second = state.active_player
         state, _ = cast_at(state, START + 7_000 + 4_500)
 
-        assert state.players[first].clock_ms == MINUTE - 7_000
-        assert state.players[second].clock_ms == MINUTE - 4_500
+        assert state.players[first].clock_ms == CLOCK - 7_000
+        assert state.players[second].clock_ms == CLOCK - 4_500
         assert state.clock_started_ms == START + 11_500
         # Events carry the charged clocks.
-        assert events[0].data["clocks"][USERS[first]] == MINUTE - 7_000
+        assert events[0].data["clocks"][USERS[first]] == CLOCK - 7_000
 
     def test_drafting_counts(self) -> None:
         state = started(DRAFTING)
@@ -104,7 +103,7 @@ class TestRunningClock:
         )
 
         assert events[0].type == EventType.PERK_DRAFT_OPTIONS
-        assert state.players[active].clock_ms == MINUTE - 3_000
+        assert state.players[active].clock_ms == CLOCK - 3_000
 
     def test_rejected_action_charges_nothing_now_but_the_time_still_counts(
         self,
@@ -116,9 +115,9 @@ class TestRunningClock:
         after, events = apply(state, bad, START + 5_000, RULES)
 
         assert events[0].type == EventType.ACTION_REJECTED
-        assert after is state and state.players[active].clock_ms == MINUTE
+        assert after is state and state.players[active].clock_ms == CLOCK
         state, _ = cast_at(state, START + 8_000)
-        assert state.players[active].clock_ms == MINUTE - 8_000
+        assert state.players[active].clock_ms == CLOCK - 8_000
 
     def test_time_going_backwards_charges_nothing(self) -> None:
         state = started()
@@ -126,7 +125,7 @@ class TestRunningClock:
 
         state, _ = cast_at(state, START - 5_000)
 
-        assert state.players[active].clock_ms == MINUTE
+        assert state.players[active].clock_ms == CLOCK
         assert state.clock_started_ms == START
 
 
@@ -136,7 +135,7 @@ class TestTimeoutDuringAnAction:
         active = state.active_player
         other_hp = state.players[1 - active].hp
 
-        state, events = cast_at(state, START + MINUTE)
+        state, events = cast_at(state, START + CLOCK)
 
         [ended] = events
         assert ended.type == EventType.MATCH_ENDED
@@ -156,7 +155,7 @@ class TestTimeoutDuringAnAction:
     def test_one_millisecond_left_is_still_in_time(self) -> None:
         state = started()
 
-        state, events = cast_at(state, START + MINUTE - 1)
+        state, events = cast_at(state, START + CLOCK - 1)
 
         assert events[0].type == EventType.WORD_RESOLVED
 
@@ -167,7 +166,7 @@ class TestTimeoutDuringAnAction:
         state, events = apply(
             state,
             Action(waiting, ActionType.REROLL_PERKS, {"turn": 1}),
-            START + MINUTE + 5,
+            START + CLOCK + 5,
             RULES,
         )
 
@@ -179,7 +178,7 @@ class TestCheckTimeout:
     def test_before_the_deadline_nothing_changes(self) -> None:
         state = started()
 
-        after, events = check_timeout(state, START + MINUTE - 1)
+        after, events = check_timeout(state, START + CLOCK - 1)
 
         assert after is state and events == []
         assert state.clock_started_ms == START
@@ -189,14 +188,14 @@ class TestCheckTimeout:
         active = state.active_player
         before = state.to_dict()
 
-        after, [ended] = check_timeout(state, START + MINUTE)
+        after, [ended] = check_timeout(state, START + CLOCK)
 
         assert ended.data["end_reason"] == "TIMEOUT"
         assert after.winner == 1 - active
         assert state.to_dict() == before
 
     def test_no_clock_no_timeout(self) -> None:
-        waiting = new_match("match-1", USERS, 60, seed="seed")
+        waiting = new_match("match-1", USERS, 180, seed="seed")
         assert check_timeout(waiting, 10**12) == (waiting, [])
 
         ended, _ = forfeit(started(), 0, EndReason.RESIGNATION, START)
@@ -206,7 +205,7 @@ class TestCheckTimeout:
         state = started()
         state, _ = cast_at(state, START + 20_000)
 
-        assert deadline_ms(state) == START + 20_000 + MINUTE
+        assert deadline_ms(state) == START + 20_000 + CLOCK
 
 
 class TestForfeit:
@@ -232,7 +231,7 @@ class TestForfeit:
         assert after.winner == state.active_player
 
     def test_before_the_start(self) -> None:
-        state = new_match("match-1", USERS, 60, seed="seed")
+        state = new_match("match-1", USERS, 180, seed="seed")
 
         after, [ended] = forfeit(state, 0, EndReason.DISCONNECT, 0)
 
@@ -245,15 +244,15 @@ class TestForfeit:
 
         after, events = forfeit(state, 1 - active, EndReason.RESIGNATION, START + 2_500)
 
-        assert after.players[active].clock_ms == MINUTE - 2_500
-        assert events[0].data["clocks"][USERS[active]] == MINUTE - 2_500
+        assert after.players[active].clock_ms == CLOCK - 2_500
+        assert events[0].data["clocks"][USERS[active]] == CLOCK - 2_500
 
     def test_a_clock_already_at_zero_is_a_timeout(self) -> None:
         state = started()
         active = state.active_player
 
         after, [ended] = forfeit(
-            state, 1 - active, EndReason.RESIGNATION, START + MINUTE
+            state, 1 - active, EndReason.RESIGNATION, START + CLOCK
         )
 
         assert ended.data["end_reason"] == "TIMEOUT"
@@ -296,22 +295,22 @@ class TestSnapshotClocks:
         data = match_state(state, 1 - active, START + 12_000).data
 
         assert data["clocks"] == {
-            USERS[active]: MINUTE - 12_000,
-            USERS[1 - active]: MINUTE,
+            USERS[active]: CLOCK - 12_000,
+            USERS[1 - active]: CLOCK,
         }
         assert data["clock_running_for"] == USERS[active]
-        assert state.players[active].clock_ms == MINUTE
+        assert state.players[active].clock_ms == CLOCK
 
     def test_without_now_shows_the_last_charge(self) -> None:
         state = started()
 
-        assert match_state(state, 0).data["clocks"] == {u: MINUTE for u in USERS}
+        assert match_state(state, 0).data["clocks"] == {u: CLOCK for u in USERS}
 
     def test_never_below_zero(self) -> None:
         state = started()
 
-        assert remaining_ms(state, state.active_player, START + 10 * MINUTE) == 0
-        assert min(clocks(state, START + 10 * MINUTE).values()) == 0
+        assert remaining_ms(state, state.active_player, START + 10 * CLOCK) == 0
+        assert min(clocks(state, START + 10 * CLOCK).values()) == 0
 
     def test_no_clock_running_after_the_end(self) -> None:
         state, _ = forfeit(started(), 0, EndReason.RESIGNATION, START)
@@ -319,4 +318,4 @@ class TestSnapshotClocks:
         data = match_state(state, 0, START + 99_000).data
 
         assert data["clock_running_for"] is None
-        assert data["clocks"] == {u: MINUTE for u in USERS}
+        assert data["clocks"] == {u: CLOCK for u in USERS}

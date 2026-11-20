@@ -48,8 +48,13 @@ def act(
     return apply(state, Action(player, type_, data), 0, rules)
 
 
-def started(seed: str = "seed", rules: MatchRules = RULES) -> MatchState:
+def started(
+    seed: str = "seed", rules: MatchRules = RULES, shield: bool = False
+) -> MatchState:
     state = new_match("match-1", USERS, 180, seed=seed)
+    if not shield:
+        # Most tests count damage exactly; the shield has its own tests.
+        state.players[1 - state.active_player].defense = 0
     state, _ = act(state, 0, ActionType.PLAYER_READY, rules)
     state, _ = act(state, 1, ActionType.PLAYER_READY, rules)
     return state
@@ -451,6 +456,102 @@ class TestDraft:
         _, events = act(state, active, ActionType.REROLL_PERKS, DRAFTING, turn=1)
 
         rejected(events, "NO_REROLLS_LEFT")
+
+
+class TestPass:
+    def test_passing_discards_the_hand_and_ends_the_turn(self) -> None:
+        state = started()
+        active = with_hand(state, *cab())
+        other = 1 - active
+        other_hp = state.players[other].hp
+
+        state, events = act(state, active, ActionType.PASS_TURN, turn=1)
+
+        assert types(events) == ["TURN_PASSED", "TURN_START", "OPPONENT_TURN_START"]
+        assert events[0].to == (0, 1)
+        assert events[0].data == {"turn": 1, "player_id": USERS[active]}
+        assert (state.turn, state.active_player, state.phase) == (
+            2,
+            other,
+            Phase.ACTION,
+        )
+        assert state.players[active].hand == []
+        assert {g.id for g in cab()} <= {
+            g.id for g in state.players[active].discard_pile
+        }
+        assert state.players[other].hp == other_hp
+        assert len(state.players[other].hand) == 7
+
+    def test_next_turn_draws_a_fresh_hand(self) -> None:
+        state = started()
+        first = with_hand(state, *cab())
+        state, _ = act(state, first, ActionType.PASS_TURN, turn=1)
+        state, _ = act(state, 1 - first, ActionType.PASS_TURN, turn=2)
+
+        assert state.active_player == first
+        assert len(state.players[first].hand) == 7
+        assert not {g.id for g in cab()} & {g.id for g in state.players[first].hand}
+
+    def test_statuses_count_down_as_usual(self) -> None:
+        state = started()
+        active = state.active_player
+        state.players[active].statuses = [Status(Effect.WEAK, 1, 0)]
+
+        state, _ = act(state, active, ActionType.PASS_TURN, turn=1)
+
+        assert state.players[active].statuses == []
+
+    def test_not_during_the_draft(self) -> None:
+        state = started(rules=DRAFTING)
+        active = with_hand(state, *cab())
+        state, _ = act(
+            state,
+            active,
+            ActionType.CAST_WORD,
+            DRAFTING,
+            turn=1,
+            glyph_sequence=[0, 1, 2],
+        )
+
+        _, events = act(state, active, ActionType.PASS_TURN, DRAFTING, turn=1)
+
+        rejected(events, Rejection.WRONG_PHASE)
+
+    def test_only_on_your_turn_and_turn_number(self) -> None:
+        state = started()
+        active = state.active_player
+
+        _, events = act(state, 1 - active, ActionType.PASS_TURN, turn=1)
+        rejected(events, Rejection.NOT_YOUR_TURN)
+        _, events = act(state, active, ActionType.PASS_TURN, turn=3)
+        rejected(events, Rejection.WRONG_TURN)
+
+    def test_parsed_from_the_socket(self) -> None:
+        assert parse_action(0, {"type": "PASS_TURN", "data": {"turn": 4}}) == Action(
+            0, ActionType.PASS_TURN, {"turn": 4}
+        )
+
+
+class TestOpeningShield:
+    def test_absorbs_the_first_word(self) -> None:
+        state = started(shield=True)
+        first = with_hand(state, *cab())
+        second = 1 - first
+
+        state, events = act(
+            state, first, ActionType.CAST_WORD, turn=1, glyph_sequence=[0, 1, 2]
+        )
+
+        assert events[0].data["damage_blocked"] == 30
+        assert state.players[second].hp == 100 - (32 - 30)
+
+    def test_gone_once_the_second_player_moves(self) -> None:
+        state = started(shield=True)
+        first = state.active_player
+        state, _ = act(state, first, ActionType.PASS_TURN, turn=1)
+
+        # Unused, it still resets when the second player's first turn starts.
+        assert state.players[1 - first].defense == 0
 
 
 class TestBetweenTurns:

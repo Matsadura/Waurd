@@ -22,7 +22,7 @@ from backend.game.simulation import (
 
 from backend.core.dictionary import load_word_list
 from backend.game import simulation, turns
-from backend.game.config import Effect, GlyphType
+from backend.game.config import Effect, GameConfig, GlyphType
 from backend.game.perks import load_catalog
 from backend.game.state import EndReason, Glyph, Status
 
@@ -73,6 +73,63 @@ class TestThousandMatches:
         b = simulate(finder, matches=10, seed_prefix="b")
 
         assert [m.words for m in a.matches] != [m.words for m in b.matches]
+
+
+class TestBalance:
+    """Guards the balance from scripts/simulate.py: change the values or the
+    CSV and these say whether matches got too long, too short or one-sided."""
+
+    @pytest.fixture(scope="class")
+    def csv_report(self, finder: WordFinder) -> SimulationReport:
+        return simulate(finder, matches=600, seed_prefix="balance")
+
+    @pytest.fixture(scope="class")
+    def perks_report(self, finder: WordFinder) -> SimulationReport:
+        return simulate(finder, matches=600, catalog=ALL_READY, seed_prefix="balance")
+
+    @pytest.mark.parametrize("report", ["csv_report", "perks_report"])
+    def test_matches_are_neither_long_nor_short(self, report: str, request) -> None:  # type: ignore[no-untyped-def]
+        summary = request.getfixturevalue(report).summary()
+
+        assert 10 <= summary["turns_median"] <= 20
+        assert summary["turns_max"] <= 60
+
+    @pytest.mark.parametrize("report", ["csv_report", "perks_report"])
+    def test_turn_order_is_fair(self, report: str, request) -> None:  # type: ignore[no-untyped-def]
+        assert 0.42 <= request.getfixturevalue(report).first_player_win_rate <= 0.58
+
+    @pytest.mark.parametrize("report", ["csv_report", "perks_report"])
+    def test_the_clock_rarely_decides(self, report: str, request) -> None:  # type: ignore[no-untyped-def]
+        assert request.getfixturevalue(report).summary()["timeout_share"] < 0.05
+
+    def test_bot_passes_instead_of_waiting(self, csv_report: SimulationReport) -> None:
+        assert csv_report.summary()["turns_passed_or_stuck"] > 0
+
+
+class TestBotOptions:
+    def test_config_is_used_for_the_matches(self, finder: WordFinder) -> None:
+        config = GameConfig(time_controls=(1234,))
+
+        report = simulate(finder, matches=3, config=config)
+
+        assert all(max(m.seconds_used) <= 1234 for m in report.matches)
+
+    def test_waiting_out_the_clock_ends_matches_on_time(
+        self, finder: WordFinder
+    ) -> None:
+        style = BotStyle(pass_when_stuck=False)
+
+        report = simulate(finder, matches=150, style=style)
+
+        stuck = [m for m in report.matches if m.turns_without_a_word]
+        assert stuck
+        assert all(m.end_reason == EndReason.TIMEOUT for m in stuck)
+
+    def test_random_word_choice(self, finder: WordFinder) -> None:
+        random = simulate(finder, matches=100, style=BotStyle(choose_from_best=None))
+        good = simulate(finder, matches=100)
+
+        assert random.summary()["word_length_mean"] < good.summary()["word_length_mean"]
 
 
 class TestTheChecksCatchBugs:

@@ -28,7 +28,8 @@ class TestDefaults:
         assert config.perks_to_select == 1
         assert config.rerolls_per_match == 3
         assert config.starting_hp == 100
-        assert config.time_controls == (60, 180, 300)
+        assert config.time_controls == (180, 300, 600)
+        assert config.second_player_shield == 30
         assert config.vulnerable_percent == config.weak_percent == 25
         assert config.defense_carries_over is False
 
@@ -40,20 +41,20 @@ class TestDefaults:
             Rarity.LEGENDARY: 3,
         }
 
-    def test_letter_table_matches_the_handoff(self) -> None:
+    def test_letter_table_is_the_balanced_one(self) -> None:
         table = {spec.letter: spec for spec in DEFAULT_LETTERS}
 
         assert len(table) == 23
         assert set("JQX").isdisjoint(table)
-        assert table["B"] == LetterSpec("B", GlyphType.POWER, Effect.DAMAGE, 20, 1)
-        assert table["R"] == LetterSpec("R", GlyphType.SKILL, Effect.DEFENSE, 15, 2)
-        assert table["A"] == LetterSpec("A", GlyphType.SKILL, Effect.HEAL, 10, 3)
+        assert table["B"] == LetterSpec("B", GlyphType.POWER, Effect.DAMAGE, 23, 1)
+        assert table["R"] == LetterSpec("R", GlyphType.SKILL, Effect.DEFENSE, 14, 2)
+        assert table["A"] == LetterSpec("A", GlyphType.SKILL, Effect.HEAL, 9, 3)
         assert table["V"] == LetterSpec("V", GlyphType.SKILL, Effect.VULNERABLE, 2, 1)
         assert table["E"] == LetterSpec("E", GlyphType.SKILL, Effect.WEAK, 2, 4)
-        assert table["Z"] == LetterSpec("Z", GlyphType.POWER, Effect.DAMAGE, 25, 1)
+        assert table["Z"] == LetterSpec("Z", GlyphType.POWER, Effect.DAMAGE, 29, 1)
 
     def test_letter_lookup(self) -> None:
-        assert DEFAULT_CONFIG.letter("K").value == 18
+        assert DEFAULT_CONFIG.letter("K").value == 21
         with pytest.raises(KeyError):
             DEFAULT_CONFIG.letter("Q")
 
@@ -80,6 +81,7 @@ def letters_with(**changes: Any) -> tuple[LetterSpec, ...]:
         ({"time_controls": ()}, "time_controls must be positive"),
         ({"time_controls": (60, 0)}, "time_controls must be positive"),
         ({"time_controls": (60, 60)}, "time_controls has a duplicate"),
+        ({"second_player_shield": -1}, "second_player_shield can't be negative"),
         ({"vulnerable_percent": 101}, "vulnerable_percent must be between"),
         ({"weak_percent": -5}, "weak_percent must be between"),
         (

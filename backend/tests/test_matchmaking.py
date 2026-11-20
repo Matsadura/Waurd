@@ -105,15 +105,29 @@ class TestQueue:
     async def test_switching_time_control(self, alice_client, alice, redis):
         await join(alice_client, 180)
 
-        response = await join(alice_client, 60)
+        response = await join(alice_client, 600)
 
-        assert response.json()["time_control_seconds"] == 60
+        assert response.json()["time_control_seconds"] == 600
         assert await redis.lrange("matchmaking:queue:180", 0, -1) == []
-        assert await redis.lrange("matchmaking:queue:60", 0, -1) == [uid(alice)]
+        assert await redis.lrange("matchmaking:queue:600", 0, -1) == [uid(alice)]
 
-    @pytest.mark.parametrize("time_control", [0, 30, 120, 600])
+    @pytest.mark.parametrize("time_control", [0, 30, 60, 120, 900])
     async def test_invalid_time_control(self, alice_client, time_control):
         assert (await join(alice_client, time_control)).status_code == 422
+
+    @pytest.mark.parametrize("time_control", [180, 300, 600])
+    async def test_every_time_control_can_queue(self, alice_client, time_control):
+        assert (await join(alice_client, time_control)).status_code == 201
+
+    async def test_custom_lobby_defaults_to_five_minutes(self, alice_client):
+        response = await alice_client.post("/matchmaking/matches/custom", json={})
+
+        assert response.status_code == 201
+        assert response.json()["time_control_seconds"] == 300
+
+    async def test_worker_checks_every_time_control(self, queue_store, session_maker):
+        worker = MatchmakerWorker(queue_store=queue_store, session_factory=session_maker)
+        assert worker.time_controls == [180, 300, 600]
 
     async def test_leave(self, alice_client, redis):
         await join(alice_client)
@@ -130,7 +144,7 @@ class TestQueue:
     async def test_leave_with_other_time_control(self, alice_client):
         await join(alice_client, 180)
 
-        assert (await leave(alice_client, 60)).status_code == 404
+        assert (await leave(alice_client, 600)).status_code == 404
 
     async def test_cannot_queue_with_an_open_lobby(self, alice_client):
         await create_lobby(alice_client)
@@ -236,10 +250,10 @@ class TestWorker:
     async def test_time_controls_are_separate(
         self, alice_client, bob_client, worker, session_maker
     ):
-        await join(alice_client, 60)
-        await join(bob_client, 180)
+        assert (await join(alice_client, 600)).status_code == 201
+        assert (await join(bob_client, 180)).status_code == 201
 
-        for time_control in (60, 180, 300):
+        for time_control in (180, 300, 600):
             await worker.process_queue_for_time_control(time_control)
 
         assert await matches(session_maker) == []

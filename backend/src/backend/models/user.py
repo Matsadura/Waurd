@@ -3,7 +3,15 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BINARY, TIMESTAMP, Boolean, Enum, Integer, String
+from sqlalchemy import (
+    BINARY,
+    TIMESTAMP,
+    Boolean,
+    Enum,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base, TimestampMixin
@@ -14,6 +22,7 @@ from backend.models.user_stats import UserStats
 
 if TYPE_CHECKING:
     from backend.models.tournament import Tournament, TournamentParticipant
+    from backend.models.user_loadout import UserLoadout
 
 
 class OAuthProvider(str, enum.Enum):
@@ -33,6 +42,12 @@ class User(Base, TimestampMixin):
         BINARY(16),
         primary_key=True,
         default=lambda: uuid.uuid4().bytes,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "oauth_provider", "oauth_id", name="uq_users_oauth_provider_id"
+        ),
     )
 
     username: Mapped[str] = mapped_column(
@@ -112,6 +127,11 @@ class User(Base, TimestampMixin):
     )
     achievements: Mapped[list["UserAchievement"]] = relationship(
         "UserAchievement", back_populates="user", cascade="all, delete-orphan"
+    )
+    loadout: Mapped[list["UserLoadout"]] = relationship(
+        "UserLoadout",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
     # Sent and Received Friend Requests

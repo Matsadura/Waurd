@@ -133,8 +133,14 @@ def _wire_app(
 
     app.dependency_overrides[get_db] = override_get_db
     monkeypatch.setattr(uow_module, "async_session_maker", session_maker)
-    # ASGITransport does not run the lifespan that normally sets this.
+    # ASGITransport does not run the lifespan that normally sets these.
     app.state.redis = redis
+    try:
+        from backend.live.hub import MatchHub
+    except ImportError:  # branches without live matches
+        pass
+    else:
+        app.state.match_hub = MatchHub(redis, session_maker)
     yield
     app.dependency_overrides.clear()
 

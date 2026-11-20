@@ -1,4 +1,5 @@
-"""The perk catalog: catalog.csv, exported from the team's perk sheet.
+"""The perk catalog: catalog.csv, exported from the team's perk sheet
+(https://docs.google.com/spreadsheets/d/1_cI2TWjNddDOus2dvGEwRkRAADtAO70mfKFFKJH2gts).
 
 Each row describes a perk; its behaviour is the Python function registered
 under the row's id (see registry.py). The database `perks` table is filled

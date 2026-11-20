@@ -21,15 +21,23 @@ Invariants checked after every action:
 import statistics
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import combinations
 
 from backend.game.clock import deadline_ms
-from backend.game.config import DEFAULT_CONFIG, Effect, GameConfig
-from backend.game.perks import PerkSpec, load_catalog
+from backend.game.conditions import WordContext
+from backend.game.config import DEFAULT_CONFIG, STATUS_EFFECTS, Effect, GameConfig
+from backend.game.perks import (
+    PerkContext,
+    PerkKind,
+    PerkSpec,
+    conditional_rules,
+    load_catalog,
+    registered,
+)
 from backend.game.piles import new_match
 from backend.game.rng import Rng, rng_for
-from backend.game.state import EndReason, Glyph, Phase
+from backend.game.state import EndReason, Glyph, MatchState, Phase
 from backend.game.turns import (
     Action,
     ActionType,
@@ -99,6 +107,9 @@ class BotStyle:
     choose_from_best: int | None = 5
     # Pass when the hand spells nothing; False waits for the clock instead.
     pass_when_stuck: bool = True
+    # Choose the word first and use perks where they pay off; False applies
+    # perks to random glyphs.
+    smart_perks: bool = True
     perk_chance: float = 0.5
     max_perks_per_turn: int = 2
     reroll_chance: float = 0.2
@@ -175,6 +186,9 @@ class _Run:
         self.config = rules.config
         self.style = style
         self.catalog = rules.perk_catalog()
+        self.definitions = registered()
+        self.rules_by_perk = conditional_rules()
+        self.plan: list[str] | None = None
         self.state = new_match(
             f"match-{seed}", USERS, time_control, seed=seed, config=rules.config
         )
@@ -207,12 +221,26 @@ class _Run:
         }.get(purpose, style.perk_ms)
         self.now += self.rng(f"think:{purpose}").randint(low, high)
 
-    def score(self, player: int, play: list[int]) -> float:
+    def score(
+        self, player: int, play: list[int], hand: Sequence[Glyph] | None = None
+    ) -> float:
         """Roughly how good a word is, the way a decent player would judge."""
         side = self.state.player(player)
+        opponent = self.state.player(1 - player)
+        hand = side.hand if hand is None else hand
+        glyphs = tuple(hand[i] for i in play)
+        word = "".join(g.letters for g in glyphs)
         total = 0.0
-        for position in play:
-            glyph = side.hand[position]
+        for index, position in enumerate(play):
+            glyph = hand[position]
+            value = glyph.value
+            rule = self.rules_by_perk.get(glyph.conditional_slot or "")
+            if rule is not None and glyph.effect not in STATUS_EFFECTS:
+                context = WordContext(
+                    word, glyphs, index, side.hp, opponent.hp, self.config.max_hp
+                )
+                value = rule(glyph, context, value)
+            glyph = replace(glyph, value=value)
             if glyph.effect == Effect.DAMAGE:
                 total += glyph.value
             elif glyph.effect == Effect.DEFENSE:
@@ -303,6 +331,9 @@ class _Run:
         return True
 
     def apply_perks(self, player: int) -> None:
+        if self.style.smart_perks:
+            self.apply_perks_smartly(player)
+            return
         rng = self.rng("perks")
         for _ in range(self.style.max_perks_per_turn):
             side = self.state.player(player)
@@ -328,6 +359,183 @@ class _Run:
             if self.state.phase != Phase.ACTION:
                 return
 
+    # Smart perk use: pick the word first, then use perks where they pay off.
+
+    def best_plays(self, player: int, hand: Sequence[Glyph]) -> list[list[int]]:
+        plays = self.finder.plays(hand)
+        plays.sort(key=lambda play: self.score(player, play, hand), reverse=True)
+        best = self.style.choose_from_best
+        return plays if best is None else plays[:best]
+
+    def plan_word(self, player: int) -> list[str] | None:
+        """Choose a word; returns the glyph ids that spell it."""
+        side = self.state.player(player)
+        hand = side.hand
+        plays = self.finder.plays(hand)
+        if not plays:
+            return None
+        plays.sort(key=lambda play: self.score(player, play, hand), reverse=True)
+        slot_perks = {
+            p.perk_id for p in side.perks if self.definitions[p.perk_id].condition
+        }
+
+        def with_perks(play: list[int]) -> float:
+            gains = sorted(
+                (self.evaluate(player, perk_id, play)[0] for perk_id in slot_perks),
+                reverse=True,
+            )
+            bonus = sum(gains[: self.style.max_perks_per_turn])
+            return self.score(player, play, hand) + bonus
+
+        candidates = plays[:30]
+        candidates.sort(key=with_perks, reverse=True)
+        best = self.style.choose_from_best or len(candidates)
+        return [hand[i].id for i in self.rng("plan").choice(candidates[:best])]
+
+    def plan_positions(self, player: int, plan: list[str] | None) -> list[int] | None:
+        if plan is None:
+            return None
+        ids = [g.id for g in self.state.player(player).hand]
+        if not all(glyph_id in ids for glyph_id in plan):
+            return None
+        positions = [ids.index(glyph_id) for glyph_id in plan]
+        word = "".join(self.state.player(player).hand[i].letters for i in positions)
+        return positions if word in self.finder else None
+
+    def trial(self, player: int, perk_id: str, position: int) -> Glyph | None:
+        """The glyph after a direct perk, tried on a copy; None if it wouldn't
+        apply."""
+        definition = self.definitions[perk_id]
+        assert definition.apply is not None
+        scratch = MatchState.from_dict(self.state.to_dict())
+        glyph = scratch.player(player).hand[position]
+        context = PerkContext(scratch, player, self.rng("trial"), self.config)
+        return glyph if definition.apply(glyph, context) else None
+
+    def evaluate(
+        self, player: int, perk_id: str, plan: list[int] | None
+    ) -> tuple[float, int | None]:
+        """(estimated gain, glyph position) for using a perk now; gain 0
+        means not worth it."""
+        side = self.state.player(player)
+        opponent = self.state.player(1 - player)
+        hand = side.hand
+        spec = self.catalog[perk_id]
+        definition = self.definitions[perk_id]
+        usable = [
+            i
+            for i, g in enumerate(hand)
+            if spec.supports(g.type) and g.conditional_slot != perk_id
+        ]
+        in_word = [i for i in usable if plan is not None and i in plan]
+        spare = [i for i in usable if plan is None or i not in plan]
+        nothing: tuple[float, int | None] = (0.0, None)
+        if not usable:
+            return nothing
+
+        if definition.condition is not None:
+            if plan is None:
+                return nothing
+            glyphs = tuple(hand[i] for i in plan)
+            word = "".join(g.letters for g in glyphs)
+            best: tuple[float, int | None] = nothing
+            for index, position in enumerate(plan):
+                glyph = hand[position]
+                if position not in usable or glyph.effect in STATUS_EFFECTS:
+                    continue
+                context = WordContext(
+                    word, glyphs, index, side.hp, opponent.hp, self.config.max_hp
+                )
+                extra = definition.condition(glyph, context, glyph.value) - glyph.value
+                if extra > best[0]:
+                    best = (float(extra), position)
+            return best
+
+        if definition.kind == PerkKind.DECK:
+            if perk_id == "erase":
+                # Thin the deck of weak glyphs the word doesn't need.
+                weak = [i for i in spare if hand[i].value <= 7]
+                return (2.5, weak[0]) if weak else nothing
+            # Redraw and Fresh Start: when the hand spells nothing; Redraw also
+            # swaps a spare glyph when the best word is short.
+            if plan is None:
+                return (5.0, usable[0])
+            weak_hand = self.score(player, plan, hand) < 15
+            if perk_id == "fresh_start":
+                return (4.0, usable[0]) if weak_hand else nothing
+            if len(plan) <= 4 and spare:
+                return (2.0, min(spare, key=lambda i: hand[i].value))
+            return nothing
+
+        current = self.score(player, plan, hand) if plan is not None else 0.0
+        if definition.kind == PerkKind.LETTERS:
+            best = nothing
+            for position in usable:
+                changed = self.trial(player, perk_id, position)
+                if changed is None:
+                    continue
+                trial_hand = [
+                    changed if i == position else g for i, g in enumerate(hand)
+                ]
+                for play in self.finder.plays(trial_hand):
+                    if position in play:
+                        gain = self.score(player, play, trial_hand) - current
+                        if gain > best[0]:
+                            best = (gain, position)
+            return best
+
+        if perk_id in ("hex", "expose"):
+            effect = Effect.WEAK if perk_id == "hex" else Effect.VULNERABLE
+            if any(s.effect == effect for s in opponent.statuses):
+                return nothing
+            # The glyph is only the target; the status goes on the opponent.
+            return (8.0, usable[0])
+        if perk_id == "linger":
+            return (5.0, usable[0])
+        if perk_id == "wild_skill":
+            hurt = side.hp * 2 < self.config.max_hp
+            return (4.0, in_word[0]) if hurt and in_word else nothing
+        if perk_id == "blood" and side.hp <= 20:
+            return nothing
+
+        # Value and type perks: the glyph in the word where it adds the most.
+        best = nothing
+        for position in in_word:
+            changed = self.trial(player, perk_id, position)
+            if changed is None:
+                continue
+            trial_hand = [changed if i == position else g for i, g in enumerate(hand)]
+            gain = self.score(player, plan or [], trial_hand) - current
+            if gain > best[0]:
+                best = (gain, position)
+        return best
+
+    def apply_perks_smartly(self, player: int) -> None:
+        self.plan = self.plan_word(player)
+        for _ in range(self.style.max_perks_per_turn):
+            side = self.state.player(player)
+            positions = self.plan_positions(player, self.plan)
+            choice = None
+            best_gain = 0.0
+            for perk in sorted(side.perks, key=lambda p: p.instance_id):
+                gain, target = self.evaluate(player, perk.perk_id, positions)
+                if target is not None and gain > best_gain:
+                    choice, best_gain = (perk.instance_id, target), gain
+            if choice is None:
+                return
+            self.think("perk")
+            self.send(
+                player,
+                ActionType.APPLY_PERK,
+                turn=self.state.turn,
+                glyph_index=choice[1],
+                perk_instance_id=choice[0],
+            )
+            if self.state.phase != Phase.ACTION:
+                return
+            if self.plan_positions(player, self.plan) is None:
+                self.plan = self.plan_word(player)
+
     def cast(self, player: int) -> None:
         plays = self.finder.plays(self.state.player(player).hand)
         if not plays and self.style.pass_when_stuck:
@@ -347,16 +555,25 @@ class _Run:
                 raise self.fail("the deadline passed without a timeout")
             self.after(events, before)
             return
-        best = self.style.choose_from_best
-        if best is not None:
-            plays.sort(key=lambda play: self.score(player, play), reverse=True)
-            plays = plays[:best]
+        planned = self.plan_positions(player, self.plan)
+        if planned is not None and self.style.smart_perks:
+            sequence = planned
+        else:
+            hand = self.state.player(player).hand
+            best = self.style.choose_from_best
+            if best is not None:
+                plays.sort(
+                    key=lambda play: self.score(player, play, hand), reverse=True
+                )
+                plays = plays[:best]
+            sequence = self.rng("word").choice(plays)
+        self.plan = None
         self.think("cast")
         self.send(
             player,
             ActionType.CAST_WORD,
             turn=self.state.turn,
-            glyph_sequence=self.rng("word").choice(plays),
+            glyph_sequence=sequence,
         )
 
     def draft(self, player: int) -> None:

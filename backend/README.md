@@ -126,7 +126,7 @@ Uploads are stored under `MEDIA_DIR/avatars` (default `backend/media`, which is 
 
 ## Perks
 
-The perk catalog is [`src/backend/game/perks/catalog.csv`](src/backend/game/perks/catalog.csv), exported from the team's perk sheet. Each row's behaviour is a Python function in [`src/backend/game/perks/builtin.py`](src/backend/game/perks/builtin.py), registered under the row's `id`.
+The perk catalog is [`src/backend/game/perks/catalog.csv`](src/backend/game/perks/catalog.csv), exported from the [perk sheet](https://docs.google.com/spreadsheets/d/1_cI2TWjNddDOus2dvGEwRkRAADtAO70mfKFFKJH2gts). Keep the two in step: edit the sheet, export it, and replace the CSV (the column headers drop the sheet's "(max=…)" notes). Each row's behaviour is a Python function in [`src/backend/game/perks/builtin.py`](src/backend/game/perks/builtin.py), registered under the row's `id`.
 
 The app copies the CSV into the database `perks` table when it starts. After editing the CSV, either restart the backend or run:
 

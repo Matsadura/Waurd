@@ -202,16 +202,6 @@ def _resolve_glyph(
     )
 
 
-def _add_status(player: PlayerState, effect: Effect, turns: int, turn: int) -> None:
-    for status in player.statuses:
-        if status.effect == effect:
-            if turns > status.turns_left:
-                status.turns_left = turns
-                status.applied_turn = turn
-            return
-    player.statuses.append(Status(effect, turns, turn))
-
-
 def resolve_word(
     state: MatchState,
     caster: int,
@@ -236,7 +226,14 @@ def resolve_word(
     steps = tuple(
         _resolve_glyph(
             glyph,
-            WordContext(word, glyphs, index),
+            WordContext(
+                word,
+                glyphs,
+                index,
+                caster_hp=caster_side.hp,
+                target_hp=target_side.hp,
+                max_hp=config.max_hp,
+            ),
             caster_side,
             target_side,
             conditional_rules() if conditionals is None else conditionals,
@@ -264,7 +261,7 @@ def resolve_word(
     caster_side.hp += hp_healed
 
     for effect, turns in statuses.items():
-        _add_status(target_side, effect, turns, state.turn)
+        target_side.add_status(effect, turns, state.turn)
 
     return WordResolution(
         caster=caster,

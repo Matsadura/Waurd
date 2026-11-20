@@ -47,6 +47,8 @@ class PerkResult:
     destroyed: bool
     # The glyph afterwards; None when the perk removed it from the match.
     glyph: Glyph | None
+    # The player's hand afterwards (some perks redraw glyphs).
+    hand: tuple[Glyph, ...] = ()
 
     def to_dict(self) -> JSONDict:
         return {
@@ -58,6 +60,7 @@ class PerkResult:
             "durability_left": self.durability_left,
             "destroyed": self.destroyed,
             "glyph": None if self.glyph is None else self.glyph.to_dict(),
+            "hand": [glyph.to_dict() for glyph in self.hand],
         }
 
 
@@ -148,14 +151,18 @@ def apply_perk(
         glyph.conditional_slot = instance.perk_id
     else:
         assert definition.apply is not None
-        uses = "unlimited" if instance.durability is None else instance.durability
+        left = "unlimited" if instance.durability is None else instance.durability
         rng = rng_for(
             state.seed,
             state.turn,
-            f"perk:{instance.instance_id}:{glyph.id}:{uses}",
+            f"perk:{instance.instance_id}:{glyph.id}:{left}",
             player=player,
         )
-        applied = definition.apply(glyph, PerkContext(state, player, rng, config))
+        uses = 0
+        if spec.durability is not None and instance.durability is not None:
+            uses = spec.durability - instance.durability
+        context = PerkContext(state, player, rng, config, uses)
+        applied = definition.apply(glyph, context)
 
     destroyed = False
     if applied and instance.durability is not None:
@@ -174,4 +181,5 @@ def apply_perk(
         durability_left=instance.durability,
         destroyed=destroyed,
         glyph=glyph if still_held else None,
+        hand=tuple(side.hand),
     )

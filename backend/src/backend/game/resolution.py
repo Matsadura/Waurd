@@ -21,9 +21,10 @@ PLACEHOLDER rules, to confirm with the team:
 """
 
 import enum
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
+from backend.game.conditions import ConditionalRule, WordContext
 from backend.game.config import (
     DEFAULT_CONFIG,
     STATUS_EFFECTS,
@@ -31,31 +32,9 @@ from backend.game.config import (
     GameConfig,
     GlyphType,
 )
+from backend.game.perks import conditional_rules
 from backend.game.spelling import selected_glyphs
 from backend.game.state import Glyph, JSONDict, MatchState, PlayerState, Status
-
-
-@dataclass(frozen=True, slots=True)
-class WordContext:
-    """Where a glyph sits in the cast word, for conditional perks."""
-
-    word: str
-    glyphs: tuple[Glyph, ...]
-    index: int
-
-    @property
-    def is_first(self) -> bool:
-        return self.index == 0
-
-    @property
-    def is_last(self) -> bool:
-        return self.index == len(self.glyphs) - 1
-
-
-# A conditional perk's check: gets the glyph, its place in the word and its
-# value so far, returns the new value (the same value when the condition
-# isn't met). Registered under the perk id stored in Glyph.conditional_slot.
-ConditionalRule = Callable[[Glyph, WordContext, int], int]
 
 
 class Stage(enum.StrEnum):
@@ -144,7 +123,7 @@ class WordResolution:
     statuses_applied: tuple[Status, ...]
     caster_after: SideResult
     target_after: SideResult
-    target_defeated: bool = field(default=False)
+    target_defeated: bool = False
 
     def to_dict(self) -> JSONDict:
         return {
@@ -239,7 +218,8 @@ def resolve_word(
     """Resolve the glyphs at `positions` in the caster's hand and apply the result.
 
     Checking the word against the dictionary is validate_cast's job; call it
-    first. This changes HP, Defense and statuses in `state` but leaves the
+    first. `conditionals` defaults to the registered conditional perks.
+    This changes HP, Defense and statuses in `state` but leaves the
     hand alone: moving the cast glyphs is the turn's job. Raises SpellingError
     for bad positions, and ValueError for a conditional perk with no rule.
     """
@@ -255,7 +235,7 @@ def resolve_word(
             WordContext(word, glyphs, index),
             caster_side,
             target_side,
-            conditionals or {},
+            conditional_rules() if conditionals is None else conditionals,
             config,
         )
         for index, glyph in enumerate(glyphs)

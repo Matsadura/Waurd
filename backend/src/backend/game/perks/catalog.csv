@@ -1,0 +1,14 @@
+id,name,rarity,description,mechanics,image,durability,quote,target_type,status
+double_or_halve,Double or Halve,common,50% chance to double the Glyph's power; 50% chance to halve it.,50% to x2 or /2 the old effect value,,4,,power,not_ready
+ing,-ING-,uncommon,Transform this glyph into ING and increase its effect value by 7.,It shouldn't work if the glyph was already the same letter,,4,,power,not_ready
+er,-ER-,common,Transform this glyph into ER and increase its effect value by 5.,It shouldn't work if the glyph was already the same letter,,4,,power,not_ready
+re,-RE-,common,Transform this glyph into RE and increase its effect value by 5.,It shouldn't work if the glyph was already the same letter,,4,,power,not_ready
+erase,Erase,uncommon,Delete this glyph from your deck.,Removed from the match: hand and every pile,,4,,skill,not_ready
+amplify,Amplify,rare,Double the glyph effect value.,x2 the effect value,,4,,power,not_ready
+last_plus_5,Last Letter +5,common,+5 if this glyph ends the word.,If it is used at the end of the word +5,,,,power,not_ready
+first_plus_5,First Letter +5,common,+5 if this glyph starts the word.,If it is used at the beginning of the word +5,,,,power,not_ready
+last_times_2,Last Letter x2,rare,Double this glyph's value if it ends the word.,If it is used at the end of the word x2,,,,"skill, power",not_ready
+first_times_2,First Letter x2,rare,Double this glyph's value if it starts the word.,If it is used at the beginning of the word x2,,,,"skill, power",not_ready
+vowel_start_plus_10,Vowel Start +10,common,+10 if the word starts with a vowel.,If the word starts with a vowel +10,,,,power,not_ready
+five_letters_plus_8,Five Letters +8,common,+8 if the word has exactly 5 letters.,If the word length is 5 +8,,,,power,not_ready
+matching_ends_x2,Matching Ends x2,common,Double this glyph's value if the word's first and last letters match.,If the first and last letters are the same x2,,,,"power, skill",not_ready

@@ -183,3 +183,27 @@ class TestStartup:
 
         assert "Importing perks from catalog.csv failed" in caplog.text
         assert await perks(session_maker) == {}
+
+    async def test_an_unmigrated_database_gets_a_one_line_hint(
+        self, session_maker, monkeypatch, caplog
+    ):
+        from sqlalchemy.exc import OperationalError
+
+        async def old_schema(session, catalog=None):  # type: ignore[no-untyped-def]
+            raise OperationalError(
+                "SELECT perks.description",
+                {},
+                Exception("Unknown column 'perks.description'"),
+            )
+
+        monkeypatch.setattr(perk_import, "import_perks", old_schema)
+
+        with caplog.at_level(logging.WARNING):
+            async with session_maker() as session:
+                await import_perks_on_startup(session)
+
+        [record] = [r for r in caplog.records if r.name == "backend.core.perk_import"]
+        assert record.levelno == logging.WARNING
+        assert "Unknown column 'perks.description'" in record.getMessage()
+        assert "alembic upgrade head" in record.getMessage()
+        assert record.exc_info is None  # no traceback

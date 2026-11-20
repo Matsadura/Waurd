@@ -68,6 +68,7 @@ def full_state() -> MatchState:
         phase=Phase.ENDED,
         winner=0,
         end_reason=EndReason.TIMEOUT,
+        clock_started_ms=987_654,
     )
 
 

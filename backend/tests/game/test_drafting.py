@@ -8,6 +8,7 @@ import pytest
 
 pytest.importorskip("backend.game.drafting", reason="Drafting is not merged yet")
 
+from backend.game.config import GameConfig, Rarity
 from backend.game.drafting import (
     DraftError,
     DraftProblem,
@@ -15,8 +16,6 @@ from backend.game.drafting import (
     reroll_draft,
     select_perks,
 )
-
-from backend.game.config import GameConfig, Rarity
 from backend.game.perks import load_catalog
 from backend.game.piles import new_match
 from backend.game.state import MatchState

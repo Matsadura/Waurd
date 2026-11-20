@@ -9,6 +9,10 @@ pytest.importorskip(
     "backend.game.turns", reason="The turn state machine is not merged yet"
 )
 
+from backend.game.config import Effect, GameConfig, GlyphType
+from backend.game.perks import grant_perk, load_catalog
+from backend.game.piles import new_match
+from backend.game.state import EndReason, Glyph, MatchState, Phase, Status
 from backend.game.turns import (
     Action,
     ActionType,
@@ -19,11 +23,6 @@ from backend.game.turns import (
     match_state,
     parse_action,
 )
-
-from backend.game.config import Effect, GameConfig, GlyphType
-from backend.game.perks import grant_perk, load_catalog
-from backend.game.piles import new_match
-from backend.game.state import EndReason, Glyph, MatchState, Phase, Status
 
 P, S = GlyphType.POWER, GlyphType.SKILL
 WORDS = frozenset({"CAB", "BAT", "TAB", "EVE", "AT", "TA", "SAT", "TATS"})

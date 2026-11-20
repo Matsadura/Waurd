@@ -213,6 +213,22 @@ class TestGoogleCallbackSuccess:
         assert user.password_hash is None
         assert user.avatar_url == PROFILE["picture"]
 
+    async def test_new_google_user_gets_a_stats_row(
+        self, callback, mock_google, session_maker
+    ):
+        pytest.importorskip("backend.models.achievement_words")
+        from backend.models import UserStats
+
+        mock_google()
+
+        await callback()
+
+        async with session_maker() as session:
+            user = await session.scalar(select(User))
+            stats = await session.get(UserStats, user.id)
+        assert stats is not None
+        assert stats.rating_elo == 1200
+
     async def test_generated_username_is_sanitized(
         self, callback, mock_google, session_maker
     ):

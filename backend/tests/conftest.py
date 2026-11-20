@@ -48,7 +48,7 @@ from backend.db import uow as uow_module
 from backend.db.base import Base
 from backend.db.session import get_db
 from backend.main import app
-from backend.models import Friendship, FriendshipStatus, User
+from backend.models import Friendship, FriendshipStatus, User, UserStats
 
 PASSWORD = "SecureP@ssw0rd!123"
 # Argon2 is deliberately slow, so seeded users share one precomputed hash.
@@ -179,6 +179,8 @@ def make_user(session_maker: SessionMaker) -> MakeUser:
     sequence = itertools.count(1)
 
     async def _make(**overrides: Any) -> User:
+        # elo=... seeds a stats row with that rating; users have no Elo column.
+        elo = overrides.pop("elo", None)
         number = next(sequence)
         values = {
             "username": f"user{number}",
@@ -188,6 +190,8 @@ def make_user(session_maker: SessionMaker) -> MakeUser:
         }
         async with session_maker() as session:
             user = User(**values)
+            if elo is not None:
+                user.stats = UserStats(rating_elo=elo)
             session.add(user)
             await session.commit()
             await session.refresh(user)

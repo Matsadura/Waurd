@@ -1,13 +1,21 @@
-from backend.game.models import Glyph, Match
+import random
+
+from backend.game.models import Match
 
 HAND_SIZE = 7
 
 
 def start_turn(match: Match) -> None:
-    """Start a new turn for the active player."""
+    """Start a new turn: the active player draws up to HAND_SIZE glyphs."""
     match.turn += 1
     player = match.players[match.active_player_index]
-    while len(player.hand) < HAND_SIZE and player.draw_pile:
+    while len(player.hand) < HAND_SIZE:
+        if not player.draw_pile:
+            if not player.discard_pile:
+                break
+            player.draw_pile = player.discard_pile
+            player.discard_pile = []
+            match.rng.shuffle(player.draw_pile)
         player.hand.append(player.draw_pile.pop())
 
 

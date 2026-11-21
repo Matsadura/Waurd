@@ -1,3 +1,4 @@
+import random
 from dataclasses import dataclass, field
 
 
@@ -21,3 +22,4 @@ class Match:
     active_player_index: int = 0
     turn: int = 0
     winner: int | None = None
+    rng: random.Random = field(default_factory=random.Random)

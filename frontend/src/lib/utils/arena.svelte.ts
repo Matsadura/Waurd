@@ -71,8 +71,17 @@ export class Arena {
 	constructor() {
 		$effect(() => {
 			this.continuePlayerClock();
+			this.showTurnBanner();
 			return () => this.clearClock();
 		});
+	}
+	turnBanner = $state(false);
+	#bannerTimer: ReturnType<typeof setTimeout> | undefined;
+
+	showTurnBanner(ms = 800) {
+		clearTimeout(this.#bannerTimer);
+		this.turnBanner = true;
+		this.#bannerTimer = setTimeout(() => (this.turnBanner = false), ms);
 	}
 
 	clearClock() {
@@ -233,6 +242,7 @@ export class Arena {
 
 	changeToNextPlayerTurn() {
 		this.turn = this.turn === 'me' ? 'opponent' : 'me';
+		this.showTurnBanner();
 	}
 }
 

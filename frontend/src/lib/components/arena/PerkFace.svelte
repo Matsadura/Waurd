@@ -4,7 +4,7 @@
 	let { artBackground = '' } = $props();
 </script>
 
-<div class="perk relative h-full font-bold">
+<div class="perk relative h-full font-serif font-bold">
 	<div
 		class="art absolute bg-cover bg-center"
 		style:background-image={`url('https://cataas.com/avatar/${artBackground}?format=webp')`}
@@ -21,17 +21,19 @@
 		class="rarity absolute text-center font-kreon text-white uppercase text-shadow-sm text-shadow-taupe-300/80"
 		>Uncommon</span
 	>
-	<p class="desc absolute text-center font-normal text-white text-shadow-gray-800 text-shadow-sm">
+	<p
+		class="desc absolute text-center font-kreon font-normal text-white text-shadow-green-950 text-shadow-sm"
+	>
 		Transform this glyph into "RE" and increase its effect value by 5.
 	</p>
 	<span class="divider absolute w-1/2"></span>
-	<q class="quote absolute font-normal text-gray-300">You miss 100% of the shots you didn't take</q>
+	<q class="quote absolute font-normal text-gray-200">You miss 100% of the shots you didn't take</q>
 </div>
 
 <style>
 	.perk {
 		container-type: inline-size;
-		font-family: 'Times New Roman', Times, serif;
+		/* font-family: 'Times New Roman', Times, serif; */
 		aspect-ratio: 13 / 21;
 	}
 	.art {
@@ -69,8 +71,8 @@
 		font-size: 5.5cqi;
 		line-height: 1.1;
 		top: 105cqi;
-		left: 16cqi;
-		width: 20cap;
+		left: 15cqi;
+		width: 19cap;
 	}
 
 	.divider {
@@ -80,10 +82,10 @@
 	}
 
 	q {
-		font-size: 4cqi;
+		font-size: 5cqi;
 		top: 135cqi;
 		line-height: 1;
-		left: 16cqi;
-		width: 35ch;
+		left: 17cqi;
+		width: 30ch;
 	}
 </style>

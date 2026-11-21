@@ -30,9 +30,11 @@
 
 <div
 	transition:fly={{ y: '100%', duration: 300, easing: cubicInOut }}
-	class="absolute inset-0 z-10 flex flex-col items-center bg-gray-950/50"
+	class="absolute inset-0 z-10 flex flex-col items-center bg-gray-950/90"
 >
-	<h2 class="mt-8 mb-5 text-center font-kreon text-xl text-gray-200 sm:mt-12 md:mt-20 md:text-4xl">
+	<h2
+		class="mt-8 mb-5 text-center font-kreon text-xl text-arena-yallow-100 sm:mt-12 md:mt-20 md:text-4xl"
+	>
 		Drag and drop glyph into a Perk to use
 	</h2>
 

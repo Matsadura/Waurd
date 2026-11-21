@@ -19,5 +19,5 @@ class Player:
 class Match:
     players: list[Player]
     active_player_index: int = 0
-    turns: int = 0
-    winner: int = 0
+    turn: int = 0
+    winner: int | None = None

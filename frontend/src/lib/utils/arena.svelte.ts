@@ -244,6 +244,10 @@ export class Arena {
 		this.turn = this.turn === 'me' ? 'opponent' : 'me';
 		this.showTurnBanner();
 	}
+
+	setCurrentView(view: activeView) {
+		this.currentView = view;
+	}
 }
 
 const KEY = Symbol('arena');

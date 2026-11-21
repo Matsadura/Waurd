@@ -7,10 +7,10 @@
 	import PileButton from './PileButton.svelte';
 	import CastButton from './CastButton.svelte';
 	import PerksRack from '#lib/components/arena/PerksRack.svelte';
-	import { slide } from 'svelte/transition';
 	import PerksButton from './PerksButton.svelte';
 	import PlayerHUD from './PlayerHUD.svelte';
 	import TurnBanner from './TurnBanner.svelte';
+	import GlyphsList from '#lib/components/arena/GlyphsList.svelte';
 
 	setArena();
 	let arena = getArena();
@@ -34,19 +34,35 @@
 		</div>
 
 		<div class="flex w-dvw items-end justify-between px-8 md:pb-5">
-			<PileButton glyphs={Object.values(arena.drawPile)} title="Draw pile" />
+			<PileButton
+				onclick={() => arena.setCurrentView('draw')}
+				number={Object.keys(arena.drawPile).length}
+				label="Show draw pile"
+				type="draw"
+			/>
 			<!-- NOTE(ALI): This is a dirty hack to up left the slots and make them not touch the hand, do somthing better! -->
 			<div
 				class={['invisible cursor-pointer touch-none', FEEL.CardWidth]}
 				style:aspect-ratio={FEEL.glyphAspectRatio}
 			></div>
-			<PileButton glyphs={Object.values(arena.discardPile)} title="Discard pile" />
+
+			<PileButton
+				onclick={() => arena.setCurrentView('discard')}
+				number={Object.keys(arena.discardPile).length}
+				label="Show discard pile"
+				type="discard"
+			/>
 		</div>
 	</div>
 	{#if arena.currentView === 'perks'}
 		<PerksRack />
+	{:else if arena.currentView === 'draw'}
+		<GlyphsList title="Draw pile" glyphs={Object.values(arena.drawPile)} />
+	{:else if arena.currentView === 'discard'}
+		<GlyphsList title="Discard pile" glyphs={Object.values(arena.discardPile)} />
 	{/if}
 
+	<!-- debugging buttons -->
 	<div class="absolute top-10 left-1/2 flex -translate-1/2 bg-red-200/20 p-4">
 		<button
 			onclick={() => arena.changeToNextPlayerTurn()}

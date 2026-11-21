@@ -10,6 +10,7 @@
 	import { slide } from 'svelte/transition';
 	import PerksButton from './PerksButton.svelte';
 	import PlayerHUD from './PlayerHUD.svelte';
+	import TurnBanner from './TurnBanner.svelte';
 
 	setArena();
 	let arena = getArena();
@@ -47,8 +48,13 @@
 	{/if}
 
 	<div class="absolute top-10 left-1/2 flex -translate-1/2 bg-red-200/20 p-4">
-		<button onclick={() => arena.changeToNextPlayerTurn()} class="bg-green-950 text-arena-yallow-100 py-1 px-1 rounded cursor-pointer">Change turn</button>
+		<button
+			onclick={() => arena.changeToNextPlayerTurn()}
+			class="cursor-pointer rounded bg-green-950 px-1 py-1 text-arena-yallow-100"
+			>Change turn</button
+		>
 	</div>
+	<TurnBanner />
 </div>
 
 <style>

@@ -40,33 +40,6 @@
 </div>
 
 <style>
-	/* .shake {
-		animation: shakeAnim 300ms cubic-bezier(0.45, 0, 0.55, 1) infinite;
-	}
-
-	@keyframes shakeAnim {
-		0% {
-			transform: translate(0, 0);
-			filter: none;
-		}
-		15% {
-			transform: translate(-12px, 4px);
-			filter: sepia(1) saturate(5) hue-rotate(-50deg);
-		}
-		40% {
-			transform: translate(10px, 4px);
-		}
-		60% {
-			transform: translate(-6px, 3px);
-		}
-		80% {
-			transform: translate(3px, 1px);
-			filter: sepia(1) saturate(5) hue-rotate(-50deg);
-		}
-		100% {
-			transform: translate(0, 0);
-		}
-	} */
 	.valid-animation {
 		animation: valid-frames 300ms cubic-bezier(0.45, 0, 0.55, 1) infinite;
 		--filter: sepia(1) saturate(4) hue-rotate(80deg);

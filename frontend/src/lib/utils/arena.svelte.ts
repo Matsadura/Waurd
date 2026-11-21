@@ -1,4 +1,5 @@
 import { getContext, setContext } from 'svelte';
+import { Player } from './Player.svelte';
 
 export type Glyph = { id: string; letter: string };
 type ElementList = (HTMLElement | undefined)[];
@@ -22,8 +23,10 @@ export type activeView = 'slots' | 'perks' | 'draw' | 'discard';
 export type WordSubmitPhase = 'idle' | 'checking' | 'invalid' | 'valid';
 
 export class Arena {
+	#clock: ReturnType<typeof setInterval> | undefined;
 	readonly slotCount = 8;
 
+	/* My glyphs and perks */
 	glyphs = $state<Record<string, Glyph>>(
 		Object.fromEntries(
 			[...'ABCDEFYGHIGKL', 'ER'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }])
@@ -38,15 +41,56 @@ export class Arena {
 	slots = $state<(string | null)[]>(Array(this.slotCount).fill(null));
 	hand = $derived(Object.keys(this.glyphs).filter((g) => !this.slots.includes(g)));
 
-	overIndex = $state(-1); // index of the thing the glyph is over in current time
+	overIndex = $state(-1); // index of the thing the glyph is over in current time (For now can be perk or word slot)
 
 	#slotEls: ElementList = [];
 	#perksEls: ElementList = [];
 
+	/* Rendering */
 	dragging = false;
 	currentView: activeView = $state('slots');
-
 	phase: WordSubmitPhase = $state('idle');
+
+	/* Players states */
+	me = new Player({
+		name: '13s1ing_1s_3v3r37hing',
+		avatar: 'https://avatars.githubusercontent.com/u/104344010',
+		maxHp: 100,
+		hp: 98,
+		timeLeft: 9000,
+		effects: [
+			{ name: 'attack', amount: 5 },
+			{ name: 'defense', amount: 5 }
+		],
+		label: 'You'
+	});
+	opponent = new Player({ name: 'World', maxHp: 100, timeLeft: 650, label: 'Opponent' });
+
+	/* Game engine */
+	turn = $state<'me' | 'opponent'>('opponent');
+	constructor() {
+		$effect(() => {
+			this.continuePlayerClock();
+			return () => this.clearClock();
+		});
+	}
+
+	clearClock() {
+		clearInterval(this.#clock);
+		this.#clock = undefined;
+	}
+
+	continuePlayerClock() {
+		this.clearClock();
+		console.log('Hello world');
+		this.#clock = setInterval(() => {
+			const activePlayer = this[this.turn];
+			activePlayer.timeLeft--;
+			if (activePlayer.timeLeft < 0) {
+				activePlayer.timeLeft = 69;
+			}
+		}, 1000);
+	}
 
 	async playWrongErrorAnimatino() {}
 
@@ -185,6 +229,10 @@ export class Arena {
 	showPerksView() {
 		this.currentView = 'perks';
 		this.slots.fill(null);
+	}
+
+	changeToNextPlayerTurn() {
+		this.turn = this.turn === 'me' ? 'opponent' : 'me';
 	}
 }
 

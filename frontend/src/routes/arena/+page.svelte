@@ -9,6 +9,7 @@
 	import PerksRack from '#lib/components/arena/PerksRack.svelte';
 	import { slide } from 'svelte/transition';
 	import PerksButton from './PerksButton.svelte';
+	import PlayerHUD from './PlayerHUD.svelte';
 
 	setArena();
 	let arena = getArena();
@@ -19,6 +20,12 @@
 >
 	<Hand />
 	<div class="contents" inert={arena.currentView === 'perks'}>
+		<div
+			class="mt-4 mb-auto flex flex-col items-stretch gap-2 px-3 md:flex-row md:items-start md:justify-between md:px-10"
+		>
+			<PlayerHUD player={arena.me} side="right" isTurn={arena.turn === 'me'} />
+			<PlayerHUD player={arena.opponent} side="left" isTurn={arena.turn === 'opponent'} />
+		</div>
 		<Slots />
 		<div class="mt-4 mr-10 flex w-fit gap-4 self-end lg:mr-32">
 			<CastButton />
@@ -38,6 +45,10 @@
 	{#if arena.currentView === 'perks'}
 		<PerksRack />
 	{/if}
+
+	<div class="absolute top-10 left-1/2 flex -translate-1/2 bg-red-200/20 p-4">
+		<button onclick={() => arena.changeToNextPlayerTurn()} class="bg-green-950 text-arena-yallow-100 py-1 px-1 rounded cursor-pointer">Change turn</button>
+	</div>
 </div>
 
 <style>

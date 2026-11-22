@@ -1,14 +1,53 @@
+import uuid
+from pathlib import Path
+
+from backend.core.config import settings
+from backend.core.identifiers import user_id_to_bytes
+from backend.core.session_store import RedisSessionStore
+from backend.db.session import async_session_maker
 from backend.game.models import Match
 from backend.game.rules import cast_word, pass_turn, start_turn
 from backend.game.setup import load_words, new_match
+from backend.models.match import MatchStatus
+from backend.repositories.match import MatchRepository
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from pathlib import Path
 
 router = APIRouter()
 DATA_DIR = Path(__file__).parent.parent / "data"
 WORDS = load_words(DATA_DIR / "enable1.txt")
 matches: dict[str, Match] = {}
 sockets: dict[int, list[WebSocket]] = {}
+
+
+async def user_id_from_cookie(ws: WebSocket) -> str | None:
+    """The logged-in user's id, read the same way get_current_user does."""
+    session_id = ws.cookies.get(settings.SESSION_COOKIE_NAME)
+    if not session_id:
+        return None
+    store = RedisSessionStore(
+        ws.app.state.redis, ttl_seconds=settings.SESSION_TTL_SECONDS
+    )
+    session = await store.get_session(session_id)
+    return session["user_id"] if session else None
+
+
+async def seat_in_match(match_id: str, user_id: str) -> int | None:
+    """0 if the user is player1 of this active match, 1 if player2, else None."""
+    try:
+        match_id_bytes = uuid.UUID(match_id).bytes
+    except ValueError:
+        return None
+    async with async_session_maker() as db:
+        record = await MatchRepository(db).get_match_by_id(match_id_bytes)
+    if record is None or record.status != MatchStatus.ACTIVE:
+        return None
+
+    user_id_bytes = user_id_to_bytes(user_id)
+    if record.player1_id == user_id_bytes:
+        return 0
+    if record.player2_id == user_id_bytes:
+        return 1
+    return None
 
 
 def view(match: Match, me: int) -> dict:
@@ -39,8 +78,16 @@ async def broadcast(match_id: str) -> None:
         await socket.send_json(view(match, me))
 
 
-@router.websocket("/matches/{match_id}/{me}")
-async def play(ws: WebSocket, match_id: str, me: int):
+@router.websocket("/matches/{match_id}")
+async def play(ws: WebSocket, match_id: str) -> None:
+    if ws.headers.get("origin") not in settings.CORS_ORIGINS:
+        await ws.close()
+        return
+    user_id = await user_id_from_cookie(ws)
+    me = await seat_in_match(match_id, user_id) if user_id else None
+    if me is None:
+        await ws.close()
+        return
     await ws.accept()
     if match_id not in matches:
         matches[match_id] = new_match(seed=None)

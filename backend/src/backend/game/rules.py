@@ -75,3 +75,11 @@ def resign(match: Match, player_index: int) -> None:
         raise ValueError("Match is already over.")
     match.winner = 1 - player_index
     match.end_reason = "RESIGNATION"
+
+
+def lose_by_disconnect(match: Match, player_index: int) -> None:
+    """The player left and didn't come back in time: the other player wins."""
+    if match.winner is not None:
+        raise ValueError("Match is already over.")
+    match.winner = 1 - player_index
+    match.end_reason = "DISCONNECT"

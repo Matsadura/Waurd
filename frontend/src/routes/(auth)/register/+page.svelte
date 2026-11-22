@@ -1,27 +1,22 @@
 <script lang="ts">
 	import FormField from '#lib/components/auth/FormField.svelte';
-	import AuthButton from '#lib/components/auth/AuthButton.svelte';
 	import SocialLogin from '#lib/components/auth/SocialLogin.svelte';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Checkbox from '#lib/components/ui/Checkbox.svelte';
+	import Notice from '#lib/components/ui/Notice.svelte';
+	import { PUBLIC_BACKEND_URL } from '$app/env/public';
+	import type { ActionData } from './$types';
 
-	let email = $state('');
+	let { form }: { form: ActionData | null } = $props();
+
+	let username = $derived(form?.values.username ?? '');
+	let email = $derived(form?.values.email ?? '');
 	let password = $state('');
 	let confirmPassword = $state('');
 	let termsAccepted = $state(false);
-	let showTermsError = $state(false);
-
-	function handleSubmit(event: SubmitEvent) {
-		event.preventDefault();
-
-		if (!termsAccepted) {
-			showTermsError = true;
-			return;
-		}
-		showTermsError = false;
-		// TODO: register API
-	}
 
 	function handleGoogle() {
-		// TODO: google sign-in
+		window.location.assign(`${PUBLIC_BACKEND_URL}/api/v1/auth/google`);
 	}
 </script>
 
@@ -29,63 +24,47 @@
 	<title>Register</title>
 </svelte:head>
 
-<form class="flex w-full flex-col items-center" onsubmit={handleSubmit}>
+<form method="POST" class="flex flex-col gap-5">
+	<FormField
+		label="Username"
+		name="username"
+		type="text"
+		autocomplete="username"
+		bind:value={username}
+	/>
 	<FormField label="Email" name="email" type="email" autocomplete="email" bind:value={email} />
-
 	<FormField
 		label="Password"
 		name="password"
 		type="password"
 		autocomplete="new-password"
 		bind:value={password}
-		class="mt-3 sm:mt-5"
 	/>
-
 	<FormField
 		label="Confirm Password"
 		name="confirm-password"
 		type="password"
 		autocomplete="new-password"
 		bind:value={confirmPassword}
-		class="mt-3 sm:mt-5"
 	/>
 
-	<!-- Terms of Service -->
-	<div class="mt-6 flex items-center justify-center gap-2 text-sm">
-		<input
-			id="terms"
-			name="terms"
-			type="checkbox"
-			bind:checked={termsAccepted}
-			onchange={() => {
-				if (termsAccepted) {
-					showTermsError = false;
-				}
-			}}
-			class="size-5 cursor-pointer accent-accent-action"
-		/>
+	<Checkbox name="terms" required bind:checked={termsAccepted}>
+		I agree to the
+		<a
+			href="/terms"
+			target="_blank"
+			rel="noopener noreferrer"
+			class="text-primary-light underline underline-offset-4 transition-colors hover:text-bone"
+		>
+			Terms of Service
+		</a>
+	</Checkbox>
 
-		<label for="terms" class="cursor-pointer text-white">
-			I agree to all
-			<a
-				href="/terms"
-				target="_blank"
-				rel="noopener noreferrer"
-				class="font-bold underline"
-				onclick={(event) => event.stopPropagation()}
-			>
-				Terms of Service
-			</a>
-		</label>
-	</div>
+	<Button type="submit" size="lg" class="mt-2 w-full">Register</Button>
 
-	<AuthButton class="mt-12 mb-2">REGISTER</AuthButton>
-
-	<p class="mt-2 mb-2 min-h-5 text-center text-base text-[#ff0000] sm:mt-3 sm:text-lg" role="alert">
-		{#if showTermsError}
-			*You must accept our Terms of Service
-		{/if}
-	</p>
+	{#if form?.error}
+		<Notice>{form.error}</Notice>
+	{/if}
 
 	<SocialLogin ongoogle={handleGoogle} />
 </form>

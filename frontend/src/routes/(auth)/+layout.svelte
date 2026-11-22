@@ -1,56 +1,32 @@
 <script lang="ts">
-	import { page } from '$app/state';
 	import WaurdLogo from '#lib/components/WaurdLogo.svelte';
+	import Divider from '#lib/components/ui/Divider.svelte';
+	import Frame from '#lib/components/ui/Frame.svelte';
+	import Tabs from '#lib/components/ui/Tabs.svelte';
 
 	let { children } = $props();
 
 	const tabs = [
-		{ href: '/login', label: 'LOGIN' },
-		{ href: '/register', label: 'REGISTER' },
-		{ href: '/reset-password', label: 'RESET PASSWORD' }
+		{ href: '/login', label: 'Login' },
+		{ href: '/register', label: 'Register' }
 	];
 </script>
 
+<div class="stage" aria-hidden="true"></div>
+
 <div
-	class="auth-page relative flex min-h-dvh w-full min-w-0 flex-col items-center overflow-hidden bg-background bg-[url('/images/background.png')]
-		bg-cover bg-center bg-no-repeat pt-12 font-rajdhani font-bold text-text-primary"
+	class="flex min-h-dvh w-full min-w-0 flex-col items-center px-4 pt-8 pb-10 font-body text-bone sm:pt-12"
 >
-	<header class="auth-header my-4">
+	<header class="mt-6 mb-10">
 		<WaurdLogo href="/login" size="large" />
 	</header>
 
-	<div class="auth-column @container w-full max-w-2xl">
-		<nav class="auth-tabs mb-6 flex flex-wrap justify-center gap-2 px-5 text-lg sm:flex-row">
-			{#each tabs as tab (tab.href)}
-				<a
-					href={tab.href}
-					class="relative flex min-h-10 min-w-0 grow items-center justify-center
-							rounded-md bg-accent-red
-							text-center leading-[1.33] whitespace-nowrap
-							text-white no-underline
-							shadow-[0_0.42em_0.5em_rgba(0,0,0,0.45)]"
-					aria-current={page.url.pathname === tab.href ? 'page' : undefined}
-				>
-					{tab.label}
-				</a>
-			{/each}
-		</nav>
+	<Frame class="w-full max-w-lg">
+		<Tabs items={tabs} label="Account" class="justify-center gap-10 text-2xl" />
+		<Divider class="my-6" />
 
-		<main class="mx-auto w-[max(65%,min(88%,20rem))]">
+		<main class="mx-auto w-full max-w-sm">
 			{@render children()}
 		</main>
-	</div>
+	</Frame>
 </div>
-
-<style>
-	.auth-tabs a[aria-current='page']::before {
-		content: '';
-		position: absolute;
-		left: 50%;
-		top: -0.62em;
-		transform: translateX(-50%);
-		border-left: 0.42em solid transparent;
-		border-right: 0.42em solid transparent;
-		border-top: 0.62em solid var(--color-accent-red);
-	}
-</style>

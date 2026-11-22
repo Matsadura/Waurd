@@ -8,14 +8,16 @@
 		autocomplete,
 		required = true,
 		value = $bindable(''),
+		error,
 		class: className = ''
 	}: {
 		label: string;
 		name: string;
-		type?: 'text' | 'email' | 'password';
+		type?: 'text' | 'email' | 'password' | 'checkbox';
 		autocomplete?: HTMLInputAttributes['autocomplete'];
 		required?: boolean;
 		value?: string;
+		error?: string; // optional message under the field
 		class?: string;
 	} = $props();
 
@@ -23,10 +25,8 @@
 	const id = $props.id();
 </script>
 
-<div class={['mb-2 flex w-full flex-col items-center', className]}>
-	<label for={id} class="mb-1.5 text-center text-lg font-bold text-white">
-		{label}
-	</label>
+<div class={['flex w-full flex-col gap-1.5', className]}>
+	<label for={id} class="field-label">{label}</label>
 
 	<input
 		{id}
@@ -35,6 +35,12 @@
 		{autocomplete}
 		{required}
 		bind:value
-		class="h-10 w-full rounded-xl border-0 bg-[#2d353c] px-4 text-center text-white shadow-[0_2px_4px_rgba(0,0,0,0.4)] focus:ring-white"
+		class="field"
+		aria-invalid={error ? 'true' : undefined}
+		aria-describedby={error ? `${id}-error` : undefined}
 	/>
+
+	{#if error}
+		<p id="{id}-error" class="field-error">{error}</p>
+	{/if}
 </div>

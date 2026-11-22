@@ -1,25 +1,14 @@
 @import 'tailwindcss';
-@plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
 
-@font-face {
-	font-family: 'Henny Penny';
-	src: url('/fonts/HennyPenny-Regular.ttf') format('truetype');
-	font-weight: 400;
-	font-style: normal;
-}
-
-@font-face {
-	font-family: 'Rajdhani';
-	src: url('/fonts/Rajdhani-Bold.ttf') format('truetype');
-	font-weight: 700;
-	font-style: normal;
-}
+/** fonts */
+@import '@fontsource-variable/eb-garamond';
+@import '@fontsource/im-fell-english';
 
 @theme {
 	--color-background: #100d14;
 	--color-text-primary: #f5f3f5;
-	--color-accent: #fa8c01;
+	--color-accent: #fff1c3;
 	--color-accent-red: #ef4637;
 	--color-accent-action: #ff8a00;
 
@@ -27,6 +16,291 @@
 	--font-henny-penny: 'Henny Penny', cursive;
 }
 
-body {
-	font-family: var(--font-rajdhani);
+/** Rewrite */
+
+@theme static {
+	--font-display: 'IM Fell English', Georgia, serif;
+	--font-body: 'EB Garamond Variable', serif;
+
+	/* Surfaces */
+	--color-ink-950: #0a0604;
+	--color-ink-900: #120e0b;
+	--color-ink-800: #1c1611;
+	--color-ink-700: #2a2118;
+
+	/* Text and lines */
+	--color-bone: #e6dcc8;
+	--color-ash: #a39a86;
+	--color-bronze: #8a6f3e;
+
+	/* Semantic colors: base = filled buttons, light = text/outline on dark */
+	--color-primary: #7a3d1c;
+	--color-primary-light: #c9753a;
+	--color-secondary: #4a4338;
+	--color-secondary-light: #a39a86;
+	--color-success: #4f6b32;
+	--color-success-light: #9bb36b;
+	--color-danger: #8a2c21;
+	--color-danger-light: #d0705d;
+	--color-warning: #86601a;
+	--color-warning-light: #d6b36a;
+	--color-info: #34595f;
+	--color-info-light: #86b0ba;
+}
+
+:root {
+	--grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .9 0 0 0 0 .82 0 0 0 0 .7 0 0 0 .1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@layer components {
+	.stage {
+		@apply fixed inset-0 -z-10;
+		background: radial-gradient(
+			ellipse at 50% 30%,
+			#3a2416 0%,
+			#1a1009 55%,
+			var(--color-ink-950) 100%
+		);
+	}
+
+	/* ---- Button ---- */
+	.btn {
+		--c: var(--color-primary);
+		--cl: var(--color-primary-light);
+		@apply inline-flex cursor-pointer items-center justify-center gap-2 px-5 py-1.5 font-body text-lg text-bone select-none;
+		background: var(--grain), var(--c);
+		border: 1px solid transparent;
+		transition:
+			filter 0.15s,
+			color 0.15s,
+			border-color 0.15s;
+	}
+	.btn[data-variant='secondary'] {
+		--c: var(--color-secondary);
+		--cl: var(--color-secondary-light);
+	}
+	.btn[data-variant='success'] {
+		--c: var(--color-success);
+		--cl: var(--color-success-light);
+	}
+	.btn[data-variant='danger'] {
+		--c: var(--color-danger);
+		--cl: var(--color-danger-light);
+	}
+	.btn[data-variant='warning'] {
+		--c: var(--color-warning);
+		--cl: var(--color-warning-light);
+	}
+	.btn[data-variant='info'] {
+		--c: var(--color-info);
+		--cl: var(--color-info-light);
+	}
+	.btn[data-size='sm'] {
+		@apply px-3 py-0.5 text-base;
+	}
+	.btn[data-size='lg'] {
+		@apply px-7 py-2.5 text-xl;
+	}
+	.btn:hover {
+		filter: brightness(1.15);
+	}
+	.btn:active {
+		transform: translateY(-1px);
+	}
+	.btn:focus-visible {
+		outline: 1px solid var(--color-bone);
+		outline-offset: 3px;
+	}
+	.btn[data-outline] {
+		background: transparent;
+		color: var(--cl);
+		border-color: var(--cl);
+	}
+	.btn[data-outline]:hover {
+		background: var(--grain), var(--c);
+		color: var(--color-bone);
+		border-color: transparent;
+		filter: none;
+	}
+	.btn:disabled,
+	.btn[aria-disabled='true'] {
+		@apply cursor-not-allowed opacity-45;
+	}
+
+	/* ---- Frame ---- */
+	.frame {
+		@apply relative text-bone;
+		isolation: isolate;
+	}
+	.frame[data-variant='torn'] {
+		@apply p-5 sm:p-9;
+	}
+
+	.frame[data-variant='torn']::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		background: var(--grain), linear-gradient(180deg, var(--color-ink-800), var(--color-ink-900));
+		filter: url(#torn);
+	}
+
+	.frame[data-variant='bg']::before {
+		content: '';
+		position: fixed;
+		inset: 0;
+		z-index: -1;
+		pointer-events: none;
+		background: var(--grain), linear-gradient(180deg, var(--color-ink-700), var(--color-ink-950));
+	}
+
+	.frame[data-variant='double-border'] {
+		@apply px-6 py-5;
+		background: rgb(8 6 4 / 0.35);
+		border: 1px solid color-mix(in srgb, var(--color-bronze) 50%, transparent);
+		outline: 1px solid color-mix(in srgb, var(--color-bronze) 25%, transparent);
+		outline-offset: -7px;
+	}
+
+	.frame[data-variant='border'] {
+		@apply p-0.5 text-center;
+		border: 1px solid color-mix(in srgb, var(--color-bronze) 50%, transparent);
+	}
+
+	.rule {
+		@apply h-px border-0;
+		background: linear-gradient(
+			90deg,
+			transparent,
+			color-mix(in srgb, var(--color-bronze) 60%, transparent),
+			transparent
+		);
+	}
+
+	/* ---- Tabs ---- */
+	.tab {
+		@apply border-b border-transparent pb-0.5 text-ash transition-colors hover:text-bone;
+	}
+	.tab[aria-current='page'] {
+		@apply border-bronze text-bone;
+	}
+
+	/* ---- Row (inventory line, hover = copper bar) ---- */
+	.row {
+		@apply flex items-center justify-between gap-4 px-4 py-3 transition-colors;
+	}
+	.row-sub,
+	.row-note {
+		@apply text-ash;
+	}
+	.row:hover,
+	.row:focus-visible {
+		background: var(--grain), var(--color-primary);
+		outline: none;
+	}
+	.row:hover .row-sub,
+	.row:focus-visible .row-sub,
+	.row:hover .row-note,
+	.row:focus-visible .row-note {
+		@apply text-bone;
+	}
+
+	/* ---- Stat (label left, value right) ---- */
+	.stat {
+		@apply flex justify-between gap-4 py-1;
+		font-variant-numeric: lining-nums tabular-nums;
+	}
+	.stat dd {
+		@apply text-right;
+	}
+
+	/* ---- Avatar and Meter ---- */
+	.avatar {
+		@apply flex size-16 shrink-0 items-center justify-center overflow-hidden bg-ink-900 font-display text-3xl text-bone;
+		background-image: var(--grain);
+		outline: 1px solid var(--color-bronze);
+		outline-offset: 3px;
+	}
+	.meter {
+		@apply h-0.5 bg-bone/10;
+	}
+	.meter > i {
+		@apply block h-full bg-primary-light;
+	}
+
+	/* Forms UI */
+	/* ---- Field: text inputs, styled on top of @tailwindcss/forms (this layer wins over its base styles) ---- */
+	.field {
+		@apply w-full rounded-sm px-4 py-2 font-body text-lg text-bone placeholder:text-ash/60;
+		background-color: color-mix(in srgb, var(--color-ink-950) 70%, transparent);
+		border: 1px solid color-mix(in srgb, var(--color-bronze) 45%, transparent);
+		box-shadow: none;
+		transition:
+			border-color 0.15s,
+			background-color 0.15s;
+	}
+	.field:hover {
+		border-color: color-mix(in srgb, var(--color-bronze) 80%, transparent);
+	}
+	.field:focus {
+		background-color: var(--color-ink-950);
+		border-color: var(--color-bone);
+		box-shadow: none;
+		outline: 1px solid color-mix(in srgb, var(--color-bone) 30%, transparent);
+		outline-offset: 2px;
+	}
+	.field[aria-invalid='true'] {
+		border-color: var(--color-danger-light);
+	}
+	/* Stops Chrome from painting its white/yellow autofill background */
+	.field:-webkit-autofill {
+		-webkit-text-fill-color: var(--color-bone);
+		transition: background-color 600000s 0s;
+	}
+	.field-label {
+		@apply text-lg text-bone;
+	}
+	.field-error {
+		@apply text-base text-danger-light;
+	}
+
+	/* ---- Notice: short message with a coloured edge ---- */
+	.notice {
+		--c: var(--color-red-500);
+		@apply pl-2 text-lg;
+		border-color: var(--c);
+		color: var(--c);
+	}
+	.notice::before {
+		content: '*';
+		font-size: var(--text-2xl);
+	}
+	.notice[data-variant='success'] {
+		--c: var(--color-success-light);
+	}
+	.notice[data-variant='warning'] {
+		--c: var(--color-warning);
+	}
+	.notice[data-variant='info'] {
+		--c: var(--color-info-light);
+	}
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.fade-in {
+		animation: fade-in 0.8s ease-out backwards;
+	}
+	.meter > i {
+		animation: meter-fill 1s ease-out 0.4s backwards;
+	}
+}
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+}
+@keyframes meter-fill {
+	from {
+		width: 0;
+	}
 }

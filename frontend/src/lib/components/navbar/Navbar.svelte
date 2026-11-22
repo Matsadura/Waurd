@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import WaurdLogo from '#lib/components/WaurdLogo.svelte';
 	import SearchBar from './SearchBar.svelte';
 	import ProfileMenu from './ProfileMenu.svelte';
 	import MobileNav from './MobileNav.svelte';
+	import Button from '../ui/Button.svelte';
 
 	const navLinks = [
 		{ href: '/play', label: 'PLAY', icon: 'gamepad-2' },
@@ -13,7 +13,7 @@
 
 	let mobileMenuOpen = $state(false);
 	let profileMenuOpen = $state(false);
-	const username = 'PlayerName'; // TODO: Replace with authenticated user data.
+	const username = 'kirito_19'; // TODO: Replace with authenticated user data.
 
 	function openMobileMenu() {
 		profileMenuOpen = false;
@@ -68,7 +68,8 @@
 				</svg>
 			</button>
 
-			<WaurdLogo href="/play" size="small" />
+			<!-- <WaurdLogo href="/play" size="small" /> -->
+			<Button class="font-serif font-bold" href="/" variant="info">WAURD</Button>
 
 			<!-- Desktop navigation -->
 			<div class="hidden shrink-0 items-center gap-3 md:flex lg:gap-6">
@@ -91,7 +92,7 @@
 			</div>
 
 			<!-- Notification button -->
-			<!-- TODO: Connect notifications and unread status to backend data -->
+			<!-- TODO(Anass): Connect notifications and unread status to backend data -->
 			<button
 				type="button"
 				aria-label="Notifications"
@@ -111,7 +112,7 @@
 					<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
 					<path d="M10 21h4" />
 				</svg>
-				<!-- TODO: Show this indicator only when unread notifications exist -->
+				<!-- TODO(Anass): Show this indicator only when unread notifications exist -->
 				<span
 					class="absolute top-2 right-2 size-1.5 rounded-full
 						bg-accent-red"

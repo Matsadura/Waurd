@@ -1,24 +1,9 @@
 @import 'tailwindcss';
-@plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
 
 /** fonts */
 @import '@fontsource-variable/eb-garamond';
 @import '@fontsource/im-fell-english';
-
-@font-face {
-	font-family: 'Henny Penny';
-	src: url('/fonts/HennyPenny-Regular.ttf') format('truetype');
-	font-weight: 400;
-	font-style: normal;
-}
-
-@font-face {
-	font-family: 'Rajdhani';
-	src: url('/fonts/Rajdhani-Bold.ttf') format('truetype');
-	font-weight: 700;
-	font-style: normal;
-}
 
 @theme {
 	--color-background: #100d14;
@@ -162,9 +147,10 @@
 
 	.frame[data-variant='bg']::before {
 		content: '';
-		position: absolute;
+		position: fixed;
 		inset: 0;
 		z-index: -1;
+		pointer-events: none;
 		background: var(--grain), linear-gradient(180deg, var(--color-ink-700), var(--color-ink-950));
 	}
 
@@ -240,6 +226,63 @@
 	}
 	.meter > i {
 		@apply block h-full bg-primary-light;
+	}
+
+	/* Forms UI */
+	/* ---- Field: text inputs, styled on top of @tailwindcss/forms (this layer wins over its base styles) ---- */
+	.field {
+		@apply w-full rounded-sm px-4 py-2 font-body text-lg text-bone placeholder:text-ash/60;
+		background-color: color-mix(in srgb, var(--color-ink-950) 70%, transparent);
+		border: 1px solid color-mix(in srgb, var(--color-bronze) 45%, transparent);
+		box-shadow: none;
+		transition:
+			border-color 0.15s,
+			background-color 0.15s;
+	}
+	.field:hover {
+		border-color: color-mix(in srgb, var(--color-bronze) 80%, transparent);
+	}
+	.field:focus {
+		background-color: var(--color-ink-950);
+		border-color: var(--color-bone);
+		box-shadow: none;
+		outline: 1px solid color-mix(in srgb, var(--color-bone) 30%, transparent);
+		outline-offset: 2px;
+	}
+	.field[aria-invalid='true'] {
+		border-color: var(--color-danger-light);
+	}
+	/* Stops Chrome from painting its white/yellow autofill background */
+	.field:-webkit-autofill {
+		-webkit-text-fill-color: var(--color-bone);
+		transition: background-color 600000s 0s;
+	}
+	.field-label {
+		@apply text-lg text-bone;
+	}
+	.field-error {
+		@apply text-base text-danger-light;
+	}
+
+	/* ---- Notice: short message with a coloured edge ---- */
+	.notice {
+		--c: var(--color-red-500);
+		@apply pl-2 text-lg;
+		border-color: var(--c);
+		color: var(--c);
+	}
+	.notice::before {
+		content: '*';
+		font-size: var(--text-2xl);
+	}
+	.notice[data-variant='success'] {
+		--c: var(--color-success-light);
+	}
+	.notice[data-variant='warning'] {
+		--c: var(--color-warning);
+	}
+	.notice[data-variant='info'] {
+		--c: var(--color-info-light);
 	}
 }
 

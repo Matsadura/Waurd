@@ -1,7 +1,8 @@
 <script lang="ts">
 	import FormField from '#lib/components/auth/FormField.svelte';
-	import AuthButton from '#lib/components/auth/AuthButton.svelte';
 	import SocialLogin from '#lib/components/auth/SocialLogin.svelte';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Notice from '#lib/components/ui/Notice.svelte';
 	import { PUBLIC_BACKEND_URL } from '$app/env/public';
 	import type { ActionData } from './$types';
 
@@ -19,25 +20,21 @@
 	<title>Login</title>
 </svelte:head>
 
-<form method="POST" class="flex w-full flex-col items-center">
+<form method="POST" class="flex flex-col gap-5">
 	<FormField label="Email" name="email" type="email" autocomplete="email" bind:value={email} />
-
 	<FormField
 		label="Password"
 		name="password"
 		type="password"
 		autocomplete="current-password"
 		bind:value={password}
-		class="mt-3 sm:mt-5"
 	/>
 
-	<AuthButton class="mt-12 mb-2">LOGIN</AuthButton>
-
-	<p class="mt-2 min-h-5 text-center text-base text-[#ff0000] sm:mt-3 sm:text-lg" role="alert">
-		{#if form?.error}
-			*{form.error}
-		{/if}
-	</p>
+	<Button type="submit" size="lg" class="mt-2 w-full">Login</Button>
+	
+	{#if form?.error}
+		<Notice>{form.error}</Notice>
+	{/if}
 
 	<SocialLogin ongoogle={handleGoogle} />
 </form>

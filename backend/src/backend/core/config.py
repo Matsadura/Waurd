@@ -32,14 +32,8 @@ class Settings(BaseSettings):
         )
 
     # Redis Configuration
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: int = 6379
-    REDIS_PASSWORD: str | None = None
-    REDIS_DB: int = 0
     REDIS_POOL_SIZE: int = 20
-    REDIS_URL: str = (
-        os.getenv("REDIS_URL") or "redis://localhost:6379/0"
-    )  # Default value; will be overridden by computed property
+    REDIS_URL: str = os.getenv("REDIS_URL") or "redis://localhost:6379/0"
 
     # Google OAuth
     GOOGLE_CLIENT_ID: str | None = None
@@ -75,12 +69,6 @@ class Settings(BaseSettings):
     MAIL_PORT: int = 587
     MAIL_STARTTLS: bool = True
     MAIL_SSL_TLS: bool = False
-
-    # @computed_field
-    # @property
-    # def REDIS_URL(self) -> str:
-    #     auth = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
-    #     return f"redis://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
     # Cookie & Session Security
     SESSION_COOKIE_NAME: str = "session_id"

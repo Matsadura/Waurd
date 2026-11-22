@@ -1,5 +1,4 @@
 from backend.db.base import Base
-from backend.models.achievement_words import AchievementWord, UserAchievementWord
 from backend.models.achievements import Achievement
 from backend.models.chat import ChannelType, ChatMessage
 from backend.models.friendship import Friendship, FriendshipStatus

@@ -33,7 +33,7 @@ services:
         condition: service_healthy
 
   db:
-    image: mysql:latest
+    image: mysql:8.4
     container_name: mysql-container
     restart: always
     environment:
@@ -46,14 +46,14 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-root_password}"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-root_password}" ]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 15s
 
   redis:
-    image: redis:latest
+    image: redis:8.2
     container_name: redis-container
     restart: always
     ports:
@@ -61,17 +61,19 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 15s
+
   adminer:
-    image: adminer:latest
+    image: adminer:5
     container_name: adminer-container
     restart: always
     ports:
       - '8080:8080'
+
 volumes:
   redis_data:
     driver: local

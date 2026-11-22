@@ -53,12 +53,8 @@ async def user_id_from_cookie(ws: WebSocket) -> str | None:
 
 async def seat_in_match(match_id: str, user_id: str) -> int | None:
     """0 if the user is player1 of this active match, 1 if player2, else None."""
-    try:
-        match_id_bytes = uuid.UUID(match_id).bytes
-    except ValueError:
-        return None
     async with async_session_maker() as db:
-        record = await MatchRepository(db).get_match_by_id(match_id_bytes)
+        record = await MatchRepository(db).get_match_by_id(uuid.UUID(match_id).bytes)
     if record is None or record.status != MatchStatus.ACTIVE:
         return None
 
@@ -73,8 +69,8 @@ async def seat_in_match(match_id: str, user_id: str) -> int | None:
 async def update_stats(db: AsyncSession, record: MatchRecord) -> None:
     """Wins, losses, damage, Elo and XP for both players, plus the Elo history."""
     stats = UserStatsRepository(db)
-    p1 = await stats.get_by_user_id(record.player1_id)
-    p2 = await stats.get_by_user_id(record.player2_id)
+    p1 = await stats.get_by_id(record.player1_id)
+    p2 = await stats.get_by_id(record.player2_id)
 
     user_repo = UserRepository(db)
     user1 = await user_repo.get_by_id(record.player1_id)
@@ -106,22 +102,32 @@ async def update_stats(db: AsyncSession, record: MatchRecord) -> None:
 
 
 async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
-    """Write the result to MySQL, then let both players queue again."""
+    """Write the result to MySQL, then let both players queue again.
+
+    The result is committed on its own first, so a failure in the stats step
+    can't leave the match ACTIVE and the players unable to queue."""
+    match_id_bytes = uuid.UUID(match_id).bytes
     async with async_session_maker() as db:
         record = await MatchRepository(db).finish_match(
-            uuid.UUID(match_id).bytes,
+            match_id_bytes,
             winner_seat=match.winner,
             player1_hp=match.players[0].hp,
             player2_hp=match.players[1].hp,
             total_turns=match.turn,
             end_reason=match.end_reason,
         )
-        await update_stats(db, record)
         await db.commit()
+        player_ids = (record.player1_id, record.player2_id)
 
-    queue_store = MatchmakingQueueStore(app.state.redis)
-    for player_id in (record.player1_id, record.player2_id):
-        await queue_store.clear_matched_ticket(user_id_to_string(player_id))
+    try:
+        async with async_session_maker() as db:
+            record = await MatchRepository(db).get_match_by_id(match_id_bytes)
+            await update_stats(db, record)
+            await db.commit()
+    finally:
+        queue_store = MatchmakingQueueStore(app.state.redis)
+        for player_id in player_ids:
+            await queue_store.clear_matched_ticket(user_id_to_string(player_id))
 
 
 async def end_match(app: FastAPI, match_id: str, match: Match) -> None:
@@ -133,7 +139,7 @@ async def end_match(app: FastAPI, match_id: str, match: Match) -> None:
 
 
 async def end_if_still_gone(app: FastAPI, match_id: str, me: int) -> None:
-    """After the grace period, the missing player loses."""
+    """After the grace period, a player who left or never arrived loses."""
     await asyncio.sleep(GRACE_SECONDS)
     timers.pop((match_id, me), None)
     match = matches.get(match_id)
@@ -187,17 +193,30 @@ def view(match: Match, me: int) -> dict:
 async def broadcast(match_id: str) -> None:
     match = matches[match_id]
     for me, socket in list(sockets.get(match_id, {}).items()):
-        await socket.send_json(view(match, me))
+        try:
+            await socket.send_json(view(match, me))
+        except (WebSocketDisconnect, RuntimeError):
+            pass  # that player's own loop notices the drop and cleans up
 
 
 async def send_to_others(match_id: str, me: int, message: dict) -> None:
     for seat, socket in list(sockets.get(match_id, {}).items()):
-        if seat != me:
+        if seat == me:
+            continue
+        try:
             await socket.send_json(message)
+        except (WebSocketDisconnect, RuntimeError):
+            pass  # that player's own loop notices the drop and cleans up
 
 
 @router.websocket("/matches/{match_id}")
 async def play(ws: WebSocket, match_id: str) -> None:
+    try:
+        match_id = str(uuid.UUID(match_id))  # one spelling per match
+    except ValueError:
+        await ws.close()
+        return
+
     origin = ws.headers.get("origin")
     if origin not in settings.CORS_ORIGINS:
         logger.info("WS rejected: origin %r is not allowed", origin)
@@ -225,7 +244,19 @@ async def play(ws: WebSocket, match_id: str) -> None:
     timer = timers.pop((match_id, me), None)
     if timer is not None:
         timer.cancel()
-        await send_to_others(match_id, me, {"type": "OPPONENT_RECONNECTED"})
+        if match.turn > 0:
+            await send_to_others(match_id, me, {"type": "OPPONENT_RECONNECTED"})
+
+    other = 1 - me
+    if (
+        match.turn == 0
+        and other not in sockets[match_id]
+        and (match_id, other) not in timers
+    ):
+        # The opponent hasn't arrived yet: they lose if they don't within the grace period.
+        timers[(match_id, other)] = asyncio.create_task(
+            end_if_still_gone(ws.app, match_id, other)
+        )
 
     if len(sockets[match_id]) == 2 and match.turn == 0:
         start_turn(match)
@@ -245,7 +276,7 @@ async def play(ws: WebSocket, match_id: str) -> None:
                     resign(match, me)
                 else:
                     raise ValueError("Unknown action.")
-            except (ValueError, KeyError) as error:
+            except (ValueError, KeyError, TypeError) as error:
                 await ws.send_json({"type": "ACTION_REJECTED", "reason": str(error)})
                 continue
             await broadcast(match_id)

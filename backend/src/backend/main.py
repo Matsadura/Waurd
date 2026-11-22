@@ -14,6 +14,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.v1.router import api_v1_router
+from backend.ws.match_ws import router as match_ws_router
 from backend.core.config import settings
 from backend.core.exceptions import AppException
 from backend.core.matchmakerworker import MatchmakerWorker
@@ -21,6 +22,7 @@ from backend.core.matchmaking_store import MatchmakingQueueStore
 from backend.db.session import async_session_maker, engine, get_db
 
 logger = logging.getLogger("uvicorn.error")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -101,23 +103,43 @@ async def request_validation_error_handler(
         "code": "Code",
         "new_password": "Password",
         "token": "Reset token",
+        "perk_ids": "Perks",
+        "perk_id": "Perk",
     }
     field_name = field_names.get(field, "Value")
 
     if field == "email" or error_type == "email_parsing":
         detail = "Email must be a valid email address."
-    elif error_type == "string_too_short":
-        detail = (
-            f"{field_name} must be at least {context.get('min_length')} characters."
-        )
-    elif error_type == "string_too_long":
-        detail = f"{field_name} must be at most {context.get('max_length')} characters."
+    elif error_type in {"string_too_short", "too_short"}:
+        if context.get("field_type") == "List":
+            detail = (
+                f"{field_name} must have at least {context.get('min_length')} items."
+            )
+        else:
+            detail = (
+                f"{field_name} must be at least {context.get('min_length')} characters."
+            )
+    elif error_type in {"string_too_long", "too_long"}:
+        if context.get("field_type") == "List":
+            detail = (
+                f"{field_name} must have at most {context.get('max_length')} items."
+            )
+        else:
+            detail = (
+                f"{field_name} must be at most {context.get('max_length')} characters."
+            )
     elif error_type == "missing":
         detail = f"{field_name} is required."
     elif error_type in {"uuid_parsing", "uuid_type"}:
         detail = f"{field_name} is invalid."
     elif error_type == "value_error":
-        detail = "Provide a target user ID or username."
+        raw_msg = str(error.get("msg", ""))
+        if raw_msg.startswith("Value error, "):
+            detail = raw_msg.removeprefix("Value error, ").strip()
+        elif raw_msg and raw_msg != "Value error":
+            detail = raw_msg
+        else:
+            detail = "Provide a target user ID or username."
     else:
         detail = f"{field_name} is invalid."
 
@@ -151,6 +173,7 @@ async def dbapi_error_handler(_: Request, exc: DBAPIError) -> JSONResponse:
 
 # Routers
 app.include_router(api_v1_router, prefix=settings.API_V1_STR)
+app.include_router(match_ws_router, prefix="/ws")
 
 
 # Health Check with detailed error capture

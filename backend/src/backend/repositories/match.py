@@ -20,32 +20,47 @@ class MatchRepository(BaseRepository[Match]):
         super().__init__(Match, session)
 
     async def get_active_match_for_user(self, user_id_bytes: bytes) -> Match | None:
-        """Finds active or waiting matches. Automatically marks WAITING lobbies
-        older than 15 minutes as ABANDONED to unlock the user."""
-        stmt = select(Match).where(
-            Match.status.in_([MatchStatus.WAITING, MatchStatus.ACTIVE]),
-            or_(
-                Match.player1_id == user_id_bytes,
-                Match.player2_id == user_id_bytes,
-            ),
+        """Finds the user's active or waiting match. Automatically marks WAITING
+        lobbies older than 15 minutes as ABANDONED to unlock the user.
+
+        More than one can exist (two lobby requests racing each other), so this
+        returns an ACTIVE match first, else the newest WAITING lobby.
+        """
+        stmt = (
+            select(Match)
+            .where(
+                Match.status.in_([MatchStatus.WAITING, MatchStatus.ACTIVE]),
+                or_(
+                    Match.player1_id == user_id_bytes,
+                    Match.player2_id == user_id_bytes,
+                ),
+            )
+            .order_by(Match.created_at.desc())
         )
         result = await self.session.execute(stmt)
-        match = result.scalar_one_or_none()
-        if not match:
-            return None
 
-        if match.status == MatchStatus.WAITING and match.created_at:
-            created_at = (
-                match.created_at.replace(tzinfo=UTC)
-                if match.created_at.tzinfo is None
-                else match.created_at
-            )
-            if (datetime.now(UTC) - created_at) > timedelta(minutes=15):
-                match.status = MatchStatus.ABANDONED
-                await self.session.flush()
-                return None
+        open_matches: list[Match] = []
+        expired = False
+        for match in result.scalars().all():
+            if match.status == MatchStatus.WAITING and match.created_at:
+                created_at = (
+                    match.created_at.replace(tzinfo=UTC)
+                    if match.created_at.tzinfo is None
+                    else match.created_at
+                )
+                if (datetime.now(UTC) - created_at) > timedelta(minutes=15):
+                    match.status = MatchStatus.ABANDONED
+                    expired = True
+                    continue
+            open_matches.append(match)
 
-        return match
+        if expired:
+            await self.session.flush()
+
+        for match in open_matches:
+            if match.status == MatchStatus.ACTIVE:
+                return match
+        return open_matches[0] if open_matches else None
 
     async def get_match_by_id(self, match_id_bytes: bytes) -> Match | None:
         """Fetches a match record by its BINARY(16) primary key."""
@@ -151,6 +166,7 @@ class MatchRepository(BaseRepository[Match]):
             player2_id=user_id_to_bytes(player2_id_str),
             status=MatchStatus.ACTIVE,
             time_control_seconds=time_control_seconds,
+            started_at=func.now(),
         )
         self.session.add(match)
         await self.session.flush()
@@ -220,6 +236,18 @@ class MatchRepository(BaseRepository[Match]):
             raise ForbiddenException("You are not a participant in this match.")
 
         match.status = MatchStatus.ABANDONED
+        match.ended_at = func.now()
         await self.session.flush()
         await self.session.refresh(match)
         return match
+
+    async def get_by_id(self, match_id: bytes) -> Match | None:
+        return await self.get_one_or_none(Match.id == match_id)
+
+    async def get_all_matches_for_user(self, user_id: bytes) -> list[Match]:
+        return list(
+            await self.list(
+                (Match.player1_id == user_id) | (Match.player2_id == user_id),
+                order_by=[Match.created_at.desc()],
+            )
+        )

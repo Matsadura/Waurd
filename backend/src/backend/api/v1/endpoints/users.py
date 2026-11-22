@@ -1,21 +1,58 @@
+import hashlib
 from uuid import UUID
 
 from backend.api.dependencies.auth import get_current_user, get_session_store
+from backend.core.avatars import (
+    DEFAULT_AVATAR,
+    MEDIA_TYPES,
+    delete_avatar,
+    detect_image_type,
+    find_avatar,
+    save_avatar,
+)
+from backend.core.config import settings
 from backend.core.exceptions import (
+    AppException,
+    BadRequestException,
     EntityNotFoundException,
     ForbiddenException,
     UserAlreadyExistsException,
 )
-from backend.core.identifiers import user_id_to_bytes
+from backend.core.identifiers import user_id_to_bytes, user_id_to_string
 from backend.core.security import hash_password
 from backend.core.session_store import RedisSessionStore
 from backend.db.uow import UnitOfWork
-from backend.models.user import User
+from backend.models.user import User, UserRole
 from backend.schemas.match import MatchResponse
 from backend.schemas.user import UserResponse, UserStatsResponse, UserUpdateRequest
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Response, UploadFile, status
+from fastapi.responses import FileResponse, RedirectResponse
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+# Uploaded files are served with their detected type only.
+IMAGE_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "private, max-age=300",
+}
+
+
+def _can_view(current_user: User, user_id: UUID) -> bool:
+    """Users see their own data; game masters see everyone's."""
+    return user_id.bytes == current_user.id or current_user.role == UserRole.GAME_MASTER
+
+
+async def _set_avatar_url(
+    uow: UnitOfWork, user_id: bytes, avatar_url: str | None
+) -> UserResponse:
+    async with uow:
+        user = await uow.users.get_by_id(user_id)
+        if user is None:
+            raise EntityNotFoundException("User not found")
+        user = await uow.users.update(user, {"avatar_url": avatar_url})
+        await uow.commit()
+        await uow.session.refresh(user)
+        return UserResponse.model_validate(user)
 
 
 @router.get("/me", response_model=UserResponse)
@@ -72,6 +109,81 @@ async def update_me(
     return response
 
 
+@router.put("/me/avatar", response_model=UserResponse)
+async def upload_avatar(
+    file: UploadFile = File(..., description="PNG, JPEG, WebP or GIF image"),
+    current_user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(),
+) -> UserResponse:
+    """Upload or replace the current user's avatar."""
+    limit = settings.AVATAR_MAX_BYTES
+    data = await file.read(limit + 1)
+    if len(data) > limit:
+        raise AppException(
+            f"Avatar must be at most {limit // (1024 * 1024)} MB.",
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        )
+
+    extension = detect_image_type(data)
+    if extension is None:
+        raise BadRequestException("Avatar must be a PNG, JPEG, WebP or GIF image.")
+
+    save_avatar(current_user.id, data, extension)
+    # The version changes with the image, so browsers drop their cached copy.
+    version = hashlib.sha256(data).hexdigest()[:12]
+    avatar_url = (
+        f"{settings.API_V1_STR}/users/{user_id_to_string(current_user.id)}"
+        f"/avatar?v={version}"
+    )
+    return await _set_avatar_url(uow, current_user.id, avatar_url)
+
+
+@router.delete("/me/avatar", response_model=UserResponse)
+async def remove_avatar(
+    current_user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(),
+) -> UserResponse:
+    """Remove the current user's avatar; the default image is shown instead."""
+    delete_avatar(current_user.id)
+    return await _set_avatar_url(uow, current_user.id, None)
+
+
+@router.get(
+    "/{user_id}/avatar",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {media: {} for media in [*MEDIA_TYPES.values(), "image/svg+xml"]}
+        },
+        307: {"description": "Redirect to an external avatar, such as Google's"},
+    },
+)
+async def get_avatar(
+    user_id: UUID,
+    current_user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(),
+) -> Response:
+    """Any signed-in user can load any avatar; a default image fills the gap."""
+    async with uow:
+        user = await uow.users.get_by_id(user_id.bytes)
+    if user is None:
+        raise EntityNotFoundException("User not found")
+
+    if user.avatar_url and user.avatar_url.startswith(("https://", "http://")):
+        return RedirectResponse(user.avatar_url)
+
+    path = find_avatar(user.id)
+    if path is not None:
+        return FileResponse(
+            path,
+            media_type=MEDIA_TYPES[path.suffix.lstrip(".")],
+            headers=IMAGE_HEADERS,
+        )
+    return FileResponse(
+        DEFAULT_AVATAR, media_type="image/svg+xml", headers=IMAGE_HEADERS
+    )
+
+
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user_by_id(
     user_id: UUID,
@@ -80,7 +192,7 @@ async def get_user_by_id(
 ) -> UserResponse:
     """Retrieve a user's information by their unique identifier."""
     async with uow:
-        if user_id.bytes != current_user.id:
+        if not _can_view(current_user, user_id):
             raise ForbiddenException(
                 "You do not have permission to access this user's information."
             )
@@ -98,7 +210,7 @@ async def get_user_stats(
 ) -> UserStatsResponse:
     """Retrieve a user's statistics by their unique identifier."""
     async with uow:
-        if user_id.bytes != current_user.id:
+        if not _can_view(current_user, user_id):
             raise ForbiddenException(
                 "You do not have permission to access this user's statistics."
             )
@@ -116,7 +228,7 @@ async def get_user_matches(
 ) -> list[MatchResponse]:
     """Retrieve a list of matches for a specific user."""
     async with uow:
-        if user_id.bytes != current_user.id:
+        if not _can_view(current_user, user_id):
             raise ForbiddenException(
                 "You do not have permission to access this user's matches."
             )

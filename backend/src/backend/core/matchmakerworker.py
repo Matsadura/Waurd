@@ -10,6 +10,7 @@ from backend.repositories.match import MatchRepository
 logger = logging.getLogger(__name__)
 
 MAX_ALLOWED_ELO_DIFF = 200
+TIME_CONTROL_DEFAULT = [180, 300, 600]
 
 
 class MatchmakerWorker:
@@ -21,7 +22,7 @@ class MatchmakerWorker:
     ):
         self.queue_store = queue_store
         self.session_factory = session_factory
-        self.time_controls = time_controls or [60, 180, 300]
+        self.time_controls = time_controls or list(TIME_CONTROL_DEFAULT)
 
     async def process_queue_for_time_control(self, time_control: int) -> None:
         queue_key = self.queue_store._queue_key(time_control)
@@ -32,9 +33,15 @@ class MatchmakerWorker:
 
         candidates: list[dict] = []
         dead_uids: list[str] = []
+        seen: set[str] = set()
 
         for raw_uid in raw_user_ids:
             uid_str = raw_uid.decode("utf-8") if isinstance(raw_uid, bytes) else raw_uid
+            # A user can appear twice after a ticket expired and they rejoined;
+            # counting them twice would pair them with themselves.
+            if uid_str in seen:
+                continue
+            seen.add(uid_str)
             ticket = await self.queue_store.get_user_ticket(uid_str)
 
             if (
@@ -56,8 +63,10 @@ class MatchmakerWorker:
         # Sort candidate pool ascending by Elo rating
         candidates.sort(key=lambda p: p.get("elo", 1000))
 
-        # Pair adjacent players (0 & 1, 2 & 3, etc.)
-        for index in range(0, len(candidates) - 1, 2):
+        # Walk the sorted pool and pair neighbours. When a pair is too far apart,
+        # move on by one so the higher player can still pair with the next one.
+        index = 0
+        while index < len(candidates) - 1:
             player_a = candidates[index]
             player_b = candidates[index + 1]
 
@@ -65,7 +74,9 @@ class MatchmakerWorker:
                 abs(player_a.get("elo", 1000) - player_b.get("elo", 1000))
                 > MAX_ALLOWED_ELO_DIFF
             ):
+                index += 1
                 continue
+            index += 2
 
             match_id = str(uuid.uuid4())
             p1_id = player_a["user_id"]
@@ -95,6 +106,8 @@ class MatchmakerWorker:
                 logger.error(
                     f"Failed to persist PvP match {match_id} for {p1_id} vs {p2_id}: {e}"
                 )
+                # Put both back in the queue instead of letting the claim expire.
+                await self.queue_store.release_pair(p1_id, p2_id)
 
     async def start_loop(self) -> None:
         """Runs continuous queue sweeps every second."""

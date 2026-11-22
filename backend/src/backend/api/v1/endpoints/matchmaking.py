@@ -1,9 +1,5 @@
 import uuid
 
-from fastapi import APIRouter, Depends, status
-from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from backend.api.dependencies.auth import (
     get_current_user,
     get_redis,
@@ -20,6 +16,7 @@ from backend.db.session import get_db
 from backend.models.user import User
 from backend.repositories.match import MatchRepository, MatchStatus
 from backend.repositories.user import UserRepository
+from backend.repositories.user_stats import UserStatsRepository
 from backend.schemas.matchmaking import (
     CustomMatchCreateRequest,
     CustomMatchResponse,
@@ -33,6 +30,9 @@ from backend.schemas.matchmaking import (
     QueueStatusEnum,
     QueueTicketResponse,
 )
+from fastapi import APIRouter, Depends, status
+from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/matchmaking", tags=["Matchmaking & Matches"])
 
@@ -64,7 +64,9 @@ async def join_queue(
     user_id_str = user_id_to_string(current_user.id)
     queue_store = MatchmakingQueueStore(redis)
     ticket = await queue_store.add_to_queue(
-        user_id_str, payload.time_control_seconds, current_user.elo
+        user_id_str,
+        payload.time_control_seconds,
+        await UserStatsRepository(db).get_rating(current_user.id),
     )
 
     return QueueTicketResponse(**ticket)
@@ -123,7 +125,7 @@ async def get_queue_status(
             ticket_id=str(uuid.UUID(bytes=active_match.id)),
             user_id=user_id_str,
             time_control_seconds=active_match.time_control_seconds,
-            elo=current_user.elo,
+            elo=await UserStatsRepository(db).get_rating(current_user.id),
             status=status_val,
             queued_at=active_match.created_at,
             matched_match_id=str(uuid.UUID(bytes=active_match.id)),
@@ -149,7 +151,7 @@ async def create_private_match_lobby(
     """
     match_repo = MatchRepository(db)
 
-    if await queue_store.get_user_ticket(user_id_to_string(current_user.id)):
+    if await queue_store.is_waiting_in_queue(user_id_to_string(current_user.id)):
         raise BadRequestException("Please leave the matchmaking queue first.")
     active_match = await match_repo.get_active_match_for_user(current_user.id)
     if active_match:
@@ -193,7 +195,7 @@ async def join_custom_match(
     Validates an invite code, assigns the joining user as player 2, and starts the match.
     """
     match_repo = MatchRepository(db)
-    if await queue_store.get_user_ticket(user_id_to_string(current_user.id)):
+    if await queue_store.is_waiting_in_queue(user_id_to_string(current_user.id)):
         raise BadRequestException("Please leave the matchmaking queue first.")
     # 1. Ensure joining player isn't already in an active match
     active_match = await match_repo.get_active_match_for_user(current_user.id)
@@ -272,7 +274,8 @@ async def get_match_details(
 
     return MatchDetailResponse(
         id=user_id_to_string(match.id),
-        invite_code=match.invite_code,
+        # The code lets anyone join a private lobby, so only its creator sees it.
+        invite_code=match.invite_code if match.player1_id == current_user.id else None,
         status=MatchStatusEnum(match.status.value),
         time_control_seconds=match.time_control_seconds,
         player1=player1_resp,
@@ -381,6 +384,7 @@ async def abandon_active_match(
     match_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
 ):
     """
     Abandons an active match. Marks the match as ABANDONED and unlocks the user.
@@ -391,9 +395,17 @@ async def abandon_active_match(
         raise BadRequestException("Invalid match UUID format.")
 
     match_repo = MatchRepository(db)
-    await match_repo.abandon_active_match(
+    match = await match_repo.abandon_active_match(
         match_id_bytes=match_bytes,
         user_id_bytes=current_user.id,
     )
+    # Commit before clearing tickets, so a status poll never sees neither.
+    await db.commit()
+
+    # Both players' MATCHED tickets point at this match; drop them so the
+    # players can queue or host again immediately.
+    for player_id in (match.player1_id, match.player2_id):
+        if player_id:
+            await queue_store.clear_matched_ticket(user_id_to_string(player_id))
 
     return {"detail": "Active match abandoned successfully"}

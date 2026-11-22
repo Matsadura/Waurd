@@ -6,12 +6,17 @@ from backend.core.identifiers import user_id_to_bytes, user_id_to_string
 from backend.core.matchmaking_store import MatchmakingQueueStore
 from backend.core.session_store import RedisSessionStore
 from backend.db.session import async_session_maker
+from backend.game.calculations import XP_PER_LOSS, XP_PER_WIN, add_xp, new_elo_ratings
 from backend.game.models import Match
-from backend.game.rules import cast_word, pass_turn, start_turn
+from backend.game.rules import STARTING_HP, cast_word, pass_turn, start_turn
 from backend.game.setup import load_words, new_match
+from backend.models.match import Match as MatchRecord
 from backend.models.match import MatchStatus
 from backend.repositories.match import MatchRepository
+from backend.repositories.user import UserRepository
+from backend.repositories.user_stats import UserStatsRepository
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -51,6 +56,41 @@ async def seat_in_match(match_id: str, user_id: str) -> int | None:
     return None
 
 
+async def update_stats(db: AsyncSession, record: MatchRecord) -> None:
+    """Wins, losses, damage and Elo for both players, plus the Elo history on the match."""
+    stats = UserStatsRepository(db)
+    p1 = await stats.get_by_user_id(record.player1_id)
+    p2 = await stats.get_by_user_id(record.player2_id)
+
+    user_repo = UserRepository(db)
+    user1 = await user_repo.get_user_by_id(record.player1_id)
+    user2 = await user_repo.get_user_by_id(record.player2_id)
+
+    record.player1_elo_before = p1.rating_elo
+    record.player2_elo_before = p2.rating_elo
+
+    if record.winner_id == record.player1_id:
+        p1.rating_elo, p2.rating_elo = new_elo_ratings(p1.rating_elo, p2.rating_elo)
+        p1.wins += 1
+        p2.losses += 1
+        add_xp(user1, XP_PER_WIN)
+        add_xp(user2, XP_PER_LOSS)
+    else:
+        p2.rating_elo, p1.rating_elo = new_elo_ratings(p2.rating_elo, p1.rating_elo)
+        p2.wins += 1
+        p1.losses += 1
+        add_xp(user2, XP_PER_WIN)
+        add_xp(user1, XP_PER_LOSS)
+
+    p1.matches_played += 1
+    p2.matches_played += 1
+    p1.total_damage_dealt += STARTING_HP - record.player2_final_hp
+    p2.total_damage_dealt += STARTING_HP - record.player1_final_hp
+
+    record.player1_elo_after = p1.rating_elo
+    record.player2_elo_after = p2.rating_elo
+
+
 async def save_result(ws: WebSocket, match_id: str, match: Match) -> None:
     """Write the result to MySQL, then let both players queue again."""
     async with async_session_maker() as db:
@@ -61,6 +101,7 @@ async def save_result(ws: WebSocket, match_id: str, match: Match) -> None:
             player2_hp=match.players[1].hp,
             total_turns=match.turn,
         )
+        await update_stats(db, record)
         await db.commit()
 
     queue_store = MatchmakingQueueStore(ws.app.state.redis)

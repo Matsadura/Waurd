@@ -66,8 +66,8 @@ async def update_stats(db: AsyncSession, record: MatchRecord) -> None:
     p2 = await stats.get_by_user_id(record.player2_id)
 
     user_repo = UserRepository(db)
-    user1 = await user_repo.get_user_by_id(record.player1_id)
-    user2 = await user_repo.get_user_by_id(record.player2_id)
+    user1 = await user_repo.get_by_id(record.player1_id)
+    user2 = await user_repo.get_by_id(record.player2_id)
 
     record.player1_elo_before = p1.rating_elo
     record.player2_elo_before = p2.rating_elo

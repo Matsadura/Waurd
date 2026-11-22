@@ -1,8 +1,32 @@
-import random
-
 from backend.game.models import Match
 
-HAND_SIZE = 7
+HAND_SIZE = 12
+STARTING_HP = 100
+
+LETTERS = {
+    "A": (6, 4),
+    "E": (6, 4),
+    "I": (6, 3),
+    "O": (6, 3),
+    "U": (6, 1),
+    "N": (8, 2),
+    "R": (8, 2),
+    "S": (8, 3),
+    "T": (8, 3),
+    "L": (8, 2),
+    "D": (10, 2),
+    "C": (12, 1),
+    "M": (12, 1),
+    "P": (12, 1),
+    "H": (12, 1),
+    "G": (14, 1),
+    "B": (20, 1),
+    "F": (16, 1),
+    "K": (18, 1),
+    "W": (18, 1),
+    "Y": (14, 1),
+    "V": (20, 1),
+}
 
 
 def start_turn(match: Match) -> None:

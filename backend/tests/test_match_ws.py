@@ -1,4 +1,5 @@
-"""The match WebSocket: saving results, sending, bad messages, arrival, ids."""
+"""The match WebSocket: saving results, sending, bad messages, arrival, ids,
+abandoning, the result after the end and who starts."""
 
 import json
 import time
@@ -11,7 +12,7 @@ match_ws = pytest.importorskip(
     "backend.ws.match_ws", reason="The match socket is not merged yet"
 )
 
-from backend.game.rules import resign
+from backend.game.rules import cast_word, resign, start_turn
 from backend.game.setup import new_match
 from fastapi import WebSocketDisconnect
 from starlette.testclient import TestClient
@@ -120,6 +121,128 @@ class TestSavingTheResult:
         assert match_id not in match_ws.matches
 
 
+class TestEnding:
+    async def test_abandon_while_playing_is_a_resignation(
+        self, session_maker, alice, bob, alice_client
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+        game = new_match(seed=1)
+        start_turn(game)
+        match_ws.matches[match_id] = game
+        bob_socket = LiveSocket()
+        match_ws.sockets[match_id] = {1: bob_socket}
+
+        response = await alice_client.delete(f"/matchmaking/matches/{match_id}/abandon")
+
+        assert response.status_code == 200
+        async with session_maker() as db:
+            record = await db.get(Match, uuid.UUID(match_id).bytes)
+        assert record.status == MatchStatus.FINISHED
+        assert record.winner_id == bob.id
+        assert bob_socket.messages[-1]["you_won"] is True  # bob is told
+        assert match_id not in match_ws.matches
+
+    async def test_a_restart_abandons_active_matches(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+        await redis.set(
+            f"matchmaking:user:{uuid.UUID(bytes=alice.id)}",
+            json.dumps({"status": "MATCHED"}),
+        )
+
+        await match_ws.abandon_unfinished_matches(fake_app(redis))
+
+        async with session_maker() as db:
+            record = await db.get(Match, uuid.UUID(match_id).bytes)
+        assert record.status == MatchStatus.ABANDONED
+        assert record.ended_at is not None
+        assert await redis.get(f"matchmaking:user:{uuid.UUID(bytes=alice.id)}") is None
+
+    async def test_a_finished_match_shows_its_result(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+        await match_ws.save_result(fake_app(redis), match_id, finished_game())
+
+        loser = await match_ws.final_result(match_id, str(uuid.UUID(bytes=bob.id)))
+
+        assert loser["winner"] == 0
+        assert loser["you_won"] is False
+        assert loser["end_reason"] == "RESIGNATION"
+        assert (loser["you"]["hp"], loser["opponent"]["hp"]) == (40, 100)
+
+    async def test_an_active_match_has_no_final_result(
+        self, session_maker, alice, bob
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+
+        assert await match_ws.final_result(match_id, str(uuid.UUID(bytes=bob.id))) is None
+
+
+class TestLeavingBeforeTheStart:
+    @pytest.fixture(autouse=True)
+    def quick(self, monkeypatch):  # type: ignore[no-untyped-def]
+        monkeypatch.setattr(match_ws, "GRACE_SECONDS", 0.01)
+        self.ended: list[tuple[int, str]] = []
+        self.abandoned: list[str] = []
+
+        async def end(app, match_id, game):  # type: ignore[no-untyped-def]
+            self.ended.append((game.winner, game.end_reason))
+
+        async def abandon(app, match_id):  # type: ignore[no-untyped-def]
+            self.abandoned.append(match_id)
+
+        monkeypatch.setattr(match_ws, "end_match", end)
+        monkeypatch.setattr(match_ws, "abandon", abandon)
+
+    async def test_the_player_who_left_loses_when_the_other_arrives(self) -> None:
+        match_ws.matches["m"] = new_match(seed=1)
+        socket = LiveSocket()
+        socket.app = None  # type: ignore[attr-defined]
+        match_ws.sockets["m"] = {0: socket}
+
+        await match_ws.left(socket, "m", 0)
+        match_ws.sockets["m"] = {1: LiveSocket()}  # the opponent arrives
+        await match_ws.timers[("m", 0)]
+
+        assert self.ended == [(1, "DISCONNECT")]
+
+    async def test_nobody_there_abandons_the_match(self) -> None:
+        match_ws.matches["m"] = new_match(seed=1)
+        socket = LiveSocket()
+        socket.app = None  # type: ignore[attr-defined]
+        match_ws.sockets["m"] = {0: socket}
+
+        await match_ws.left(socket, "m", 0)
+        await match_ws.timers[("m", 0)]
+
+        assert self.abandoned == ["m"]
+        assert self.ended == []
+
+
+class TestRules:
+    def test_either_player_can_start(self) -> None:
+        starters = {new_match(seed=seed).active_player_index for seed in range(20)}
+
+        assert starters == {0, 1}
+
+    def test_booleans_are_not_positions(self) -> None:
+        game = new_match(seed=1)
+        start_turn(game)
+
+        with pytest.raises(ValueError):
+            cast_word(game, game.active_player_index, [True, False], {"ab"})
+
+    def test_the_state_says_who_won(self) -> None:
+        game = finished_game()
+
+        assert match_ws.view(game, 0)["you_won"] is True
+        assert match_ws.view(game, 1)["you_won"] is False
+        assert match_ws.view(game, 1)["end_reason"] == "RESIGNATION"
+        assert match_ws.view(new_match(seed=1), 0)["you_won"] is None
+
+
 class DeadSocket:
     async def send_json(self, message: dict) -> None:
         raise WebSocketDisconnect(code=1006)
@@ -201,6 +324,7 @@ class TestSocket:
 
             for bad in (
                 {"type": "CAST_WORD", "positions": ["x"]},
+                {"type": "CAST_WORD", "positions": [True, False]},
                 [1, 2],
                 "hello",
                 {"type": "DANCE"},
@@ -254,3 +378,14 @@ class TestSocket:
         assert started["turn"] == 1
         assert started["winner"] is None
         assert client.ended == []
+
+    def test_the_result_is_shown_after_the_end(self, client, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        async def result(match_id, user_id):  # type: ignore[no-untyped-def]
+            return {"type": "STATE", "you_won": True} if user_id == "c" else None
+
+        monkeypatch.setattr(match_ws, "final_result", result)
+
+        with connect(client, str(uuid.uuid4()), "c") as c:
+            assert c.receive_json() == {"type": "STATE", "you_won": True}
+            with pytest.raises(WebSocketDisconnect):
+                c.receive_json()

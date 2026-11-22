@@ -83,6 +83,11 @@ class TestLifespan:
     def startup_redis(self, monkeypatch):
         client = fakeredis.FakeAsyncRedis(server=fakeredis.FakeServer())
         monkeypatch.setattr(main_module.aioredis, "from_url", lambda *_a, **_k: client)
+
+        async def no_database(app):  # type: ignore[no-untyped-def]
+            pass
+
+        monkeypatch.setattr(main_module, "abandon_unfinished_matches", no_database)
         return client
 
     async def test_connects_to_redis_on_startup(self, startup_redis):

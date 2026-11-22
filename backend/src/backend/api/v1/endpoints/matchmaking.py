@@ -30,7 +30,8 @@ from backend.schemas.matchmaking import (
     QueueStatusEnum,
     QueueTicketResponse,
 )
-from fastapi import APIRouter, Depends, status
+from backend.ws.match_ws import resign_live
+from fastapi import APIRouter, Depends, Request, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -382,6 +383,7 @@ async def cancel_custom_match(
 )
 async def abandon_active_match(
     match_id: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
@@ -393,6 +395,12 @@ async def abandon_active_match(
         match_bytes = user_id_to_bytes(match_id)
     except ValueError:
         raise BadRequestException("Invalid match UUID format.")
+
+    # A game being played over the socket ends as a resignation, so the
+    # opponent is told and the result is saved.
+    live_id = str(uuid.UUID(bytes=match_bytes))
+    if await resign_live(request.app, live_id, user_id_to_string(current_user.id)):
+        return {"detail": "Active match abandoned successfully"}
 
     match_repo = MatchRepository(db)
     match = await match_repo.abandon_active_match(

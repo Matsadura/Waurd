@@ -28,6 +28,8 @@ def cast_word(
         raise ValueError("It's not your turn.")
 
     caster = match.players[player_index]
+    if any(type(i) is not int for i in positions):
+        raise ValueError("Positions must be whole numbers.")
     if not positions:
         raise ValueError("Pick at least one glyph.")
     if len(set(positions)) != len(positions):

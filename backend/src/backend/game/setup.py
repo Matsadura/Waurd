@@ -43,7 +43,7 @@ def new_match(seed: int | None) -> Match:
         deck = build_deck()
         rng.shuffle(deck)
         players.append(Player(hp=STARTING_HP, draw_pile=deck))
-    return Match(players=players, rng=rng)
+    return Match(players=players, rng=rng, active_player_index=rng.randrange(2))
 
 
 def load_words(path: str) -> set[str]:

@@ -25,6 +25,7 @@ from backend.repositories.match import MatchRepository
 from backend.repositories.user import UserRepository
 from backend.repositories.user_stats import UserStatsRepository
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger("uvicorn.error")
@@ -64,6 +65,32 @@ async def seat_in_match(match_id: str, user_id: str) -> int | None:
     if record.player2_id == user_id_bytes:
         return 1
     return None
+
+
+async def final_result(match_id: str, user_id: str) -> dict | None:
+    """The result of a finished match, for a player who reconnects after the end."""
+    async with async_session_maker() as db:
+        record = await MatchRepository(db).get_match_by_id(uuid.UUID(match_id).bytes)
+    if record is None or record.status != MatchStatus.FINISHED:
+        return None
+
+    me = user_id_to_bytes(user_id)
+    if me == record.player1_id:
+        my_hp, their_hp = record.player1_final_hp, record.player2_final_hp
+    elif me == record.player2_id:
+        my_hp, their_hp = record.player2_final_hp, record.player1_final_hp
+    else:
+        return None
+    return {
+        "type": "STATE",
+        "turn": record.total_turns,
+        "your_turn": False,
+        "winner": 0 if record.winner_id == record.player1_id else 1,
+        "you_won": record.winner_id == me,
+        "end_reason": record.end_reason.value,
+        "you": {"hp": my_hp, "hand": []},
+        "opponent": {"hp": their_hp, "hand_size": 0},
+    }
 
 
 async def update_stats(db: AsyncSession, record: MatchRecord) -> None:
@@ -138,12 +165,57 @@ async def end_match(app: FastAPI, match_id: str, match: Match) -> None:
     matches.pop(match_id, None)
 
 
+async def abandon(app: FastAPI, match_id: str) -> None:
+    """End a match with no winner and let both players queue again."""
+    async with async_session_maker() as db:
+        record = await MatchRepository(db).get_match_by_id(uuid.UUID(match_id).bytes)
+        player_ids = (record.player1_id, record.player2_id)
+        if record.status == MatchStatus.ACTIVE:
+            record.status = MatchStatus.ABANDONED
+            record.ended_at = func.now()
+            await db.commit()
+
+    queue_store = MatchmakingQueueStore(app.state.redis)
+    for player_id in player_ids:
+        await queue_store.clear_matched_ticket(user_id_to_string(player_id))
+    matches.pop(match_id, None)
+
+
+async def abandon_unfinished_matches(app: FastAPI) -> None:
+    """Games live in memory, so a restart loses them: free their players."""
+    async with async_session_maker() as db:
+        ids = (
+            await db.scalars(
+                select(MatchRecord.id).where(MatchRecord.status == MatchStatus.ACTIVE)
+            )
+        ).all()
+    for match_id in ids:
+        await abandon(app, str(uuid.UUID(bytes=match_id)))
+
+
+async def resign_live(app: FastAPI, match_id: str, user_id: str) -> bool:
+    """Resign a game being played over the socket. False if there is none."""
+    match = matches.get(match_id)
+    if match is None or match.winner is not None:
+        return False
+    me = await seat_in_match(match_id, user_id)
+    if me is None:
+        return False
+    resign(match, me)
+    await broadcast(match_id)
+    await end_match(app, match_id, match)
+    return True
+
+
 async def end_if_still_gone(app: FastAPI, match_id: str, me: int) -> None:
     """After the grace period, a player who left or never arrived loses."""
     await asyncio.sleep(GRACE_SECONDS)
     timers.pop((match_id, me), None)
     match = matches.get(match_id)
     if match is None or match.winner is not None:
+        return
+    if match.turn == 0 and not sockets.get(match_id):
+        await abandon(app, match_id)  # neither player is here: no winner
         return
     lose_by_disconnect(match, me)
     await broadcast(match_id)
@@ -160,11 +232,14 @@ async def left(ws: WebSocket, match_id: str, me: int) -> None:
         del sockets[match_id]
 
     match = matches.get(match_id)
-    if match is None or match.turn == 0 or match.winner is not None:
+    if match is None or match.winner is not None:
         return
-    await send_to_others(
-        match_id, me, {"type": "OPPONENT_DISCONNECTED", "grace_seconds": GRACE_SECONDS}
-    )
+    if match.turn > 0:
+        await send_to_others(
+            match_id,
+            me,
+            {"type": "OPPONENT_DISCONNECTED", "grace_seconds": GRACE_SECONDS},
+        )
     timers[(match_id, me)] = asyncio.create_task(
         end_if_still_gone(ws.app, match_id, me)
     )
@@ -179,6 +254,8 @@ def view(match: Match, me: int) -> dict:
         "turn": match.turn,
         "your_turn": match.active_player_index == me,
         "winner": match.winner,
+        "you_won": None if match.winner is None else match.winner == me,
+        "end_reason": match.end_reason,
         "you": {
             "hp": player.hp,
             "hand": [
@@ -231,7 +308,15 @@ async def play(ws: WebSocket, match_id: str) -> None:
 
     me = await seat_in_match(match_id, user_id)
     if me is None:
-        logger.info("WS rejected: user %s has no seat in match %s", user_id, match_id)
+        result = await final_result(match_id, user_id)
+        if result is None:
+            logger.info(
+                "WS rejected: user %s has no seat in match %s", user_id, match_id
+            )
+            await ws.close()
+            return
+        await ws.accept()  # the match is over: show its result and say goodbye
+        await ws.send_json(result)
         await ws.close()
         return
 

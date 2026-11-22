@@ -1,3 +1,4 @@
+import logging
 import uuid
 from pathlib import Path
 
@@ -18,11 +19,13 @@ from backend.repositories.user_stats import UserStatsRepository
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
+logger = logging.getLogger("uvicorn.error")
+
 router = APIRouter()
 DATA_DIR = Path(__file__).parent.parent / "data"
 WORDS = load_words(DATA_DIR / "enable1.txt")
 matches: dict[str, Match] = {}
-sockets: dict[int, list[WebSocket]] = {}
+sockets: dict[str, dict[int, WebSocket]] = {}
 
 
 async def user_id_from_cookie(ws: WebSocket) -> str | None:
@@ -57,7 +60,7 @@ async def seat_in_match(match_id: str, user_id: str) -> int | None:
 
 
 async def update_stats(db: AsyncSession, record: MatchRecord) -> None:
-    """Wins, losses, damage and Elo for both players, plus the Elo history on the match."""
+    """Wins, losses, damage, Elo and XP for both players, plus the Elo history."""
     stats = UserStatsRepository(db)
     p1 = await stats.get_by_user_id(record.player1_id)
     p2 = await stats.get_by_user_id(record.player2_id)
@@ -120,7 +123,6 @@ def view(match: Match, me: int) -> dict:
         "winner": match.winner,
         "you": {
             "hp": player.hp,
-            # "hand": [[glyph.letter, glyph.damage] for glyph in player.hand],
             "hand": [
                 {"position": i, "letter": glyph.letter, "damage": glyph.damage}
                 for i, glyph in enumerate(player.hand)
@@ -139,14 +141,24 @@ async def broadcast(match_id: str) -> None:
 
 @router.websocket("/matches/{match_id}")
 async def play(ws: WebSocket, match_id: str) -> None:
-    if ws.headers.get("origin") not in settings.CORS_ORIGINS:
+    origin = ws.headers.get("origin")
+    if origin not in settings.CORS_ORIGINS:
+        logger.info("WS rejected: origin %r is not allowed", origin)
         await ws.close()
         return
+
     user_id = await user_id_from_cookie(ws)
-    me = await seat_in_match(match_id, user_id) if user_id else None
-    if me is None:
+    if user_id is None:
+        logger.info("WS rejected: no valid session cookie")
         await ws.close()
         return
+
+    me = await seat_in_match(match_id, user_id)
+    if me is None:
+        logger.info("WS rejected: user %s has no seat in match %s", user_id, match_id)
+        await ws.close()
+        return
+
     await ws.accept()
     if match_id not in matches:
         matches[match_id] = new_match(seed=None)
@@ -178,3 +190,5 @@ async def play(ws: WebSocket, match_id: str) -> None:
                 matches.pop(match_id, None)
     except WebSocketDisconnect:
         del sockets[match_id][me]
+        if not sockets[match_id]:
+            del sockets[match_id]

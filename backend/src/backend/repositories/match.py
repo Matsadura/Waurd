@@ -248,6 +248,7 @@ class MatchRepository(BaseRepository[Match]):
         player1_hp: int,
         player2_hp: int,
         total_turns: int,
+        end_reason: MatchEndReason,
     ) -> Match:
         """Marks an ACTIVE match FINISHED with its result."""
         match = await self.get_match_by_id(match_id_bytes)
@@ -255,7 +256,7 @@ class MatchRepository(BaseRepository[Match]):
             raise BadRequestException("Match is not active.")
 
         match.status = MatchStatus.FINISHED
-        match.end_reason = MatchEndReason.HEALTH_DEPLETED
+        match.end_reason = end_reason
         match.winner_id = match.player1_id if winner_seat == 0 else match.player2_id
         match.player1_final_hp = player1_hp
         match.player2_final_hp = player2_hp

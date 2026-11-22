@@ -9,7 +9,7 @@ from backend.core.session_store import RedisSessionStore
 from backend.db.session import async_session_maker
 from backend.game.calculations import XP_PER_LOSS, XP_PER_WIN, add_xp, new_elo_ratings
 from backend.game.models import Match
-from backend.game.rules import STARTING_HP, cast_word, pass_turn, start_turn
+from backend.game.rules import STARTING_HP, cast_word, pass_turn, resign, start_turn
 from backend.game.setup import load_words, new_match
 from backend.models.match import Match as MatchRecord
 from backend.models.match import MatchStatus
@@ -103,6 +103,7 @@ async def save_result(ws: WebSocket, match_id: str, match: Match) -> None:
             player1_hp=match.players[0].hp,
             player2_hp=match.players[1].hp,
             total_turns=match.turn,
+            end_reason=match.end_reason,
         )
         await update_stats(db, record)
         await db.commit()
@@ -179,6 +180,8 @@ async def play(ws: WebSocket, match_id: str) -> None:
                     cast_word(match, me, message["positions"], WORDS)
                 elif message["type"] == "PASS_TURN":
                     pass_turn(match, me)
+                elif message["type"] == "RESIGN":
+                    resign(match, me)
                 else:
                     raise ValueError("Unknown action.")
             except (ValueError, KeyError) as error:

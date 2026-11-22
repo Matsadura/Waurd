@@ -216,7 +216,6 @@ class TestGoogleCallbackSuccess:
     async def test_new_google_user_gets_a_stats_row(
         self, callback, mock_google, session_maker
     ):
-        pytest.importorskip("backend.models.achievement_words")
         from backend.models import UserStats
 
         mock_google()

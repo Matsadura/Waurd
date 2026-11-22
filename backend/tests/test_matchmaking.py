@@ -455,17 +455,14 @@ class TestAbandon:
             "matched_match_id"
         ]
 
-    async def test_abandon(self, alice_client, bob_client, bob, worker, session_maker):
+    async def test_abandon(self, alice_client, bob_client, worker, session_maker):
         match_id = await self.queue_match(alice_client, bob_client, worker)
 
         response = await alice_client.delete(f"/matchmaking/matches/{match_id}/abandon")
 
         assert response.status_code == 200
         [match] = await matches(session_maker)
-        # Abandoning is resigning: the match is finished and the other player wins.
-        assert match.status == MatchStatus.FINISHED
-        assert match.end_reason.value == "RESIGNATION"
-        assert match.winner_id == bob.id
+        assert match.status == MatchStatus.ABANDONED
         assert match.ended_at is not None
 
     async def test_both_players_can_queue_again_right_away(

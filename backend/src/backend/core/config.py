@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
-    # GOOGLE_FRONTEND_REDIRECT_URI: str = "http://localhost:3000"
+    # GOOGLE_FRONTEND_REDIRECT_URI: str = "http://localhost:5173"
     GOOGLE_FRONTEND_REDIRECT_URI: str = "http://localhost:8000/docs"  # For testing purposes; replace with your frontend URL in production
     GOOGLE_OAUTH_STATE_TTL_SECONDS: int = 600
 
@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     SESSION_COOKIE_SAMESITE: str = "lax"  # Options: 'strict', 'lax', 'none'
 
     # CORS (Must specify exact origins when allow_credentials=True)
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
 settings = Settings()

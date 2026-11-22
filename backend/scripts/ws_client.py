@@ -16,7 +16,7 @@ import sys
 import websockets
 
 SERVER = "ws://127.0.0.1:8000"
-ORIGIN = "http://127.0.0.1:3000"  # must be one of CORS_ORIGINS
+ORIGIN = "http://127.0.0.1:5173"  # must be one of CORS_ORIGINS
 
 
 def show(message: dict) -> None:

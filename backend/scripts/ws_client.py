@@ -49,6 +49,8 @@ def to_message(line: str) -> dict | None:
         return {"type": "PASS_TURN"}
     if words[0] == "cast":
         return {"type": "CAST_WORD", "positions": [int(w) for w in words[1:]]}
+    if words[0] == "resign":
+        return {"type": "RESIGN"}
     print("  commands: cast 0 2 1 | pass | quit")
     return None
 

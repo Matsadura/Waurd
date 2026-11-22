@@ -163,8 +163,7 @@ async def play(ws: WebSocket, match_id: str) -> None:
     await ws.accept()
     if match_id not in matches:
         matches[match_id] = new_match(seed=None)
-        sockets[match_id] = {}
-    sockets[match_id][me] = ws
+    sockets.setdefault(match_id, {})[me] = ws
     match = matches[match_id]
     if len(sockets[match_id]) == 2 and match.turn == 0:
         start_turn(match)

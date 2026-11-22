@@ -33,7 +33,7 @@ class FriendRequestCreate(BaseModel):
     @model_validator(mode="after")
     def validate_target(self):
         if not self.target_user_id and not self.username:
-            raise ValueError("Either target_user_id or username must be provided.")
+            raise ValueError("Provide a target user ID or username.")
         return self
 
 

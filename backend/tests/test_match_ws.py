@@ -36,6 +36,18 @@ def fresh_state(monkeypatch, session_maker):  # type: ignore[no-untyped-def]
 async def active_match(session_maker, alice, bob) -> str:  # type: ignore[no-untyped-def]
     match_id = uuid.uuid4()
     async with session_maker() as db:
+        # Registration gives every user a stats row.
+        for user in (alice, bob):
+            db.add(
+                UserStats(
+                    user_id=user.id,
+                    matches_played=0,
+                    wins=0,
+                    losses=0,
+                    rating_elo=1200,
+                    total_damage_dealt=0,
+                )
+            )
         db.add(
             Match(
                 id=match_id.bytes,
@@ -62,7 +74,7 @@ def fake_app(redis):  # type: ignore[no-untyped-def]
 
 
 class TestSavingTheResult:
-    async def test_missing_stats_rows_are_created(
+    async def test_result_updates_both_players_stats(
         self, session_maker, redis, alice, bob
     ) -> None:
         match_id = await active_match(session_maker, alice, bob)

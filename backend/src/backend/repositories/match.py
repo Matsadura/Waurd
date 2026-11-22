@@ -9,7 +9,7 @@ from backend.core.exceptions import (
     ForbiddenException,
 )
 from backend.core.identifiers import user_id_to_bytes
-from backend.models.match import Match, MatchCast, MatchStatus
+from backend.models.match import Match, MatchCast, MatchEndReason, MatchStatus
 from backend.repositories.base import BaseRepository
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -239,6 +239,29 @@ class MatchRepository(BaseRepository[Match]):
         match.ended_at = func.now()
         await self.session.flush()
         await self.session.refresh(match)
+        return match
+
+    async def finish_match(
+        self,
+        match_id_bytes: bytes,
+        winner_seat: int,
+        player1_hp: int,
+        player2_hp: int,
+        total_turns: int,
+    ) -> Match:
+        """Marks an ACTIVE match FINISHED with its result."""
+        match = await self.get_match_by_id(match_id_bytes)
+        if match is None or match.status != MatchStatus.ACTIVE:
+            raise BadRequestException("Match is not active.")
+
+        match.status = MatchStatus.FINISHED
+        match.end_reason = MatchEndReason.HEALTH_DEPLETED
+        match.winner_id = match.player1_id if winner_seat == 0 else match.player2_id
+        match.player1_final_hp = player1_hp
+        match.player2_final_hp = player2_hp
+        match.total_turns = total_turns
+        match.ended_at = func.now()
+        await self.session.flush()
         return match
 
     async def get_by_id(self, match_id: bytes) -> Match | None:

@@ -2,7 +2,8 @@ import uuid
 from pathlib import Path
 
 from backend.core.config import settings
-from backend.core.identifiers import user_id_to_bytes
+from backend.core.identifiers import user_id_to_bytes, user_id_to_string
+from backend.core.matchmaking_store import MatchmakingQueueStore
 from backend.core.session_store import RedisSessionStore
 from backend.db.session import async_session_maker
 from backend.game.models import Match
@@ -48,6 +49,23 @@ async def seat_in_match(match_id: str, user_id: str) -> int | None:
     if record.player2_id == user_id_bytes:
         return 1
     return None
+
+
+async def save_result(ws: WebSocket, match_id: str, match: Match) -> None:
+    """Write the result to MySQL, then let both players queue again."""
+    async with async_session_maker() as db:
+        record = await MatchRepository(db).finish_match(
+            uuid.UUID(match_id).bytes,
+            winner_seat=match.winner,
+            player1_hp=match.players[0].hp,
+            player2_hp=match.players[1].hp,
+            total_turns=match.turn,
+        )
+        await db.commit()
+
+    queue_store = MatchmakingQueueStore(ws.app.state.redis)
+    for player_id in (record.player1_id, record.player2_id):
+        await queue_store.clear_matched_ticket(user_id_to_string(player_id))
 
 
 def view(match: Match, me: int) -> dict:
@@ -114,5 +132,8 @@ async def play(ws: WebSocket, match_id: str) -> None:
                 await ws.send_json({"type": "ACTION_REJECTED", "reason": str(error)})
                 continue
             await broadcast(match_id)
+            if match.winner is not None:
+                await save_result(ws, match_id, match)
+                matches.pop(match_id, None)
     except WebSocketDisconnect:
         del sockets[match_id][me]

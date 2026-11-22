@@ -60,11 +60,11 @@
 		</a>
 	</Checkbox>
 
+	<Button type="submit" size="lg" class="mt-2 w-full">Register</Button>
+
 	{#if form?.error}
 		<Notice>{form.error}</Notice>
 	{/if}
-
-	<Button type="submit" size="lg" class="mt-2 w-full">Register</Button>
 
 	<SocialLogin ongoogle={handleGoogle} />
 </form>

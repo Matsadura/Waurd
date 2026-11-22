@@ -10,6 +10,7 @@ from backend.repositories.match import MatchRepository
 logger = logging.getLogger(__name__)
 
 MAX_ALLOWED_ELO_DIFF = 200
+TIME_CONTROL_DEFAULT = [180, 300, 600]
 
 
 class MatchmakerWorker:
@@ -21,7 +22,7 @@ class MatchmakerWorker:
     ):
         self.queue_store = queue_store
         self.session_factory = session_factory
-        self.time_controls = time_controls or [60, 180, 300]
+        self.time_controls = time_controls or list(TIME_CONTROL_DEFAULT)
 
     async def process_queue_for_time_control(self, time_control: int) -> None:
         queue_key = self.queue_store._queue_key(time_control)

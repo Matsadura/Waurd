@@ -4,11 +4,26 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+# The game engine's time controls, in seconds per player.
+TIME_CONTROLS = [180, 300, 600]
+DEFAULT_TIME_CONTROL = 300
+
 
 class TimeControl(int, enum.Enum):
-    BULLET = 60
     BLITZ = 180
-    RAPID = 300
+    STANDARD = 300
+    RELAXED = 600
+
+
+def _spoken(values: tuple[int, ...]) -> str:
+    *rest, last = (str(v) for v in values)
+    return f"{', '.join(rest)} or {last}" if rest else last
+
+
+def check_time_control(time: int) -> int:
+    if time not in TIME_CONTROLS:
+        raise ValueError(f"Time control must be {_spoken(TIME_CONTROLS)} seconds.")
+    return time
 
 
 class MatchStatusEnum(str, enum.Enum):
@@ -29,28 +44,24 @@ class QueueStatusEnum(str, enum.Enum):
 
 class QueueJoinRequest(BaseModel):
     time_control_seconds: int = Field(
-        ..., description="Time control per player in seconds (60, 180, 300)"
+        ..., description="Time control per player in seconds (180, 300 or 600)"
     )
 
     @field_validator("time_control_seconds")
     @classmethod
     def validate_time_control(cls, time: int) -> int:
-        if time not in (60, 180, 300):
-            raise ValueError("time_control_seconds must be 60, 180, or 300 seconds.")
-        return time
+        return check_time_control(time)
 
 
 class QueueLeaveRequest(BaseModel):
     time_control_seconds: int = Field(
-        ..., description="Time control per player in seconds (60, 180, 300)"
+        ..., description="Time control per player in seconds (180, 300 or 600)"
     )
 
     @field_validator("time_control_seconds")
     @classmethod
     def validate_time_control(cls, time: int) -> int:
-        if time not in (60, 180, 300):
-            raise ValueError("time_control_seconds must be 60, 180, or 300 seconds.")
-        return time
+        return check_time_control(time)
 
 
 class QueueTicketResponse(BaseModel):
@@ -66,14 +77,14 @@ class QueueTicketResponse(BaseModel):
 
 
 class CustomMatchCreateRequest(BaseModel):
-    time_control_seconds: int = Field(180, description="60, 180, or 300 seconds")
+    time_control_seconds: int = Field(
+        DEFAULT_TIME_CONTROL, description="180, 300 or 600 seconds"
+    )
 
     @field_validator("time_control_seconds")
     @classmethod
     def validate_time_control(cls, time: int) -> int:
-        if time not in (60, 180, 300):
-            raise ValueError("time_control_seconds must be 60, 180, or 300 seconds.")
-        return time
+        return check_time_control(time)
 
 
 class MatchPlayerResponse(BaseModel):

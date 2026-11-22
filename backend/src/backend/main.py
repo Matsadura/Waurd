@@ -14,6 +14,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.v1.router import api_v1_router
+from backend.ws.match_ws import router as match_ws_router
 from backend.core.config import settings
 from backend.core.exceptions import AppException
 from backend.core.matchmakerworker import MatchmakerWorker
@@ -172,6 +173,7 @@ async def dbapi_error_handler(_: Request, exc: DBAPIError) -> JSONResponse:
 
 # Routers
 app.include_router(api_v1_router, prefix=settings.API_V1_STR)
+app.include_router(match_ws_router, prefix="/ws")
 
 
 # Health Check with detailed error capture

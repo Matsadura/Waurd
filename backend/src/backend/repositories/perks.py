@@ -41,7 +41,11 @@ class PerkRepository(BaseRepository[Perk]):
         ).scalar_one()
 
         stmt = (
-            select(Achievement).order_by(Achievement.id.asc()).offset(skip).limit(limit)
+            select(Achievement)
+            .options(selectinload(Achievement.reward_perk))
+            .order_by(Achievement.id.asc())
+            .offset(skip)
+            .limit(limit)
         )
         achievements = list((await self.session.execute(stmt)).scalars().all())
         return achievements, total

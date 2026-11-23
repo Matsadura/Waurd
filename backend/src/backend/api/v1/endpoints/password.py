@@ -57,7 +57,7 @@ async def _send_reset_link(
 async def forgot_password(
     payload: PasswordForgotRequest,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     store: PasswordResetStore = Depends(get_password_reset_store),
     sender: EmailSender = Depends(get_email_sender),
 ) -> PasswordForgotResponse:

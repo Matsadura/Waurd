@@ -26,7 +26,7 @@ async def list_perks(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     size: int = Query(20, ge=1, le=100, description="Perks per page"),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> PaginatedResponse[PerkResponse]:
     """
     List paginated master game perks including their modifier types, durability,
@@ -49,7 +49,7 @@ async def list_achievements(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     size: int = Query(20, ge=1, le=100, description="Achievements per page"),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> PaginatedResponse[AchievementResponse]:
     """
     List paginated game achievements with criteria thresholds, XP rewards,
@@ -70,7 +70,7 @@ async def list_achievements(
 )
 async def get_my_achievements(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> list[UserAchievementResponse]:
     """
     Get the authenticated user's progress across all achievements,
@@ -89,7 +89,7 @@ async def get_my_achievements(
 )
 async def get_my_loadout(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> UserLoadoutResponse:
     """
     Retrieve the player's active starter perk loadout and all perks
@@ -109,7 +109,7 @@ async def get_my_loadout(
 async def update_my_loadout(
     payload: UpdateLoadoutRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> UserLoadoutResponse:
     """
     Equip active persistent starter perks for matches. Validates that every

@@ -154,16 +154,12 @@ async def ask(lines: asyncio.Queue, prompt: str) -> str:
 async def wait_until_matched(http, lines, text: str, cancel) -> str | None:
     """Poll the matchmaking status until there is a match; Enter cancels."""
     spinner = itertools.cycle("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
-    missing = 0
     while True:
         response = http.get(f"{API}/matchmaking/status")
-        # shortcut: the server commits after answering, so a fresh lobby can
-        # 404 for a moment; give up only after three misses in a row.
-        missing = missing + 1 if response.status_code == 404 else 0
-        if missing >= 3:
+        if response.status_code == 404:
             print(paint("\nNot waiting for a match anymore.", YELLOW))
             return None
-        if missing == 0 and response.json()["status"] == "MATCHED":
+        if response.json()["status"] == "MATCHED":
             print()
             return response.json()["matched_match_id"]
         write(f"\r{paint(next(spinner), CYAN)} {text}  {paint('Enter cancels', DIM)} ")

@@ -184,7 +184,7 @@ app.include_router(match_ws_router, prefix="/ws")
 @app.get("/health", tags=["Monitoring"], status_code=status.HTTP_200_OK)
 async def unified_health_check(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> JSONResponse:
     redis_client = request.app.state.redis
     db_failed = False

@@ -62,6 +62,7 @@ async def user_id_from_cookie(ws: WebSocket) -> str | None:
 async def end_match(app: FastAPI, match_id: str, match: Match) -> None:
     if matches.pop(match_id, None) is None:
         return  # already ended
+    stop_clock(match_id)
     try:
         await save_result(app, match_id, match)
     except Exception:
@@ -77,9 +78,11 @@ async def resign_live(app: FastAPI, match_id: str, user_id: str) -> bool:
     me = await seat_in_match(match_id, user_id)
     if me is None:
         return False
-    resign(match, me)
-    await broadcast(match_id)
-    await end_match(app, match_id, match)
+    await apply_clock(app, match_id, match)
+    if match.winner is None:  # the clock may have just ended it
+        resign(match, me)
+        await broadcast(match_id)
+        await end_match(app, match_id, match)
     return True
 
 
@@ -93,6 +96,9 @@ async def end_if_still_gone(app: FastAPI, match_id: str, me: int) -> None:
     if match.turn == 0:
         await abort(app, match_id)
         return
+    await apply_clock(app, match_id, match)
+    if match.winner is not None:  # the clock ended it first
+        return
     lose_by_disconnect(match, me)
     await broadcast(match_id)
     await end_match(app, match_id, match)
@@ -102,6 +108,7 @@ async def abort(app: FastAPI, match_id: str) -> None:
     """A match that never started: no winner, no rating change, both players free."""
     if matches.pop(match_id, None) is None:
         return  # already ended
+    stop_clock(match_id)
     try:
         await abandon(app, match_id)
     except Exception:
@@ -199,6 +206,11 @@ async def flag_fall(app: FastAPI, match_id: str, seconds: float) -> None:
     match = matches.get(match_id)
     if match is None:
         return
+    await apply_clock(app, match_id, match)
+
+
+async def apply_clock(app: FastAPI, match_id: str, match: Match) -> None:
+    """Charge the active player's time, then tell both players what that changed."""
     turn_before = match.turn
     use_time(match, time.monotonic())
     if match.winner is not None:
@@ -280,9 +292,8 @@ async def play(ws: WebSocket, match_id: str) -> None:
                 message = await ws.receive_json()
                 if match.turn == 0:
                     raise ValueError("Waiting for the other player.")
-                use_time(match, time.monotonic())
-                if match.winner is not None:
-                    pass
+                # Time may have run out before this message arrived: settle that first.
+                await apply_clock(ws.app, match_id, match)
                 if message["type"] == "CAST_WORD":
                     cast_word(match, me, message["positions"], WORDS)
                 elif message["type"] == "PASS_TURN":

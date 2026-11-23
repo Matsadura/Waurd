@@ -8,7 +8,7 @@ TURN_SECONDS = 30
 def start_turn(match: Match) -> None:
     """Start a new turn: the active player draws up to HAND_SIZE glyphs."""
     match.turn += 1
-    match.turn_tume_used = 0.0
+    match.turn_time_used = 0.0
     player = match.players[match.active_player_index]
     while len(player.hand) < HAND_SIZE:
         if not player.draw_pile:

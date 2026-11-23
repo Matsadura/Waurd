@@ -202,17 +202,23 @@ class TestLeavingBeforeTheStart:
         monkeypatch.setattr(match_ws, "end_match", end)
         monkeypatch.setattr(match_ws, "abandon", abandon)
 
-    async def test_the_player_who_left_loses_when_the_other_arrives(self) -> None:
+    async def test_leaving_before_the_start_aborts_even_if_the_other_arrived(
+        self,
+    ) -> None:
         match_ws.matches["m"] = new_match(seed=1)
         socket = LiveSocket()
         socket.app = None  # type: ignore[attr-defined]
         match_ws.sockets["m"] = {0: socket}
 
         await match_ws.left(socket, "m", 0)
-        match_ws.sockets["m"] = {1: LiveSocket()}  # the opponent arrives
+        waiting = LiveSocket()
+        match_ws.sockets["m"] = {1: waiting}  # the opponent arrives, alone
         await match_ws.timers[("m", 0)]
 
-        assert self.ended == [(1, "DISCONNECT")]
+        assert self.abandoned == ["m"]
+        assert self.ended == []  # no winner: no rating or XP change
+        assert waiting.messages == [{"type": "MATCH_ABORTED"}]
+        assert waiting.closed
 
     async def test_nobody_there_abandons_the_match(self) -> None:
         match_ws.matches["m"] = new_match(seed=1)
@@ -257,9 +263,13 @@ class DeadSocket:
 class LiveSocket:
     def __init__(self) -> None:
         self.messages: list[dict] = []
+        self.closed = False
 
     async def send_json(self, message: dict) -> None:
         self.messages.append(message)
+
+    async def close(self) -> None:
+        self.closed = True
 
 
 class TestSending:
@@ -360,16 +370,27 @@ class TestSocket:
         ):
             a.receive_json()
 
-    def test_a_player_who_never_arrives_loses(self, client, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    def test_a_player_who_never_arrives_aborts_the_match(
+        self, client, monkeypatch
+    ) -> None:  # type: ignore[no-untyped-def]
         monkeypatch.setattr(match_ws, "GRACE_SECONDS", 0.05)
+        aborted: list[str] = []
+
+        async def abandon(app, match_id):  # type: ignore[no-untyped-def]
+            aborted.append(match_id)
+
+        monkeypatch.setattr(match_ws, "abandon", abandon)
         match_id = str(uuid.uuid4())
 
         with connect(client, match_id, "a") as a:
             a.receive_json()  # waiting for the opponent
-            wait_for(lambda: client.ended)  # fails, not hangs, if no timer fires
-            assert a.receive_json()["winner"] == 0
+            wait_for(lambda: aborted)  # fails, not hangs, if no timer fires
+            assert a.receive_json() == {"type": "MATCH_ABORTED"}
+            with pytest.raises(WebSocketDisconnect):
+                a.receive_json()  # the server closed the socket
 
-        assert client.ended == [(match_id, 0, "DISCONNECT")]
+        assert aborted == [match_id]
+        assert client.ended == []  # no winner: no rating or XP change
 
     def test_arriving_in_time_cancels_the_timer(self, client, monkeypatch) -> None:  # type: ignore[no-untyped-def]
         monkeypatch.setattr(match_ws, "GRACE_SECONDS", 0.3)

@@ -60,8 +60,9 @@ async def final_result(match_id: str, user_id: str) -> dict | None:
     }
 
 
-async def update_stats(db: AsyncSession, record: MatchRecord) -> None:
-    """Wins, losses, damage, Elo and XP for both players, plus the Elo history."""
+async def update_stats(db: AsyncSession, record: MatchRecord, match: Match) -> None:
+    """Wins, losses, damage, best word, Elo and XP for both players, plus the
+    Elo history."""
     stats = UserStatsRepository(db)
     p1 = await stats.get_by_id(record.player1_id)
     p2 = await stats.get_by_id(record.player2_id)
@@ -90,6 +91,14 @@ async def update_stats(db: AsyncSession, record: MatchRecord) -> None:
     p2.matches_played += 1
     p1.total_damage_dealt += STARTING_HP - record.player2_final_hp
     p2.total_damage_dealt += STARTING_HP - record.player1_final_hp
+
+    # A word's score is its full glyph value, even past the opponent's last HP.
+    for cast in match.casts:
+        player = (p1, p2)[cast.player_index]
+        score = sum(glyph.damage for glyph in cast.glyphs)
+        if score > player.highest_word_score:
+            player.highest_word_score = score
+            player.highest_scoring_word = cast.word
 
     record.player1_elo_after = p1.rating_elo
     record.player2_elo_after = p2.rating_elo
@@ -146,7 +155,7 @@ async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
     try:
         async with async_session_maker() as db:
             record = await MatchRepository(db).get_match_by_id(match_id_bytes)
-            await update_stats(db, record)
+            await update_stats(db, record, match)
             await db.commit()
         async with async_session_maker() as db:
             db.add_all(cast_rows(match_id_bytes, player_ids, match))

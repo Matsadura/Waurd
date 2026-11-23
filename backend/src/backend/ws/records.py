@@ -94,6 +94,13 @@ async def update_stats(db: AsyncSession, record: MatchRecord) -> None:
     record.player2_elo_after = p2.rating_elo
 
 
+async def time_control(match_id: str) -> int:
+    """Seconds on each player's clock, as chosen when the match was created."""
+    async with async_session_maker() as db:
+        record = await MatchRepository(db).get_match_by_id(uuid.UUID(match_id).bytes)
+    return record.time_control_seconds
+
+
 async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
     """Write the result to MySQL, then let both players queue again.
 
@@ -109,6 +116,10 @@ async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
             total_turns=match.turn,
             end_reason=match.end_reason,
         )
+        time_used = sum(
+            record.time_control_seconds - p.time_left for p in match.players
+        )
+        record.duration_seconds = round(time_used)
         await db.commit()
         player_ids = (record.player1_id, record.player2_id)
 

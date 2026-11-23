@@ -13,12 +13,10 @@ from backend.models.user import User
 from backend.repositories.friendship import FriendshipRepository
 from backend.repositories.user import UserRepository
 from backend.schemas.friendship import (
-    FriendListResponse,
     FriendRequestCreate,
     FriendRequestUpdate,
     FriendshipResponse,
     FriendUserResponse,
-    PendingRequestsResponse,
     RequestAction,
 )
 from backend.schemas.pagination import PaginatedResponse

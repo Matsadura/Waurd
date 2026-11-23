@@ -44,6 +44,8 @@ async def user_id_from_cookie(ws: WebSocket) -> str | None:
 
 
 async def end_match(app: FastAPI, match_id: str, match: Match) -> None:
+    if matches.pop(match_id, None) is None:
+        return  # already ended
     try:
         await save_result(app, match_id, match)
     except Exception:

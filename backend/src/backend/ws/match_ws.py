@@ -68,19 +68,34 @@ async def resign_live(app: FastAPI, match_id: str, user_id: str) -> bool:
 
 
 async def end_if_still_gone(app: FastAPI, match_id: str, me: int) -> None:
-    """After the grace period, a player who left or never arrived loses."""
+    """After the grace period: abort a match that never started, else the missing player loses."""
     await asyncio.sleep(GRACE_SECONDS)
     timers.pop((match_id, me), None)
     match = matches.get(match_id)
     if match is None or match.winner is not None:
         return
-    if match.turn == 0 and not sockets.get(match_id):
-        await abandon(app, match_id)  # neither player is here: no winner
-        matches.pop(match_id, None)
+    if match.turn == 0:
+        await abort(app, match_id)
         return
     lose_by_disconnect(match, me)
     await broadcast(match_id)
     await end_match(app, match_id, match)
+
+
+async def abort(app: FastAPI, match_id: str) -> None:
+    """A match that never started: no winner, no rating change, both players free."""
+    if matches.pop(match_id, None) is None:
+        return  # already ended
+    try:
+        await abandon(app, match_id)
+    except Exception:
+        logger.exception("Could not abort match %s", match_id)
+    for socket in list(sockets.pop(match_id, {}).values()):
+        try:
+            await socket.send_json({"type": "MATCH_ABORTED"})
+            await socket.close()
+        except (WebSocketDisconnect, RuntimeError):
+            pass
 
 
 async def left(ws: WebSocket, match_id: str, me: int) -> None:

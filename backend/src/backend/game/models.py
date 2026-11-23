@@ -18,6 +18,15 @@ class Player:
 
 
 @dataclass
+class Cast:
+    turn: int
+    player_index: int
+    word: str
+    glyphs: list[Glyph]
+    damage: int
+
+
+@dataclass
 class Match:
     players: list[Player]
     active_player_index: int = 0
@@ -27,3 +36,4 @@ class Match:
     end_reason: str | None = None
     clock_checked_at: float = 0.0
     turn_time_used: float = 0.0
+    casts: list[Cast] = field(default_factory=list)

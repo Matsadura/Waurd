@@ -1,4 +1,6 @@
-from backend.game.models import Match
+from dataclasses import replace
+
+from backend.game.models import Cast, Match
 
 HAND_SIZE = 12
 STARTING_HP = 100
@@ -45,7 +47,20 @@ def cast_word(
         raise ValueError(f"{word} is an invalid word.")
 
     target = match.players[1 - player_index]
-    target.hp = max(0, target.hp - sum(glyph.damage for glyph in glyphs_to_cast))
+    damage = sum(glyph.damage for glyph in glyphs_to_cast)
+    match.casts.append(
+        Cast(
+            turn=match.turn,
+            player_index=player_index,
+            word=word,
+            glyphs=[
+                replace(glyph) for glyph in glyphs_to_cast
+            ],  # copies: perks may change the originals later
+            damage=damage,
+        )
+    )
+    target = match.players[1 - player_index]
+    target.hp = max(0, target.hp - damage)
 
     caster.discard_pile += caster.hand
     caster.hand = []

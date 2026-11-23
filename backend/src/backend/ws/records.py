@@ -1,6 +1,7 @@
 """The match rows in MySQL: who sits where, saving results, abandoning."""
 
 import uuid
+from dataclasses import asdict
 
 from backend.core.identifiers import user_id_to_bytes, user_id_to_string
 from backend.core.matchmaking_store import MatchmakingQueueStore
@@ -9,7 +10,7 @@ from backend.game.calculations import XP_PER_LOSS, XP_PER_WIN, add_xp, new_elo_r
 from backend.game.models import Match
 from backend.game.rules import STARTING_HP
 from backend.models.match import Match as MatchRecord
-from backend.models.match import MatchStatus
+from backend.models.match import MatchCast, MatchStatus
 from backend.repositories.match import MatchRepository
 from backend.repositories.user import UserRepository
 from backend.repositories.user_stats import UserStatsRepository
@@ -101,6 +102,23 @@ async def time_control(match_id: str) -> int:
     return record.time_control_seconds
 
 
+def cast_rows(
+    match_id_bytes: bytes, player_ids: tuple[bytes, bytes], match: Match
+) -> list[MatchCast]:
+    """The match history: one match_casts row per word cast."""
+    return [
+        MatchCast(
+            match_id=match_id_bytes,
+            turn_number=cast.turn,
+            player_id=player_ids[cast.player_index],
+            word_played=cast.word,
+            damage_dealt=cast.damage,
+            glyphs_payload={"glyphs": [asdict(glyph) for glyph in cast.glyphs]},
+        )
+        for cast in match.casts
+    ]
+
+
 async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
     """Write the result to MySQL, then let both players queue again.
 
@@ -120,6 +138,8 @@ async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
             record.time_control_seconds - p.time_left for p in match.players
         )
         record.duration_seconds = round(time_used)
+        player_ids = (record.player1_id, record.player2_id)
+        db.add_all(cast_rows(match_id_bytes, player_ids, match))
         await db.commit()
         player_ids = (record.player1_id, record.player2_id)
 

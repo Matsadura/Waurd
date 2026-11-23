@@ -36,13 +36,15 @@ def build_deck() -> list[Glyph]:
     return deck
 
 
-def new_match(seed: int | None) -> Match:
+def new_match(seed: int | None, time_control_seconds: int = 300) -> Match:
     rng = random.Random(seed)
     players = []
     for _ in range(2):
         deck = build_deck()
         rng.shuffle(deck)
-        players.append(Player(hp=STARTING_HP, draw_pile=deck))
+        players.append(
+            Player(hp=STARTING_HP, draw_pile=deck, time_left=time_control_seconds)
+        )
     return Match(players=players, rng=rng, active_player_index=rng.randrange(2))
 
 

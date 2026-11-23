@@ -14,6 +14,7 @@ class Player:
     draw_pile: list[Glyph] = field(default_factory=list)
     hand: list[Glyph] = field(default_factory=list)
     discard_pile: list[Glyph] = field(default_factory=list)
+    time_left: float = 0.0
 
 
 @dataclass
@@ -24,3 +25,4 @@ class Match:
     winner: int | None = None
     rng: random.Random = field(default_factory=random.Random)
     end_reason: str | None = None
+    clock_checked_at: float = 0.0

@@ -85,3 +85,20 @@ def lose_by_disconnect(match: Match, player_index: int) -> None:
         raise ValueError("Match is already over.")
     match.winner = 1 - player_index
     match.end_reason = "DISCONNECT"
+
+
+def use_time(match: Match, now: float) -> None:
+    """Charge the active player for the time since the last check.
+
+    `now` is any steadily increasing clock in seconds (the runtime passes
+    time.monotonic()). Running out of time loses the match.
+    """
+    elapsed = now - match.clock_checked_at
+    match.clock_checked_at = now
+    if match.winner is not None and match.turn == 0:
+        return
+    player = match.players[match.active_player_index]
+    player.time_left = max(0.0, player.time_left - elapsed)
+    if player.time_left == 0:
+        match.winner = 1 - match.active_player_index
+        match.end_reason = "TIMEOUT"

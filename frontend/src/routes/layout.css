@@ -5,6 +5,14 @@
 @import '@fontsource-variable/eb-garamond';
 @import '@fontsource/im-fell-english';
 
+@font-face {
+	font-family: 'Kreon';
+	src: url('/fonts/Kreon-Medium.ttf') format('woff2');
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+
 @theme {
 	--color-background: #100d14;
 	--color-text-primary: #f5f3f5;
@@ -303,12 +311,6 @@
 	from {
 		width: 0;
 	}
-@font-face {
-	font-family: 'Kreon';
-	src: url('/fonts/Kreon-Medium.ttf') format('woff2');
-	font-weight: normal;
-	font-style: normal;
-	font-display: swap;
 }
 
 @theme {
@@ -332,4 +334,5 @@
 			transform: scale(0.99);
 		}
 	}
+	
 }

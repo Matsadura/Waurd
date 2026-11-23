@@ -286,7 +286,7 @@
 	}
 }
 
-@media (prefers-reduced-motion: no-preference) {
+/* @media (prefers-reduced-motion: no-preference) {
 	.fade-in {
 		animation: fade-in 0.8s ease-out backwards;
 	}
@@ -303,4 +303,4 @@
 	from {
 		width: 0;
 	}
-}
+} */

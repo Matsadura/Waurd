@@ -22,16 +22,27 @@
 
 <form method="POST" class="flex flex-col gap-5">
 	<FormField label="Email" name="email" type="email" autocomplete="email" bind:value={email} />
-	<FormField
-		label="Password"
-		name="password"
-		type="password"
-		autocomplete="current-password"
-		bind:value={password}
-	/>
+	<div class="flex flex-col gap-2">
+		<FormField
+			label="Password"
+			name="password"
+			type="password"
+			autocomplete="current-password"
+			bind:value={password}
+		/>
+
+		<a
+			href="/reset-password"
+			class="self-end text-base text-ash underline-offset-4 transition-colors
+			hover:text-bone hover:underline
+			focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bone"
+		>
+			Forgot password?
+		</a>
+	</div>
 
 	<Button type="submit" size="lg" class="mt-2 w-full">Login</Button>
-	
+
 	{#if form?.error}
 		<Notice>{form.error}</Notice>
 	{/if}

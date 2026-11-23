@@ -2,11 +2,13 @@ from backend.game.models import Match
 
 HAND_SIZE = 12
 STARTING_HP = 100
+TURN_SECONDS = 30
 
 
 def start_turn(match: Match) -> None:
     """Start a new turn: the active player draws up to HAND_SIZE glyphs."""
     match.turn += 1
+    match.turn_tume_used = 0.0
     player = match.players[match.active_player_index]
     while len(player.hand) < HAND_SIZE:
         if not player.draw_pile:
@@ -91,14 +93,22 @@ def use_time(match: Match, now: float) -> None:
     """Charge the active player for the time since the last check.
 
     `now` is any steadily increasing clock in seconds (the runtime passes
-    time.monotonic()). Running out of time loses the match.
+    time.monotonic()). Running out of match time loses the match; using up
+    the turn's TURN_SECONDS passes the turn.
     """
     elapsed = now - match.clock_checked_at
     match.clock_checked_at = now
-    if match.winner is not None and match.turn == 0:
+    if match.winner is not None or match.turn == 0:
         return
+
+    elapsed = min(elapsed, TURN_SECONDS - match.turn_time_used)
     player = match.players[match.active_player_index]
     player.time_left = max(0.0, player.time_left - elapsed)
+    match.turn_time_used += elapsed
+
     if player.time_left == 0:
         match.winner = 1 - match.active_player_index
         match.end_reason = "TIMEOUT"
+        return
+    if match.turn_time_used >= TURN_SECONDS:
+        pass_turn(match, match.active_player_index)

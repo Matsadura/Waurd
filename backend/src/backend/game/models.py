@@ -26,3 +26,4 @@ class Match:
     rng: random.Random = field(default_factory=random.Random)
     end_reason: str | None = None
     clock_checked_at: float = 0.0
+    turn_time_used: float = 0.0

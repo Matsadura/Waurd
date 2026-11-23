@@ -33,7 +33,7 @@ import httpx
 import websockets
 from websockets.exceptions import ConnectionClosed, InvalidStatus
 
-from backend.game.rules import STARTING_HP, TURN_SECONDS
+from backend.game.rules import STARTING_HP
 
 API = "/api/v1"
 TIME_CONTROLS = {"1": 180, "2": 300, "3": 600}
@@ -504,12 +504,9 @@ class Game:
                 f" {self.opponent} disconnected: they lose in {left}s unless they return",
                 YELLOW,
             )
-        left = max(0.0, s["turn_time_left"] - (time.monotonic() - self.received_at))
         if s["your_turn"]:
-            label = paint(" YOUR TURN ", BOLD, INVERT, GREEN)
-        else:
-            label = paint(f" {self.opponent.upper()}'S TURN ", BOLD, INVERT, BLUE)
-        return f" {label}  {bar(left, TURN_SECONDS, 30, RED if left < 10 else CYAN)} {left:>3.0f}s"
+            return " " + paint(" YOUR TURN ", BOLD, INVERT, GREEN)
+        return " " + paint(f" {self.opponent.upper()}'S TURN ", BOLD, INVERT, BLUE)
 
     def hand(self) -> list[str]:
         glyphs = self.state["you"]["hand"]

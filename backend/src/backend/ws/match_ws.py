@@ -10,7 +10,6 @@ from backend.core.config import settings
 from backend.core.session_store import RedisSessionStore
 from backend.game.models import Match
 from backend.game.rules import (
-    TURN_SECONDS,
     cast_word,
     lose_by_disconnect,
     pass_turn,
@@ -167,7 +166,6 @@ def view(match: Match, me: int) -> dict:
             "you": round(player.time_left, 1),
             "opponent": round(opponent.time_left, 1),
         },
-        "turn_time_left": round(TURN_SECONDS - match.turn_time_used, 1),
     }
 
 
@@ -196,12 +194,11 @@ def restart_clock(app: FastAPI, match_id: str, match: Match) -> None:
     if match.turn == 0 or match.winner is not None:
         return
     player = match.players[match.active_player_index]
-    seconds = min(player.time_left, TURN_SECONDS - match.turn_time_used)
-    clocks[match_id] = asyncio.create_task(flag_fall(app, match_id, seconds))
+    clocks[match_id] = asyncio.create_task(flag_fall(app, match_id, player.time_left))
 
 
 async def flag_fall(app: FastAPI, match_id: str, seconds: float) -> None:
-    """The active player sent nothing in time: pass the turn, or end on timeout."""
+    """The active player's time would be up now: end on timeout if it is."""
     await asyncio.sleep(seconds)
     match = matches.get(match_id)
     if match is None:
@@ -210,15 +207,12 @@ async def flag_fall(app: FastAPI, match_id: str, seconds: float) -> None:
 
 
 async def apply_clock(app: FastAPI, match_id: str, match: Match) -> None:
-    """Charge the active player's time, then tell both players what that changed."""
-    turn_before = match.turn
+    """Charge the active player's time; if it ran out, end the match on timeout."""
     use_time(match, time.monotonic())
     if match.winner is not None:
         await broadcast(match_id)
         await end_match(app, match_id, match)
         return
-    if match.turn != turn_before:
-        await broadcast(match_id)
     restart_clock(app, match_id, match)
 
 

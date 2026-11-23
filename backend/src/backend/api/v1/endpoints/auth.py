@@ -72,7 +72,7 @@ def _with_query_param(url: str, key: str, value: str) -> str:
 async def login(
     credentials: LoginRequest,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     session_store: RedisSessionStore = Depends(get_session_store),
     two_factor_store: TwoFactorStore = Depends(get_two_factor_store),
     email_sender: EmailSender = Depends(get_email_sender),

@@ -47,7 +47,7 @@ async def get_friends(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     size: int = Query(20, ge=1, le=100, description="Friends per page"),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     repo = FriendshipRepository(db)
     skip = (page - 1) * size
@@ -72,7 +72,7 @@ async def get_pending_requests(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     size: int = Query(20, ge=1, le=100, description="Requests per page"),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     repo = FriendshipRepository(db)
     skip = (page - 1) * size
@@ -93,7 +93,7 @@ async def get_pending_requests(
 async def send_friend_request(
     payload: FriendRequestCreate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     user_repo = UserRepository(db)
     target_user: User | None = None
@@ -144,7 +144,7 @@ async def handle_friend_request(
     request_id: int,
     payload: FriendRequestUpdate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     friend_repo = FriendshipRepository(db)
     friendship = await friend_repo.get_by_id(request_id)
@@ -188,7 +188,7 @@ async def handle_friend_request(
 async def remove_friend(
     friend_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     target_bytes = parse_user_id(friend_id)
     friend_repo = FriendshipRepository(db)
@@ -210,7 +210,7 @@ async def remove_friend(
 async def block_user(
     target_user_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     target_bytes = parse_user_id(target_user_id)
 
@@ -273,7 +273,7 @@ async def block_user(
 async def unblock_user(
     target_user_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     target_bytes = parse_user_id(target_user_id)
     friend_repo = FriendshipRepository(db)

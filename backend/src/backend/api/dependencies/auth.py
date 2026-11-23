@@ -50,7 +50,7 @@ def get_password_reset_store(
 async def get_current_user(
     session_id: str | None = Depends(cookie_scheme),
     session_store: RedisSessionStore = Depends(get_session_store),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> User:
     """Validate the HTTP session cookie and resolve the authenticated User entity."""
     if not session_id:

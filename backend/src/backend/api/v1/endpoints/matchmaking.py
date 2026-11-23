@@ -47,7 +47,7 @@ router = APIRouter(prefix="/matchmaking", tags=["Matchmaking & Matches"])
 async def join_queue(
     payload: QueueJoinRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     redis: Redis = Depends(get_redis),
 ):
     """
@@ -103,7 +103,7 @@ async def leave_queue(
 )
 async def get_queue_status(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
 ):
     user_id_str = user_id_to_string(current_user.id)
@@ -144,7 +144,7 @@ async def get_queue_status(
 async def create_private_match_lobby(
     payload: CustomMatchCreateRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
 ):
     """
@@ -189,7 +189,7 @@ async def create_private_match_lobby(
 async def join_custom_match(
     payload: JoinMatchRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
 ):
     """
@@ -239,7 +239,7 @@ async def join_custom_match(
 async def get_match_details(
     match_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Fetches match metadata, participants, final HP, scores, and completion info by match UUID.
@@ -302,7 +302,7 @@ async def get_match_details(
 async def get_match_casts(
     match_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Fetches the turn-by-turn audit log for a match including words played, glyphs, perks, and damage values.
@@ -357,7 +357,7 @@ async def get_match_casts(
 async def cancel_custom_match(
     match_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Cancels a pending WAITING match lobby. Unlocks the host so they can queue or host again.
@@ -385,7 +385,7 @@ async def abandon_active_match(
     match_id: str,
     request: Request,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     queue_store: MatchmakingQueueStore = Depends(get_matchmaking_queue),
 ):
     """

@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 import uuid
 from pathlib import Path
 
@@ -14,9 +15,16 @@ from backend.game.rules import (
     pass_turn,
     resign,
     start_turn,
+    use_time,
 )
 from backend.game.setup import load_words, new_match
-from backend.ws.records import abandon, final_result, save_result, seat_in_match
+from backend.ws.records import (
+    abandon,
+    final_result,
+    save_result,
+    seat_in_match,
+    time_control,
+)
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger("uvicorn.error")
@@ -26,9 +34,16 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 WORDS = load_words(DATA_DIR / "enable1.txt")
 matches: dict[str, Match] = {}
 sockets: dict[str, dict[int, WebSocket]] = {}
+clocks: dict[str, asyncio.Task] = {}
 
 GRACE_SECONDS = 30
 timers: dict[tuple[str, int], asyncio.Task] = {}
+
+
+def stop_clock(match_id: str) -> None:
+    task = clocks.pop(match_id, None)
+    if task is not None and task is not asyncio.current_task():
+        task.cancel()
 
 
 async def user_id_from_cookie(ws: WebSocket) -> str | None:
@@ -140,6 +155,10 @@ def view(match: Match, me: int) -> dict:
             ],
         },
         "opponent": {"hp": opponent.hp, "hand_size": len(opponent.hand)},
+        "time_left": {
+            "you": round(player.time_left, 1),
+            "opponent": round(opponent.time_left, 1),
+        },
     }
 
 
@@ -160,6 +179,29 @@ async def send_to_others(match_id: str, me: int, message: dict) -> None:
             await socket.send_json(message)
         except (WebSocketDisconnect, RuntimeError):
             pass  # that player's own loop notices the drop and cleans up
+
+
+def restart_clock(app: FastAPI, match_id: str, match: Match) -> None:
+    """Wake up when the active player's time would run out."""
+    stop_clock(match_id)
+    if match.turn == 0 or match.winner is not None:
+        return
+    seconds = match.players[match.active_player_index].time_left
+    clocks[match_id] = asyncio.create_task(flag_fall(app, match_id, seconds))
+
+
+async def flag_fall(app: FastAPI, match_id: str, seconds: float) -> None:
+    """The active player sent nothing in time: charge the clock and end on timeout."""
+    await asyncio.sleep(seconds)
+    match = matches.get(match_id)
+    if match is None:
+        return
+    use_time(match, time.monotonic())
+    if match.winner is None:
+        restart_clock(app, match_id, match)  # woke a moment early: wait for the rest
+        return
+    await broadcast(match_id)
+    await end_match(app, match_id, match)
 
 
 @router.websocket("/matches/{match_id}")
@@ -196,9 +238,10 @@ async def play(ws: WebSocket, match_id: str) -> None:
         await ws.close()
         return
 
+    seconds = await time_control(match_id)
     await ws.accept()
     if match_id not in matches:
-        matches[match_id] = new_match(seed=None)
+        matches[match_id] = new_match(seed=None, time_control_seconds=seconds)
     sockets.setdefault(match_id, {})[me] = ws
     match = matches[match_id]
 
@@ -219,8 +262,10 @@ async def play(ws: WebSocket, match_id: str) -> None:
             end_if_still_gone(ws.app, match_id, other)
         )
 
+    use_time(match, time.monotonic())
     if len(sockets[match_id]) == 2 and match.turn == 0:
         start_turn(match)
+        restart_clock(ws.app, match_id, match)
     await broadcast(match_id)
 
     try:
@@ -229,6 +274,9 @@ async def play(ws: WebSocket, match_id: str) -> None:
                 message = await ws.receive_json()
                 if match.turn == 0:
                     raise ValueError("Waiting for the other player.")
+                use_time(match, time.monotonic())
+                if match.winner is not None:
+                    pass
                 if message["type"] == "CAST_WORD":
                     cast_word(match, me, message["positions"], WORDS)
                 elif message["type"] == "PASS_TURN":
@@ -243,5 +291,7 @@ async def play(ws: WebSocket, match_id: str) -> None:
             await broadcast(match_id)
             if match.winner is not None:
                 await end_match(ws.app, match_id, match)
+            else:
+                restart_clock(ws.app, match_id, match)
     except WebSocketDisconnect:
         await left(ws, match_id, me)

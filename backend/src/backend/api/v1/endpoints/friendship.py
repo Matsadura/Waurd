@@ -1,3 +1,5 @@
+from typing import Literal
+
 from backend.api.dependencies.auth import get_current_user
 from backend.core.exceptions import (
     BadRequestException,
@@ -19,79 +21,71 @@ from backend.schemas.friendship import (
     PendingRequestsResponse,
     RequestAction,
 )
-from fastapi import APIRouter, Depends, status
+from backend.schemas.pagination import PaginatedResponse
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/friends", tags=["Friendships & Social"])
 
 
-# 1. GET /friends - List all accepted friends
-@router.get(
-    "",
-    response_model=FriendListResponse,
-    status_code=status.HTTP_200_OK,
-    summary="List all accepted friends",
-)
-async def get_friends(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    repo = FriendshipRepository(db)
-    friends = await repo.get_accepted_friends(current_user.id)
-
-    friend_responses = [
-        FriendUserResponse(
-            id=bytes_to_str(friend.id),
-            username=friend.username,
-            avatar_url=friend.avatar_url,
-            is_online=friend.is_online,
-            last_seen_at=friend.last_seen_at,
-        )
-        for friend in friends
-    ]
-    return FriendListResponse(friends=friend_responses)
-
-
-# 2. GET /friends/requests - List pending incoming and outgoing requests
-@router.get(
-    "/requests",
-    response_model=PendingRequestsResponse,
-    status_code=status.HTTP_200_OK,
-    summary="List pending incoming and outgoing friend requests",
-)
-async def get_pending_requests(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    repo = FriendshipRepository(db)
-    incoming, outgoing = await repo.get_pending_requests(current_user.id)
-
-    return PendingRequestsResponse(
-        incoming=[
-            FriendUserResponse(
-                id=bytes_to_str(requester.id),
-                username=requester.username,
-                avatar_url=requester.avatar_url,
-                is_online=requester.is_online,
-                last_seen_at=requester.last_seen_at,
-            )
-            for requester in incoming
-        ],
-        outgoing=[
-            FriendUserResponse(
-                id=bytes_to_str(addressee.id),
-                username=addressee.username,
-                avatar_url=addressee.avatar_url,
-                is_online=addressee.is_online,
-                last_seen_at=addressee.last_seen_at,
-            )
-            for addressee in outgoing
-        ],
+def _to_friend_user_response(user: User) -> FriendUserResponse:
+    return FriendUserResponse(
+        id=bytes_to_str(user.id),
+        username=user.username,
+        avatar_url=user.avatar_url,
+        is_online=user.is_online,
+        last_seen_at=user.last_seen_at,
     )
 
 
-# 3. POST /friends/requests - Send a friend request by target_user_id or username
+@router.get(
+    "",
+    response_model=PaginatedResponse[FriendUserResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List accepted friends",
+)
+async def get_friends(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    size: int = Query(20, ge=1, le=100, description="Friends per page"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    repo = FriendshipRepository(db)
+    skip = (page - 1) * size
+    friends, total = await repo.get_accepted_friends(
+        current_user.id, skip=skip, limit=size
+    )
+
+    items = [_to_friend_user_response(friend) for friend in friends]
+    return PaginatedResponse.create(items=items, total=total, page=page, size=size)
+
+
+@router.get(
+    "/requests",
+    response_model=PaginatedResponse[FriendUserResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List pending incoming or outgoing friend requests",
+)
+async def get_pending_requests(
+    direction: Literal["incoming", "outgoing"] = Query(
+        "incoming", description="Filter by incoming or outgoing requests"
+    ),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    size: int = Query(20, ge=1, le=100, description="Requests per page"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    repo = FriendshipRepository(db)
+    skip = (page - 1) * size
+    users, total = await repo.get_pending_requests_by_direction(
+        current_user.id, direction=direction, skip=skip, limit=size
+    )
+
+    items = [_to_friend_user_response(user) for user in users]
+    return PaginatedResponse.create(items=items, total=total, page=page, size=size)
+
+
 @router.post(
     "/requests",
     response_model=FriendshipResponse,
@@ -142,7 +136,6 @@ async def send_friend_request(
     )
 
 
-# 4. PATCH /friends/requests/{request_id} - Accept or decline an incoming friend request
 @router.patch(
     "/requests/{request_id}",
     response_model=FriendshipResponse,
@@ -189,7 +182,6 @@ async def handle_friend_request(
     )
 
 
-# 5. DELETE /friends/{friend_id} - Remove an accepted friend
 @router.delete(
     "/{friend_id}",
     status_code=status.HTTP_200_OK,
@@ -211,7 +203,6 @@ async def remove_friend(
     return {"detail": "Friend successfully removed"}
 
 
-# 6. POST /friends/block/{target_user_id} - Block a user
 @router.post(
     "/block/{target_user_id}",
     response_model=FriendshipResponse,
@@ -235,8 +226,6 @@ async def block_user(
     existing = await friend_repo.get_by_users(current_user.id, target_bytes)
 
     if existing:
-        # A pair shares one row, so taking over the other user's block would
-        # let the blocked user remove it through the unblock endpoint.
         if (
             existing.status == FriendshipStatus.BLOCKED
             and existing.requester_id != current_user.id
@@ -278,7 +267,6 @@ async def block_user(
     )
 
 
-# 7. DELETE /friends/block/{target_user_id} - Unblock a previously blocked user
 @router.delete(
     "/block/{target_user_id}",
     status_code=status.HTTP_200_OK,

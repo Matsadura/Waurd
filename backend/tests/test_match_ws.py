@@ -17,7 +17,6 @@ records = pytest.importorskip(
     "backend.ws.records", reason="The match socket is not merged yet"
 )
 
-from backend.game import rules
 from backend.game.rules import cast_word, resign, start_turn, use_time
 from backend.game.models import Glyph
 from backend.game.setup import new_match
@@ -135,6 +134,7 @@ class TestEnding:
     ) -> None:
         match_id = await active_match(session_maker, alice, bob)
         game = new_match(seed=1)
+        use_time(game, time.monotonic())  # the clock starts with the game, as in play()
         start_turn(game)
         match_ws.matches[match_id] = game
         bob_socket = LiveSocket()
@@ -266,29 +266,32 @@ class TestClock:
         start_turn(game)
         return game
 
-    def test_each_turn_has_its_own_turn_timer(self) -> None:
+    def test_each_player_gets_half_the_time_control(self) -> None:
+        game = new_match(seed=1, time_control_seconds=300)
+
+        assert [player.time_left for player in game.players] == [150, 150]
+
+    def test_only_the_active_players_clock_runs(self) -> None:
         game = self.started()
+        first = game.active_player_index
+
         use_time(game, 20.0)
-        rules.pass_turn(game, game.active_player_index)
 
-        assert game.turn_time_used == 0
-        use_time(game, 35.0)  # 15 seconds into the new turn
-        assert game.turn == 2
+        assert game.players[first].time_left == 130
+        assert game.players[1 - first].time_left == 150
 
-    def test_a_full_turn_passes_on_its_own(self) -> None:
+    def test_a_long_turn_does_not_pass_on_its_own(self) -> None:
         game = self.started()
+
+        use_time(game, 100.0)
+
+        assert (game.turn, game.winner) == (1, None)
+
+    def test_running_out_of_time_loses(self) -> None:
+        game = self.started(seconds=10)  # 5 seconds each
         first = game.active_player_index
 
-        use_time(game, rules.TURN_SECONDS)
-
-        assert (game.turn, game.active_player_index) == (2, 1 - first)
-        assert game.players[first].time_left == 300 - rules.TURN_SECONDS
-
-    def test_running_out_of_match_time_loses(self) -> None:
-        game = self.started(seconds=10)
-        first = game.active_player_index
-
-        use_time(game, 10.0)
+        use_time(game, 5.0)
 
         assert (game.winner, game.end_reason) == (1 - first, "TIMEOUT")
 
@@ -312,6 +315,19 @@ class TestClock:
         assert watcher.messages[-1]["you_won"] is True
         assert "m" not in match_ws.matches
         assert "m" not in match_ws.clocks  # nothing left ticking
+
+    async def test_the_duration_is_the_time_both_players_used(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)  # 180 seconds
+        game = finished_game()
+        game.players[0].time_left, game.players[1].time_left = 60, 80  # of 90 each
+
+        await records.save_result(fake_app(redis), match_id, game)
+
+        async with session_maker() as db:
+            record = await db.get(Match, uuid.UUID(match_id).bytes)
+        assert record.duration_seconds == 40
 
 
 def game_with_casts():  # type: ignore[no-untyped-def]
@@ -599,12 +615,14 @@ class TestSocket:
             with pytest.raises(WebSocketDisconnect):
                 c.receive_json()
 
-    def test_a_late_move_still_tells_both_players_the_turn_passed(
+    def test_a_move_after_the_time_ran_out_ends_the_match(
         self, client, monkeypatch
     ) -> None:  # type: ignore[no-untyped-def]
-        monkeypatch.setattr(rules, "TURN_SECONDS", 0.2)
-        monkeypatch.setattr(match_ws, "TURN_SECONDS", 0.2)
-        # No clock task: only the late message can notice the turn ran out.
+        async def tiny(match_id):  # type: ignore[no-untyped-def]
+            return 0.4  # 0.2 seconds each
+
+        monkeypatch.setattr(match_ws, "time_control", tiny)
+        # No clock task: only the late message can notice the time ran out.
         monkeypatch.setattr(match_ws, "restart_clock", lambda *args: None)
         match_id = str(uuid.uuid4())
 
@@ -618,6 +636,7 @@ class TestSocket:
 
             late.send_json({"type": "PASS_TURN"})
 
-            assert late.receive_json()["turn"] == 2
-            assert other.receive_json()["your_turn"] is True
-            assert late.receive_json()["reason"] == "It's not your turn."
+            assert late.receive_json()["end_reason"] == "TIMEOUT"
+            assert other.receive_json()["you_won"] is True
+            assert late.receive_json()["reason"] == "Match is already over."
+        assert client.ended[0][2] == "TIMEOUT"

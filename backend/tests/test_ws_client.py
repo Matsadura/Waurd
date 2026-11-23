@@ -31,8 +31,7 @@ def state(**changes):  # type: ignore[no-untyped-def]
         "end_reason": None,
         "you": {"hp": 100, "hand": hand(("C", 12), ("A", 6), ("T", 8))},
         "opponent": {"hp": 100, "hand_size": 0},
-        "time_left": {"you": 180, "opponent": 180},
-        "turn_time_left": 30,
+        "time_left": {"you": 90, "opponent": 90},
     }
     return {**base, **changes}
 

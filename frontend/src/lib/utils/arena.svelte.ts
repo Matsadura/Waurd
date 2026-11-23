@@ -6,7 +6,7 @@ type ElementList = (HTMLElement | undefined)[];
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export const FEEL = {
-	CardWidth: 'w-[18%] md:w-[11%]',
+	CardWidth: 'w-[18%] md:w-[11%] lg:w-[9%]',
 	cardBottom: -12,
 	spacing: 62,
 	curvature: 3.2,
@@ -57,7 +57,7 @@ export class Arena {
 		avatar: 'https://avatars.githubusercontent.com/u/104344010',
 		maxHp: 100,
 		hp: 98,
-		timeLeft: 9000,
+		timeLeft: 65,
 		effects: [
 			{ name: 'attack', amount: 5 },
 			{ name: 'defense', amount: 5 }

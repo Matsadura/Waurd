@@ -16,49 +16,50 @@
 
 <section
 	class={[
-		'flex max-w-2xl min-w-0 flex-1 items-center gap-2 p-2 font-kreon text-arena-yallow-100 md:gap-4',
+		'flex max-w-xl min-w-0 flex-1 items-center gap-2 p-1.5 font-kreon text-arena-yallow-100 md:gap-3',
 		mirrored && 'flex-row-reverse'
 	]}
 >
 	<div class="flex shrink-0 cursor-pointer flex-col items-center">
 		<a
-			class="size-12 cursor-pointer overflow-hidden rounded-full border-2 border-arena-yallow-100 bg-black/40 shadow-lg ring-4 shadow-arena-yallow-100/30 ring-black/30 hover:border-green-600 hover:shadow-green-600 sm:size-14 md:size-18 lg:size-22 2xl:size-26"
+			class="size-10 cursor-pointer overflow-hidden rounded-full border-2 border-arena-yallow-100 bg-black/40 shadow-lg ring-2 shadow-arena-yallow-100/30 ring-black/30 hover:border-green-600 hover:shadow-green-600 sm:size-12 md:size-14 lg:size-16 2xl:size-20"
 			href="https://www.youtube.com/watch?v=xdovIDv6SHM"
 			target="_blank"
 		>
 			{#if player.avatar}
 				<img src={player.avatar} alt="" class="size-full object-cover" draggable="false" />
 			{:else}
-				<span class="grid size-full place-items-center text-xl md:text-3xl lg:text-4xl">
+				<span class="grid size-full place-items-center text-lg md:text-2xl lg:text-3xl">
 					{player.name.charAt(0)}
 				</span>
 			{/if}
 		</a>
 		<span
-			class="relative -mt-2 rounded-full border border-card-skill bg-arena-yallow-100 px-2 py-px text-xs leading-tight font-bold text-card-skill md:text-sm lg:text-base"
+			class="relative -mt-2 rounded-full border border-card-skill bg-arena-yallow-100 px-1.5 py-px text-xs leading-tight font-bold text-card-skill lg:text-sm"
 		>
 			{player.label}
 		</span>
 	</div>
 
-	<div class="flex min-w-0 flex-1 flex-col gap-1.5 lg:gap-2">
+	<div class="flex min-w-0 flex-1 flex-col gap-1 lg:gap-1.5">
 		<header class={['flex items-center justify-between gap-2', mirrored && 'flex-row-reverse']}>
 			<h2
-				class="truncate text-lg leading-snug font-bold md:text-2xl lg:text-3xl"
+				class="truncate text-base leading-snug font-bold md:text-xl lg:text-2xl"
 				class:turn-flash={isTurn}
 			>
 				{player.name}
 			</h2>
 
+			<!-- Clock -->
 			<span
 				class={[
-					'flex w-36 items-center justify-center gap-1.5 rounded bg-arena-yallow-100 px-2 py-1 text-base leading-none font-bold text-card-skill tabular-nums motion-reduce:animate-none md:px-3 md:py-1.5 md:text-2xl lg:text-3xl',
-					isTurn && 'active-clock'
+					'flex items-center justify-center gap-1 rounded bg-arena-yallow-100 px-2 py-0.5 text-sm leading-none font-bold text-card-skill tabular-nums motion-reduce:animate-none md:w-28 md:px-2.5 md:py-2.5 md:text-xl lg:w-32 lg:text-2xl',
+					isTurn && (player.timeLeft > 60 ? 'active-clock' : 'active-clock-danger')
 				]}
 			>
 				<svg
 					viewBox="0 0 24 24"
-					class="hidden size-5 md:block lg:size-6"
+					class="hidden size-4 md:block lg:size-5"
 					fill="none"
 					stroke="currentColor"
 					stroke-width="2.5"
@@ -73,7 +74,7 @@
 		</header>
 
 		<div
-			class="grid h-5 w-full grid-cols-1 overflow-hidden rounded border-2 border-arena-yallow-100/60 bg-black/50 shadow-inner shadow-green-900/90 md:h-7 lg:h-9"
+			class="grid h-4 w-full grid-cols-1 overflow-hidden rounded border-2 border-arena-yallow-100/60 bg-black/50 shadow-inner shadow-green-900/90 md:h-5 lg:h-7"
 			role="meter"
 			aria-label="Health"
 			aria-valuemin={0}
@@ -89,7 +90,7 @@
 				style:width="{player.healthBarPercentage}%"
 			></div>
 
-			<!-- Current health (the bright edge faces the empty part of the bar) -->
+			<!-- Current health -->
 			<div
 				class={[
 					'col-start-1 row-start-1 border-rose-500/60 bg-rose-700 bg-linear-to-b from-white/25 to-transparent transition-all duration-300 ease-out motion-reduce:transition-none',
@@ -104,7 +105,7 @@
 			<!-- HP text -->
 			<span
 				class={[
-					'col-start-1 row-start-1 self-center px-2 text-xs font-bold whitespace-nowrap drop-shadow-md md:px-3 md:text-base lg:text-lg',
+					'col-start-1 row-start-1 self-center px-1.5 text-xs font-bold whitespace-nowrap drop-shadow-md md:px-2 md:text-sm lg:text-base',
 					mirrored && 'justify-self-end'
 				]}
 			>
@@ -112,22 +113,22 @@
 			</span>
 		</div>
 
-		<!-- Effects: row-reverse also pushes them to the right edge, next to the avatar -->
+		<!-- Effects -->
 		<ul
 			class={[
-				'flex flex-wrap items-center gap-1.5 text-sm font-bold md:gap-2 md:text-lg lg:text-xl',
+				'flex flex-wrap items-center gap-1 text-xs font-bold md:gap-1.5 md:text-sm lg:text-base',
 				mirrored && 'flex-row-reverse'
 			]}
 		>
 			{#each player.effects as effect}
 				<li
 					class={[
-						'flex items-center gap-1 rounded-md border border-arena-yallow-100/30 bg-black/30 px-2',
+						'flex items-center gap-1 rounded-md border border-arena-yallow-100/30 bg-black/30 px-1.5',
 						mirrored && 'flex-row-reverse'
 					]}
 					aria-label="{effect.name} effect"
 				>
-					<span class="mt-1.5 text-3xl text-rose-500">&#10084;</span>
+					<span class="mt-1 text-xl text-rose-500">&#10084;</span>
 					{effect.amount}
 					{effect.name[0].toLocaleUpperCase() + effect.name.slice(1).toLocaleLowerCase()}
 				</li>
@@ -174,6 +175,16 @@
 		60%,
 		100% {
 			color: var(--color-green-700);
+		}
+	}
+	.active-clock-danger {
+		animation: turn-ring-danger 700ms cubic-bezier(0.9, 0, 0.1, 1) infinite alternate;
+	}
+
+	@keyframes turn-ring-danger {
+		to {
+			background-color: var(--color-red-800);
+			color: var(--color-arena-yallow-100);
 		}
 	}
 

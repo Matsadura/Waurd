@@ -28,6 +28,8 @@ def cast_word(
         raise ValueError("It's not your turn.")
 
     caster = match.players[player_index]
+    if any(type(i) is not int for i in positions):
+        raise ValueError("Positions must be whole numbers.")
     if not positions:
         raise ValueError("Pick at least one glyph.")
     if len(set(positions)) != len(positions):
@@ -48,6 +50,7 @@ def cast_word(
 
     if target.hp == 0:
         match.winner = player_index
+        match.end_reason = "HEALTH_DEPLETED"
         return
     match.active_player_index = 1 - player_index
     start_turn(match)
@@ -66,3 +69,19 @@ def pass_turn(match: Match, player_index: int) -> None:
 
     match.active_player_index = 1 - player_index
     start_turn(match)
+
+
+def resign(match: Match, player_index: int) -> None:
+    """Resign the match for the given player."""
+    if match.winner is not None:
+        raise ValueError("Match is already over.")
+    match.winner = 1 - player_index
+    match.end_reason = "RESIGNATION"
+
+
+def lose_by_disconnect(match: Match, player_index: int) -> None:
+    """The player left and didn't come back in time: the other player wins."""
+    if match.winner is not None:
+        raise ValueError("Match is already over.")
+    match.winner = 1 - player_index
+    match.end_reason = "DISCONNECT"

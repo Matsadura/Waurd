@@ -247,6 +247,7 @@ dependencies = [
     { name = "cryptography" },
     { name = "fastapi", extra = ["standard"] },
     { name = "fastapi-mail" },
+    { name = "fastapi-pagination" },
     { name = "greenlet" },
     { name = "httpx" },
     { name = "pwdlib", extra = ["argon2"] },
@@ -271,6 +272,7 @@ requires-dist = [
     { name = "cryptography", specifier = ">=43.0.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.142.2" },
     { name = "fastapi-mail", specifier = ">=1.6.8" },
+    { name = "fastapi-pagination", specifier = ">=0.16.3" },
     { name = "greenlet", specifier = ">=3.5.6" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.1" },
@@ -701,6 +703,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/20/36/89d9c39a12692ac0dfdf4913d05d3944febb67c0d0285e04e506645c7e8b/fastapi_mail-1.6.8.tar.gz", hash = "sha256:ba8a6e85ed494b7b578ddc9247592df9fd9006b6bc80ad29851d0820c9434270", size = 13789, upload-time = "2026-08-22T11:59:00.764Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fd/7f/659ef0ebb06112def6a17370ece99c37feaed8428c71a20645325338588e/fastapi_mail-1.6.8-py3-none-any.whl", hash = "sha256:b3b354770572e476a2bc6b482539855cdacb351d33bde44fc4c7057507ba3845", size = 16171, upload-time = "2026-08-22T11:59:01.476Z" },
+]
+
+[[package]]
+name = "fastapi-pagination"
+version = "0.16.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e8/50/8938abf7faee7e93e6aeede7c737ca2b5537bb3b6405467b344562f03db2/fastapi_pagination-0.16.3.tar.gz", hash = "sha256:881bc0c2f389346afbff8ea6359f511cda6afbc71ad07baff1c60617fa54dd8b", size = 670086, upload-time = "2026-11-12T18:26:03.438Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/95/d8/720bb00256b1e3c26bd365ed3a2b2ce37dbc65d67c297ad2caded18e4947/fastapi_pagination-0.16.3-py3-none-any.whl", hash = "sha256:4db172f797a4adca1e662612a02c11409418bea18d86dc62fe595f8b0e5a599f", size = 56086, upload-time = "2026-11-12T18:26:02.207Z" },
 ]
 
 [[package]]

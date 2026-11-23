@@ -23,3 +23,4 @@ class Match:
     turn: int = 0
     winner: int | None = None
     rng: random.Random = field(default_factory=random.Random)
+    end_reason: str | None = None

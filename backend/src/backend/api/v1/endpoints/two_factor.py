@@ -190,7 +190,7 @@ async def verify_login(
     payload: TwoFactorCodeRequest,
     response: Response,
     challenge_token: str | None = Cookie(None, alias=settings.TWO_FACTOR_COOKIE_NAME),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     session_store: RedisSessionStore = Depends(get_session_store),
     store: TwoFactorStore = Depends(get_two_factor_store),
 ) -> UserResponse:

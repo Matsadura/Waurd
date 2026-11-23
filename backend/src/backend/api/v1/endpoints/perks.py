@@ -1,10 +1,8 @@
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from backend.api.dependencies.auth import get_current_user
 from backend.db.session import get_db
 from backend.models.user import User
 from backend.repositories.perks import PerkRepository
+from backend.schemas.pagination import PaginatedResponse
 from backend.schemas.perks import (
     AchievementResponse,
     PerkResponse,
@@ -12,46 +10,56 @@ from backend.schemas.perks import (
     UserAchievementResponse,
     UserLoadoutResponse,
 )
+from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(tags=["Perks, Deckbuilding & Achievements"])
 
 
 @router.get(
     "/perks",
-    response_model=list[PerkResponse],
+    response_model=PaginatedResponse[PerkResponse],
     status_code=status.HTTP_200_OK,
     summary="List all master game perks (modifiers, durability, target types).",
 )
 async def list_perks(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    size: int = Query(20, ge=1, le=100, description="Perks per page"),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> list[PerkResponse]:
+    db: AsyncSession = Depends(get_db, scope="function"),
+) -> PaginatedResponse[PerkResponse]:
     """
-    List all master game perks including their modifier types, durability,
+    List paginated master game perks including their modifier types, durability,
     rarity, and target glyph types.
     """
     repo = PerkRepository(db)
-    perks = await repo.get_all_perks()
-    return [PerkResponse.model_validate(p) for p in perks]
+    skip = (page - 1) * size
+    perks, total = await repo.get_all_perks(skip=skip, limit=size)
+    items = [PerkResponse.model_validate(p) for p in perks]
+    return PaginatedResponse.create(items=items, total=total, page=page, size=size)
 
 
 @router.get(
     "/achievements",
-    response_model=list[AchievementResponse],
+    response_model=PaginatedResponse[AchievementResponse],
     status_code=status.HTTP_200_OK,
     summary="List all achievements, criteria, XP rewards, and associated perk unlocks.",
 )
 async def list_achievements(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    size: int = Query(20, ge=1, le=100, description="Achievements per page"),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> list[AchievementResponse]:
+    db: AsyncSession = Depends(get_db, scope="function"),
+) -> PaginatedResponse[AchievementResponse]:
     """
-    List all game achievements with criteria thresholds, XP rewards,
+    List paginated game achievements with criteria thresholds, XP rewards,
     and associated perk unlocks.
     """
     repo = PerkRepository(db)
-    achievements = await repo.get_all_achievements()
-    return [AchievementResponse.model_validate(a) for a in achievements]
+    skip = (page - 1) * size
+    achievements, total = await repo.get_all_achievements(skip=skip, limit=size)
+    items = [AchievementResponse.model_validate(a) for a in achievements]
+    return PaginatedResponse.create(items=items, total=total, page=page, size=size)
 
 
 @router.get(
@@ -62,7 +70,7 @@ async def list_achievements(
 )
 async def get_my_achievements(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> list[UserAchievementResponse]:
     """
     Get the authenticated user's progress across all achievements,
@@ -81,7 +89,7 @@ async def get_my_achievements(
 )
 async def get_my_loadout(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> UserLoadoutResponse:
     """
     Retrieve the player's active starter perk loadout and all perks
@@ -101,7 +109,7 @@ async def get_my_loadout(
 async def update_my_loadout(
     payload: UpdateLoadoutRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> UserLoadoutResponse:
     """
     Equip active persistent starter perks for matches. Validates that every

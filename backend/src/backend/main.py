@@ -14,6 +14,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.v1.router import api_v1_router
+from backend.ws.records import abandon_unfinished_matches
 from backend.ws.match_ws import router as match_ws_router
 from backend.core.config import settings
 from backend.core.exceptions import AppException
@@ -38,6 +39,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         raise RuntimeError(
             f"Failed to connect to Redis at {settings.REDIS_URL}"
         ) from err
+    # Games live in memory, so any match still active was lost by a restart
+    await abandon_unfinished_matches(app)
+
     # 2. Launch background matchmaker worker task
     queue_store = MatchmakingQueueStore(app.state.redis)
     worker = MatchmakerWorker(
@@ -180,7 +184,7 @@ app.include_router(match_ws_router, prefix="/ws")
 @app.get("/health", tags=["Monitoring"], status_code=status.HTTP_200_OK)
 async def unified_health_check(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> JSONResponse:
     redis_client = request.app.state.redis
     db_failed = False

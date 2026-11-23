@@ -21,7 +21,12 @@ async_session_maker = async_sessionmaker(
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI route dependency yielding an async database session."""
+    """FastAPI route dependency yielding an async database session.
+
+    Use it as Depends(get_db, scope="function"): the commit then runs before
+    the response is sent, so the client never sees an answer for a change that
+    isn't saved yet, or that fails to save.
+    """
     async with async_session_maker() as session:
         try:
             yield session

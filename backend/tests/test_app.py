@@ -3,6 +3,7 @@
 import fakeredis
 import pytest
 from conftest import HEALTH_URL, PASSWORD
+from fastapi.routing import APIRoute
 from sqlalchemy.exc import OperationalError
 
 from backend import main as main_module
@@ -202,3 +203,33 @@ class TestCors:
 
         assert response.headers["access-control-allow-origin"] == self.ORIGIN
         assert response.headers["access-control-expose-headers"] == "X-CSRF-Token"
+
+
+def api_routes(routes):  # type: ignore[no-untyped-def]
+    for route in routes:
+        if isinstance(route, APIRoute):
+            yield route
+        elif hasattr(route, "original_router"):  # FastAPI keeps included routers nested
+            yield from api_routes(route.original_router.routes)
+
+
+def get_db_scopes(dependant):  # type: ignore[no-untyped-def]
+    for dependency in dependant.dependencies:
+        if dependency.call is get_db:
+            yield dependency.scope
+        yield from get_db_scopes(dependency)
+
+
+class TestDatabaseSessions:
+    def test_every_route_commits_before_answering(self) -> None:
+        """The default "request" scope commits after the response is sent: a
+        client reading right after a write could miss it, or get a success for
+        a change that then fails to save."""
+        scopes = {
+            (route.path, scope)
+            for route in api_routes(app.routes)
+            for scope in get_db_scopes(route.dependant)
+        }
+
+        assert len(scopes) > 20, "the routes using get_db were not all found"
+        assert sorted(path for path, scope in scopes if scope != "function") == []

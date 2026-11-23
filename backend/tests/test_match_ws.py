@@ -1,6 +1,6 @@
 """The match WebSocket and its database side (match_ws.py, records.py): saving
 results, sending, bad messages, arrival, ids, abandoning, the result after the
-end and who starts."""
+end, who starts and the clock."""
 
 import json
 import time
@@ -16,7 +16,8 @@ records = pytest.importorskip(
     "backend.ws.records", reason="The match socket is not merged yet"
 )
 
-from backend.game.rules import cast_word, resign, start_turn
+from backend.game import rules
+from backend.game.rules import cast_word, resign, start_turn, use_time
 from backend.game.setup import new_match
 from fastapi import WebSocketDisconnect
 from starlette.testclient import TestClient
@@ -32,9 +33,10 @@ def fresh_state(monkeypatch, session_maker):  # type: ignore[no-untyped-def]
     match_ws.matches.clear()
     match_ws.sockets.clear()
     match_ws.timers.clear()
+    match_ws.clocks.clear()
     monkeypatch.setattr(records, "async_session_maker", session_maker)
     yield
-    for task in match_ws.timers.values():
+    for task in [*match_ws.timers.values(), *match_ws.clocks.values()]:
         task.cancel()
 
 
@@ -255,6 +257,61 @@ class TestRules:
         assert match_ws.view(new_match(seed=1), 0)["you_won"] is None
 
 
+class TestClock:
+    def started(self, seconds: int = 300):  # type: ignore[no-untyped-def]
+        game = new_match(seed=1, time_control_seconds=seconds)
+        use_time(game, 0.0)
+        start_turn(game)
+        return game
+
+    def test_each_turn_has_its_own_turn_timer(self) -> None:
+        game = self.started()
+        use_time(game, 20.0)
+        rules.pass_turn(game, game.active_player_index)
+
+        assert game.turn_time_used == 0
+        use_time(game, 35.0)  # 15 seconds into the new turn
+        assert game.turn == 2
+
+    def test_a_full_turn_passes_on_its_own(self) -> None:
+        game = self.started()
+        first = game.active_player_index
+
+        use_time(game, rules.TURN_SECONDS)
+
+        assert (game.turn, game.active_player_index) == (2, 1 - first)
+        assert game.players[first].time_left == 300 - rules.TURN_SECONDS
+
+    def test_running_out_of_match_time_loses(self) -> None:
+        game = self.started(seconds=10)
+        first = game.active_player_index
+
+        use_time(game, 10.0)
+
+        assert (game.winner, game.end_reason) == (1 - first, "TIMEOUT")
+
+    async def test_the_clock_ends_the_match_and_stops(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        async def no_database(app, match_id, game):  # type: ignore[no-untyped-def]
+            pass
+
+        monkeypatch.setattr(match_ws, "save_result", no_database)
+        game = new_match(seed=1, time_control_seconds=300)
+        use_time(game, time.monotonic())
+        start_turn(game)
+        game.players[game.active_player_index].time_left = 0.05
+        match_ws.matches["m"] = game
+        watcher = LiveSocket()
+        match_ws.sockets["m"] = {1 - game.active_player_index: watcher}
+
+        match_ws.restart_clock(None, "m", game)  # type: ignore[arg-type]
+        await match_ws.clocks["m"]
+
+        assert game.end_reason == "TIMEOUT"
+        assert watcher.messages[-1]["you_won"] is True
+        assert "m" not in match_ws.matches
+        assert "m" not in match_ws.clocks  # nothing left ticking
+
+
 class DeadSocket:
     async def send_json(self, message: dict) -> None:
         raise WebSocketDisconnect(code=1006)
@@ -309,6 +366,11 @@ def client(monkeypatch):  # type: ignore[no-untyped-def]
 
     monkeypatch.setattr(match_ws, "user_id_from_cookie", user)
     monkeypatch.setattr(match_ws, "seat_in_match", seat)
+
+    async def five_minutes(match_id):  # type: ignore[no-untyped-def]
+        return 300
+
+    monkeypatch.setattr(match_ws, "time_control", five_minutes)
     monkeypatch.setattr(match_ws, "end_match", end)
     monkeypatch.setattr(match_ws.settings, "CORS_ORIGINS", [ORIGIN])
     test_client = TestClient(app)
@@ -416,3 +478,26 @@ class TestSocket:
             assert c.receive_json() == {"type": "STATE", "you_won": True}
             with pytest.raises(WebSocketDisconnect):
                 c.receive_json()
+
+    def test_a_late_move_still_tells_both_players_the_turn_passed(
+        self, client, monkeypatch
+    ) -> None:  # type: ignore[no-untyped-def]
+        monkeypatch.setattr(rules, "TURN_SECONDS", 0.2)
+        monkeypatch.setattr(match_ws, "TURN_SECONDS", 0.2)
+        # No clock task: only the late message can notice the turn ran out.
+        monkeypatch.setattr(match_ws, "restart_clock", lambda *args: None)
+        match_id = str(uuid.uuid4())
+
+        with connect(client, match_id, "a") as a, connect(client, match_id, "b") as b:
+            a.receive_json()
+            a.receive_json()
+            b.receive_json()
+            late = a if match_ws.matches[match_id].active_player_index == 0 else b
+            other = b if late is a else a
+            time.sleep(0.3)
+
+            late.send_json({"type": "PASS_TURN"})
+
+            assert late.receive_json()["turn"] == 2
+            assert other.receive_json()["your_turn"] is True
+            assert late.receive_json()["reason"] == "It's not your turn."

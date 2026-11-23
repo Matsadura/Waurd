@@ -47,7 +47,7 @@ def cast_word(
         raise ValueError(f"{word} is an invalid word.")
 
     target = match.players[1 - player_index]
-    damage = sum(glyph.damage for glyph in glyphs_to_cast)
+    damage = min(target.hp, sum(glyph.damage for glyph in glyphs_to_cast))
     match.casts.append(
         Cast(
             turn=match.turn,
@@ -59,8 +59,7 @@ def cast_word(
             damage=damage,
         )
     )
-    target = match.players[1 - player_index]
-    target.hp = max(0, target.hp - damage)
+    target.hp -= damage
 
     caster.discard_pile += caster.hand
     caster.hand = []

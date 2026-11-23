@@ -114,6 +114,7 @@ def cast_rows(
             word_played=cast.word,
             damage_dealt=cast.damage,
             glyphs_payload={"glyphs": [asdict(glyph) for glyph in cast.glyphs]},
+            created_at=cast.cast_at,
         )
         for cast in match.casts
     ]
@@ -122,8 +123,9 @@ def cast_rows(
 async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
     """Write the result to MySQL, then let both players queue again.
 
-    The result is committed on its own first, so a failure in the stats step
-    can't leave the match ACTIVE and the players unable to queue."""
+    The result is committed on its own first, so a failure in the stats or
+    cast history steps can't leave the match ACTIVE and the players unable
+    to queue."""
     match_id_bytes = uuid.UUID(match_id).bytes
     async with async_session_maker() as db:
         record = await MatchRepository(db).finish_match(
@@ -138,8 +140,6 @@ async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
             record.time_control_seconds - p.time_left for p in match.players
         )
         record.duration_seconds = round(time_used)
-        player_ids = (record.player1_id, record.player2_id)
-        db.add_all(cast_rows(match_id_bytes, player_ids, match))
         await db.commit()
         player_ids = (record.player1_id, record.player2_id)
 
@@ -147,6 +147,9 @@ async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
         async with async_session_maker() as db:
             record = await MatchRepository(db).get_match_by_id(match_id_bytes)
             await update_stats(db, record)
+            await db.commit()
+        async with async_session_maker() as db:
+            db.add_all(cast_rows(match_id_bytes, player_ids, match))
             await db.commit()
     finally:
         queue_store = MatchmakingQueueStore(app.state.redis)

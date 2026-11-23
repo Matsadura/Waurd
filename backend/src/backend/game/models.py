@@ -1,5 +1,6 @@
 import random
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -23,7 +24,11 @@ class Cast:
     player_index: int
     word: str
     glyphs: list[Glyph]
-    damage: int
+    damage: int  # the HP the opponent actually lost
+    # naive UTC, like the database's DateTime columns
+    cast_at: datetime = field(
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
 
 
 @dataclass

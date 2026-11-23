@@ -1,4 +1,6 @@
-from backend.game.models import Match
+from dataclasses import replace
+
+from backend.game.models import Cast, Match
 
 HAND_SIZE = 12
 STARTING_HP = 100
@@ -43,7 +45,19 @@ def cast_word(
         raise ValueError(f"{word} is an invalid word.")
 
     target = match.players[1 - player_index]
-    target.hp = max(0, target.hp - sum(glyph.damage for glyph in glyphs_to_cast))
+    damage = min(target.hp, sum(glyph.damage for glyph in glyphs_to_cast))
+    match.casts.append(
+        Cast(
+            turn=match.turn,
+            player_index=player_index,
+            word=word,
+            glyphs=[
+                replace(glyph) for glyph in glyphs_to_cast
+            ],  # copies: perks may change the originals later
+            damage=damage,
+        )
+    )
+    target.hp -= damage
 
     caster.discard_pile += caster.hand
     caster.hand = []
@@ -85,3 +99,21 @@ def lose_by_disconnect(match: Match, player_index: int) -> None:
         raise ValueError("Match is already over.")
     match.winner = 1 - player_index
     match.end_reason = "DISCONNECT"
+
+
+def use_time(match: Match, now: float) -> None:
+    """Charge the active player for the time since the last check.
+
+    `now` is any steadily increasing clock in seconds (the runtime passes
+    time.monotonic()). Running out of time loses the match.
+    """
+    elapsed = now - match.clock_checked_at
+    match.clock_checked_at = now
+    if match.winner is not None or match.turn == 0:
+        return
+
+    player = match.players[match.active_player_index]
+    player.time_left = max(0.0, player.time_left - elapsed)
+    if player.time_left == 0:
+        match.winner = 1 - match.active_player_index
+        match.end_reason = "TIMEOUT"

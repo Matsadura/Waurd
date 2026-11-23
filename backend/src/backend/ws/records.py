@@ -1,6 +1,7 @@
 """The match rows in MySQL: who sits where, saving results, abandoning."""
 
 import uuid
+from dataclasses import asdict
 
 from backend.core.identifiers import user_id_to_bytes, user_id_to_string
 from backend.core.matchmaking_store import MatchmakingQueueStore
@@ -9,7 +10,7 @@ from backend.game.calculations import XP_PER_LOSS, XP_PER_WIN, add_xp, new_elo_r
 from backend.game.models import Match
 from backend.game.rules import STARTING_HP
 from backend.models.match import Match as MatchRecord
-from backend.models.match import MatchStatus
+from backend.models.match import MatchCast, MatchStatus
 from backend.repositories.match import MatchRepository
 from backend.repositories.user import UserRepository
 from backend.repositories.user_stats import UserStatsRepository
@@ -59,8 +60,9 @@ async def final_result(match_id: str, user_id: str) -> dict | None:
     }
 
 
-async def update_stats(db: AsyncSession, record: MatchRecord) -> None:
-    """Wins, losses, damage, Elo and XP for both players, plus the Elo history."""
+async def update_stats(db: AsyncSession, record: MatchRecord, match: Match) -> None:
+    """Wins, losses, damage, best word, Elo and XP for both players, plus the
+    Elo history."""
     stats = UserStatsRepository(db)
     p1 = await stats.get_by_id(record.player1_id)
     p2 = await stats.get_by_id(record.player2_id)
@@ -90,15 +92,49 @@ async def update_stats(db: AsyncSession, record: MatchRecord) -> None:
     p1.total_damage_dealt += STARTING_HP - record.player2_final_hp
     p2.total_damage_dealt += STARTING_HP - record.player1_final_hp
 
+    # A word's score is its full glyph value, even past the opponent's last HP.
+    for cast in match.casts:
+        player = (p1, p2)[cast.player_index]
+        score = sum(glyph.damage for glyph in cast.glyphs)
+        if score > player.highest_word_score:
+            player.highest_word_score = score
+            player.highest_scoring_word = cast.word
+
     record.player1_elo_after = p1.rating_elo
     record.player2_elo_after = p2.rating_elo
+
+
+async def time_control(match_id: str) -> int:
+    """Seconds on each player's clock, as chosen when the match was created."""
+    async with async_session_maker() as db:
+        record = await MatchRepository(db).get_match_by_id(uuid.UUID(match_id).bytes)
+    return record.time_control_seconds
+
+
+def cast_rows(
+    match_id_bytes: bytes, player_ids: tuple[bytes, bytes], match: Match
+) -> list[MatchCast]:
+    """The match history: one match_casts row per word cast."""
+    return [
+        MatchCast(
+            match_id=match_id_bytes,
+            turn_number=cast.turn,
+            player_id=player_ids[cast.player_index],
+            word_played=cast.word,
+            damage_dealt=cast.damage,
+            glyphs_payload={"glyphs": [asdict(glyph) for glyph in cast.glyphs]},
+            created_at=cast.cast_at,
+        )
+        for cast in match.casts
+    ]
 
 
 async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
     """Write the result to MySQL, then let both players queue again.
 
-    The result is committed on its own first, so a failure in the stats step
-    can't leave the match ACTIVE and the players unable to queue."""
+    The result is committed on its own first, so a failure in the stats or
+    cast history steps can't leave the match ACTIVE and the players unable
+    to queue."""
     match_id_bytes = uuid.UUID(match_id).bytes
     async with async_session_maker() as db:
         record = await MatchRepository(db).finish_match(
@@ -109,13 +145,21 @@ async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
             total_turns=match.turn,
             end_reason=match.end_reason,
         )
+        # both clocks started at half the time control
+        time_used = record.time_control_seconds - sum(
+            p.time_left for p in match.players
+        )
+        record.duration_seconds = round(time_used)
         await db.commit()
         player_ids = (record.player1_id, record.player2_id)
 
     try:
         async with async_session_maker() as db:
             record = await MatchRepository(db).get_match_by_id(match_id_bytes)
-            await update_stats(db, record)
+            await update_stats(db, record, match)
+            await db.commit()
+        async with async_session_maker() as db:
+            db.add_all(cast_rows(match_id_bytes, player_ids, match))
             await db.commit()
     finally:
         queue_store = MatchmakingQueueStore(app.state.redis)

@@ -1,10 +1,11 @@
 """The match WebSocket and its database side (match_ws.py, records.py): saving
 results, sending, bad messages, arrival, ids, abandoning, the result after the
-end, who starts and the clock."""
+end, who starts, the clock and the cast history."""
 
 import json
 import time
 import uuid
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -18,6 +19,7 @@ records = pytest.importorskip(
 
 from backend.game import rules
 from backend.game.rules import cast_word, resign, start_turn, use_time
+from backend.game.models import Glyph
 from backend.game.setup import new_match
 from fastapi import WebSocketDisconnect
 from starlette.testclient import TestClient
@@ -310,6 +312,89 @@ class TestClock:
         assert watcher.messages[-1]["you_won"] is True
         assert "m" not in match_ws.matches
         assert "m" not in match_ws.clocks  # nothing left ticking
+
+
+def game_with_casts():  # type: ignore[no-untyped-def]
+    """Player 0 casts CAT (26), player 1 casts AT (14), then CAT finishes player 1."""
+    words = {"CAT", "AT"}
+    game = new_match(seed=1, time_control_seconds=300)
+    game.active_player_index = 0
+    start_turn(game)
+    game.players[0].hand = [Glyph("C", 12), Glyph("A", 6), Glyph("T", 8)]
+    cast_word(game, 0, [0, 1, 2], words)
+    game.players[1].hand = [Glyph("A", 6), Glyph("T", 8)]
+    cast_word(game, 1, [0, 1], words)
+    game.players[0].hand = [Glyph("C", 40), Glyph("A", 40), Glyph("T", 40)]
+    cast_word(game, 0, [0, 1, 2], words)  # 120 damage against 74 HP left
+    for minute, cast in enumerate(game.casts):
+        cast.cast_at = datetime(2026, 1, 1, 12, minute)
+    return game
+
+
+class TestCastHistory:
+    def test_a_cast_records_the_hp_actually_removed(self) -> None:
+        game = game_with_casts()
+
+        assert [cast.damage for cast in game.casts] == [26, 14, 74]
+        assert game.players[1].hp == 0
+        assert game.winner == 0
+
+    async def test_casts_are_saved_in_order(
+        self, session_maker, redis, alice, bob, alice_client
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+
+        await records.save_result(fake_app(redis), match_id, game_with_casts())
+
+        casts = (
+            await alice_client.get(f"/matchmaking/matches/{match_id}/casts")
+        ).json()
+        alice_id, bob_id = (str(uuid.UUID(bytes=u.id)) for u in (alice, bob))
+        assert [
+            (c["turn_number"], c["player_id"], c["word_played"], c["damage_dealt"])
+            for c in casts
+        ] == [(1, alice_id, "CAT", 26), (2, bob_id, "AT", 14), (3, alice_id, "CAT", 74)]
+        assert casts[1]["glyphs_payload"] == {
+            "glyphs": [{"letter": "A", "damage": 6}, {"letter": "T", "damage": 8}]
+        }
+        assert [c["created_at"][:16] for c in casts] == [
+            "2026-01-01T12:00",
+            "2026-01-01T12:01",
+            "2026-01-01T12:02",
+        ]
+
+    async def test_a_failed_cast_insert_keeps_the_result(
+        self, session_maker, redis, alice, bob, monkeypatch
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+        for user in (alice, bob):
+            await redis.set(
+                f"matchmaking:user:{uuid.UUID(bytes=user.id)}",
+                json.dumps({"status": "MATCHED"}),
+            )
+        real_rows = records.cast_rows
+
+        def refused_rows(*args):  # type: ignore[no-untyped-def]
+            rows = real_rows(*args)
+            rows[0].word_played = None  # a row the database refuses
+            return rows
+
+        monkeypatch.setattr(records, "cast_rows", refused_rows)
+        game = game_with_casts()
+        match_ws.matches[match_id] = game
+
+        await match_ws.end_match(fake_app(redis), match_id, game)
+
+        async with session_maker() as db:
+            record = await db.get(Match, uuid.UUID(match_id).bytes)
+            winner = await db.get(UserStats, alice.id)
+        assert record.status == MatchStatus.FINISHED
+        assert record.winner_id == alice.id
+        assert winner.wins == 1  # stats are saved before the casts
+        for user in (alice, bob):  # both can queue again
+            assert (
+                await redis.get(f"matchmaking:user:{uuid.UUID(bytes=user.id)}") is None
+            )
 
 
 class DeadSocket:

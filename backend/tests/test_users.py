@@ -314,7 +314,8 @@ class TestGetUserMatches:
         response = await alice_client.get(f"/users/{user_uuid(alice)}/matches")
 
         assert response.status_code == 200
-        assert response.json() == []
+        assert response.json()["items"] == []
+        assert response.json()["total"] == 0
 
     async def test_other_users_matches_are_forbidden(self, alice_client, bob):
         response = await alice_client.get(f"/users/{user_uuid(bob)}/matches")
@@ -328,7 +329,7 @@ class TestGetUserMatches:
 
         response = await alice_client.get(f"/users/{user_uuid(alice)}/matches")
 
-        assert response.json() == []
+        assert response.json()["items"] == []
 
     async def test_invalid_uuid_is_rejected(self, alice_client):
         response = await alice_client.get("/users/not-a-uuid/matches")
@@ -348,7 +349,7 @@ class TestGetUserMatches:
         response = await alice_client.get(f"/users/{user_uuid(alice)}/matches")
 
         assert response.status_code == 200
-        match = response.json()[0]
+        match = response.json()["items"][0]
         assert match["id"] == str(self.MATCH_ID)
         assert match["player1_id"] == user_uuid(alice)
         assert match["player2_id"] == user_uuid(bob)

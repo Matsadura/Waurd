@@ -66,7 +66,13 @@ class TestListFriends:
         response = await alice_client.get("/friends")
 
         assert response.status_code == 200
-        assert response.json() == {"friends": []}
+        assert response.json() == {
+            "items": [],
+            "total": 0,
+            "page": 1,
+            "size": 20,
+            "pages": 0,
+        }
 
     async def test_returns_public_fields_only(
         self, alice_client, alice, bob, make_friendship
@@ -75,17 +81,15 @@ class TestListFriends:
 
         response = await alice_client.get("/friends")
 
-        assert response.json() == {
-            "friends": [
-                {
-                    "id": user_uuid(bob),
-                    "username": "bob",
-                    "avatar_url": None,
-                    "is_online": False,
-                    "last_seen_at": None,
-                }
-            ]
-        }
+        assert response.json()["items"] == [
+            {
+                "id": user_uuid(bob),
+                "username": "bob",
+                "avatar_url": None,
+                "is_online": False,
+                "last_seen_at": None,
+            }
+        ]
 
     async def test_includes_friends_from_both_directions(
         self, alice_client, alice, bob, carol, make_friendship
@@ -95,7 +99,19 @@ class TestListFriends:
 
         response = await alice_client.get("/friends")
 
-        assert usernames(response.json()["friends"]) == {"bob", "carol"}
+        assert usernames(response.json()["items"]) == {"bob", "carol"}
+
+    async def test_pages_through_friends(
+        self, alice_client, alice, bob, carol, make_friendship
+    ):
+        await make_friendship(alice, bob, FriendshipStatus.ACCEPTED)
+        await make_friendship(alice, carol, FriendshipStatus.ACCEPTED)
+
+        first = (await alice_client.get("/friends?size=1")).json()
+        second = (await alice_client.get("/friends?size=1&page=2")).json()
+
+        assert (first["total"], first["pages"]) == (2, 2)
+        assert usernames(first["items"] + second["items"]) == {"bob", "carol"}
 
     @pytest.mark.parametrize(
         "status", [FriendshipStatus.PENDING, FriendshipStatus.BLOCKED]
@@ -107,7 +123,7 @@ class TestListFriends:
 
         response = await alice_client.get("/friends")
 
-        assert response.json() == {"friends": []}
+        assert response.json()["items"] == []
 
     async def test_excludes_other_peoples_friendships(
         self, alice_client, bob, carol, make_friendship
@@ -116,15 +132,17 @@ class TestListFriends:
 
         response = await alice_client.get("/friends")
 
-        assert response.json() == {"friends": []}
+        assert response.json()["items"] == []
 
 
 class TestListPendingRequests:
     async def test_empty_by_default(self, alice_client):
-        response = await alice_client.get("/friends/requests")
+        incoming = await alice_client.get("/friends/requests")
+        outgoing = await alice_client.get("/friends/requests?direction=outgoing")
 
-        assert response.status_code == 200
-        assert response.json() == {"incoming": [], "outgoing": []}
+        assert incoming.status_code == 200
+        assert incoming.json()["items"] == []
+        assert outgoing.json()["items"] == []
 
     async def test_separates_incoming_and_outgoing(
         self, alice_client, alice, bob, carol, make_friendship
@@ -132,10 +150,13 @@ class TestListPendingRequests:
         await make_friendship(alice, bob, FriendshipStatus.PENDING)
         await make_friendship(carol, alice, FriendshipStatus.PENDING)
 
-        body = (await alice_client.get("/friends/requests")).json()
+        incoming = (await alice_client.get("/friends/requests")).json()
+        outgoing = (
+            await alice_client.get("/friends/requests?direction=outgoing")
+        ).json()
 
-        assert usernames(body["outgoing"]) == {"bob"}
-        assert usernames(body["incoming"]) == {"carol"}
+        assert usernames(outgoing["items"]) == {"bob"}
+        assert usernames(incoming["items"]) == {"carol"}
 
     async def test_excludes_non_pending(
         self, alice_client, alice, bob, carol, make_friendship
@@ -143,9 +164,13 @@ class TestListPendingRequests:
         await make_friendship(alice, bob, FriendshipStatus.ACCEPTED)
         await make_friendship(carol, alice, FriendshipStatus.BLOCKED)
 
-        body = (await alice_client.get("/friends/requests")).json()
+        incoming = (await alice_client.get("/friends/requests")).json()
+        outgoing = (
+            await alice_client.get("/friends/requests?direction=outgoing")
+        ).json()
 
-        assert body == {"incoming": [], "outgoing": []}
+        assert incoming["items"] == []
+        assert outgoing["items"] == []
 
 
 class TestSendFriendRequest:
@@ -175,11 +200,11 @@ class TestSendFriendRequest:
     async def test_is_visible_to_both_users(self, alice_client, bob_client, bob):
         await alice_client.post("/friends/requests", json={"username": "bob"})
 
-        sender = (await alice_client.get("/friends/requests")).json()
+        sender = (await alice_client.get("/friends/requests?direction=outgoing")).json()
         receiver = (await bob_client.get("/friends/requests")).json()
 
-        assert usernames(sender["outgoing"]) == {"bob"}
-        assert usernames(receiver["incoming"]) == {"alice"}
+        assert usernames(sender["items"]) == {"bob"}
+        assert usernames(receiver["items"]) == {"alice"}
 
     async def test_user_id_wins_when_both_targets_are_given(
         self, alice_client, bob, carol
@@ -308,11 +333,11 @@ class TestHandleFriendRequest:
             json={"action": "ACCEPTED"},
         )
 
-        alice_friends = (await alice_client.get("/friends")).json()["friends"]
-        bob_friends = (await bob_client.get("/friends")).json()["friends"]
+        alice_friends = (await alice_client.get("/friends")).json()["items"]
+        bob_friends = (await bob_client.get("/friends")).json()["items"]
         assert usernames(alice_friends) == {"bob"}
         assert usernames(bob_friends) == {"alice"}
-        assert (await bob_client.get("/friends/requests")).json()["incoming"] == []
+        assert (await bob_client.get("/friends/requests")).json()["items"] == []
 
     async def test_decline_removes_the_request(
         self, bob_client, alice, bob, make_friendship, session_maker
@@ -430,8 +455,8 @@ class TestRemoveFriend:
 
         assert response.status_code == 200
         assert response.json() == {"detail": "Friend successfully removed"}
-        assert (await alice_client.get("/friends")).json() == {"friends": []}
-        assert (await bob_client.get("/friends")).json() == {"friends": []}
+        assert (await alice_client.get("/friends")).json()["items"] == []
+        assert (await bob_client.get("/friends")).json()["items"] == []
 
     async def test_addressee_can_remove_too(
         self, bob_client, alice, bob, make_friendship, session_maker
@@ -502,8 +527,8 @@ class TestBlockUser:
 
         await alice_client.post(f"/friends/block/{user_uuid(bob)}")
 
-        assert (await alice_client.get("/friends")).json() == {"friends": []}
-        assert (await bob_client.get("/friends")).json() == {"friends": []}
+        assert (await alice_client.get("/friends")).json()["items"] == []
+        assert (await bob_client.get("/friends")).json()["items"] == []
 
     async def test_cannot_block_yourself(self, alice_client, alice):
         response = await alice_client.post(f"/friends/block/{user_uuid(alice)}")

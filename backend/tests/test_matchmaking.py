@@ -388,7 +388,7 @@ class TestLobbies:
         response = await alice_client.get(f"/users/{uid(alice)}/matches")
 
         assert response.status_code == 200
-        [match] = response.json()
+        [match] = response.json()["items"]
         assert match["player2_id"] is None
 
     async def test_duplicate_open_lobbies_do_not_break_status(

@@ -1,5 +1,6 @@
-"""The match WebSocket: saving results, sending, bad messages, arrival, ids,
-abandoning, the result after the end and who starts."""
+"""The match WebSocket and its database side (match_ws.py, records.py): saving
+results, sending, bad messages, arrival, ids, abandoning, the result after the
+end and who starts."""
 
 import json
 import time
@@ -10,6 +11,9 @@ import pytest
 
 match_ws = pytest.importorskip(
     "backend.ws.match_ws", reason="The match socket is not merged yet"
+)
+records = pytest.importorskip(
+    "backend.ws.records", reason="The match socket is not merged yet"
 )
 
 from backend.game.rules import cast_word, resign, start_turn
@@ -28,7 +32,7 @@ def fresh_state(monkeypatch, session_maker):  # type: ignore[no-untyped-def]
     match_ws.matches.clear()
     match_ws.sockets.clear()
     match_ws.timers.clear()
-    monkeypatch.setattr(match_ws, "async_session_maker", session_maker)
+    monkeypatch.setattr(records, "async_session_maker", session_maker)
     yield
     for task in match_ws.timers.values():
         task.cancel()
@@ -80,7 +84,7 @@ class TestSavingTheResult:
     ) -> None:
         match_id = await active_match(session_maker, alice, bob)
 
-        await match_ws.save_result(fake_app(redis), match_id, finished_game())
+        await records.save_result(fake_app(redis), match_id, finished_game())
 
         async with session_maker() as db:
             winner = await db.get(UserStats, alice.id)
@@ -105,7 +109,7 @@ class TestSavingTheResult:
         async def broken(db, record):  # type: ignore[no-untyped-def]
             raise RuntimeError("stats exploded")
 
-        monkeypatch.setattr(match_ws, "update_stats", broken)
+        monkeypatch.setattr(records, "update_stats", broken)
         match_ws.matches[match_id] = finished_game()
 
         await match_ws.end_match(fake_app(redis), match_id, match_ws.matches[match_id])
@@ -151,7 +155,7 @@ class TestEnding:
             json.dumps({"status": "MATCHED"}),
         )
 
-        await match_ws.abandon_unfinished_matches(fake_app(redis))
+        await records.abandon_unfinished_matches(fake_app(redis))
 
         async with session_maker() as db:
             record = await db.get(Match, uuid.UUID(match_id).bytes)
@@ -163,9 +167,9 @@ class TestEnding:
         self, session_maker, redis, alice, bob
     ) -> None:
         match_id = await active_match(session_maker, alice, bob)
-        await match_ws.save_result(fake_app(redis), match_id, finished_game())
+        await records.save_result(fake_app(redis), match_id, finished_game())
 
-        loser = await match_ws.final_result(match_id, str(uuid.UUID(bytes=bob.id)))
+        loser = await records.final_result(match_id, str(uuid.UUID(bytes=bob.id)))
 
         assert loser["winner"] == 0
         assert loser["you_won"] is False
@@ -177,7 +181,9 @@ class TestEnding:
     ) -> None:
         match_id = await active_match(session_maker, alice, bob)
 
-        assert await match_ws.final_result(match_id, str(uuid.UUID(bytes=bob.id))) is None
+        assert (
+            await records.final_result(match_id, str(uuid.UUID(bytes=bob.id))) is None
+        )
 
 
 class TestLeavingBeforeTheStart:

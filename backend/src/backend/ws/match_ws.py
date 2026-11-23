@@ -158,8 +158,6 @@ async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
 
 
 async def end_match(app: FastAPI, match_id: str, match: Match) -> None:
-    if match.pop(match_id, None) is None:
-        return
     try:
         await save_result(app, match_id, match)
     except Exception:

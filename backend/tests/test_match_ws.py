@@ -110,7 +110,7 @@ class TestSavingTheResult:
                 json.dumps({"status": "MATCHED"}),
             )
 
-        async def broken(db, record):  # type: ignore[no-untyped-def]
+        async def broken(db, record, match):  # type: ignore[no-untyped-def]
             raise RuntimeError("stats exploded")
 
         monkeypatch.setattr(records, "update_stats", broken)
@@ -362,6 +362,41 @@ class TestCastHistory:
             "2026-01-01T12:01",
             "2026-01-01T12:02",
         ]
+
+    async def test_each_players_best_word_is_recorded(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+
+        await records.save_result(fake_app(redis), match_id, game_with_casts())
+
+        async with session_maker() as db:
+            alice_stats = await db.get(UserStats, alice.id)
+            bob_stats = await db.get(UserStats, bob.id)
+        # the finishing CAT counts its full 120, not the 74 HP it removed
+        assert (alice_stats.highest_scoring_word, alice_stats.highest_word_score) == (
+            "CAT",
+            120,
+        )
+        assert (bob_stats.highest_scoring_word, bob_stats.highest_word_score) == (
+            "AT",
+            14,
+        )
+
+    async def test_a_better_earlier_word_is_kept(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+        async with session_maker() as db:
+            stats = await db.get(UserStats, bob.id)
+            stats.highest_scoring_word, stats.highest_word_score = "QUIZ", 90
+            await db.commit()
+
+        await records.save_result(fake_app(redis), match_id, game_with_casts())
+
+        async with session_maker() as db:
+            stats = await db.get(UserStats, bob.id)
+        assert (stats.highest_scoring_word, stats.highest_word_score) == ("QUIZ", 90)
 
     async def test_a_failed_cast_insert_keeps_the_result(
         self, session_maker, redis, alice, bob, monkeypatch

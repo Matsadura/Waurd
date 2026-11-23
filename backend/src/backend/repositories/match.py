@@ -275,3 +275,26 @@ class MatchRepository(BaseRepository[Match]):
                 order_by=[Match.created_at.desc()],
             )
         )
+
+    async def get_matches_for_user(
+        self, user_id: bytes, skip: int = 0, limit: int = 20
+    ) -> tuple[list[Match], int]:
+        # Base filter condition (reuse your existing user match condition here)
+        condition = (Match.player1_id == user_id) | (Match.player2_id == user_id)
+
+        # 1. Get total count
+        count_stmt = select(func.count()).select_from(Match).where(condition)
+        total = (await self.session.execute(count_stmt)).scalar_one()
+
+        # 2. Get paginated items (always include order_by for deterministic pages!)
+        stmt = (
+            select(Match)
+            .where(condition)
+            .order_by(Match.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        matches = list(result.scalars().all())
+
+        return matches, total

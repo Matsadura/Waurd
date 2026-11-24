@@ -19,6 +19,8 @@ class AchievementDef:
     xp_reward: int
     target_value: int
     progress: Callable[[UserStats, set[str]], int]  # stats, words ever cast
+    # unlocked with the achievement for the loadout; must be a row in `perks`
+    reward_perk_id: str | None = None
 
 
 # Word collections: every word is in the word list and can be spelled from a

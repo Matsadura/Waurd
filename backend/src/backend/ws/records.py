@@ -15,6 +15,7 @@ from backend.game.rules import STARTING_HP
 from backend.models.match import Match as MatchRecord
 from backend.models.achievements import Achievement
 from backend.models.match import MatchCast, MatchStatus
+from backend.models.perk import Perk
 from backend.models.user_achievements import UserAchievement
 from backend.repositories.match import MatchRepository
 from backend.repositories.user import UserRepository
@@ -213,10 +214,16 @@ async def record_achievements(db: AsyncSession, user_id: bytes) -> None:
 
 
 async def sync_achievements() -> None:
-    """Write the achievements list into the table. An icon or reward perk set
-    in the database is kept."""
+    """Write the achievements list into the table. An icon set in the database
+    is kept."""
     async with async_session_maker() as db:
         for achievement in ACHIEVEMENTS:
+            perk = achievement.reward_perk_id
+            if perk is not None and await db.get(Perk, perk) is None:
+                raise ValueError(
+                    f"Achievement {achievement.id} rewards perk {perk!r}, "
+                    "which isn't in the perks table."
+                )
             row = await db.get(Achievement, achievement.id)
             if row is None:
                 row = Achievement(id=achievement.id, icon_url="")
@@ -225,6 +232,7 @@ async def sync_achievements() -> None:
             row.description = achievement.description
             row.xp_reward = achievement.xp_reward
             row.target_value = achievement.target_value
+            row.reward_perk_id = achievement.reward_perk_id
         await db.commit()
 
 

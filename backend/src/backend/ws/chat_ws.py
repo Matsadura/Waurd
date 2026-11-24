@@ -1,5 +1,10 @@
-"""Chat over one WebSocket per user: global, direct and match messages."""
+"""Chat over one WebSocket per user: global, direct and match messages.
 
+The same socket tells whether a user is online: they are while at least one of
+their tabs has it open.
+"""
+
+import asyncio
 import logging
 import uuid
 
@@ -15,12 +20,43 @@ from backend.repositories.user import UserRepository
 from backend.schemas.chat import chat_message_response
 from backend.ws.match_ws import user_id_from_cookie
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from sqlalchemy import func, update
 
 logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter()
 MAX_LENGTH = 500
 sockets: dict[str, set[WebSocket]] = {}  # user id -> open chat sockets, one per tab
+presence_lock = asyncio.Lock()
+
+
+async def save_presence(user: User) -> None:
+    """Store whether the user has a chat socket open, and when they left.
+
+    One write at a time, each reading the sockets just before it writes: when a
+    tab reloads, the last write then matches the sockets actually open.
+    """
+    async with presence_lock:
+        online = bool(sockets.get(user_id_to_string(user.id)))
+        values = (
+            {"is_online": True}
+            if online
+            else {"is_online": False, "last_seen_at": func.now()}
+        )
+        async with async_session_maker() as db:
+            await db.execute(update(User).where(User.id == user.id).values(**values))
+            await db.commit()
+
+
+async def reset_online_status() -> None:
+    """Sockets don't survive a restart: nobody is online until they reconnect."""
+    async with async_session_maker() as db:
+        await db.execute(
+            update(User)
+            .where(User.is_online.is_(True))
+            .values(is_online=False, last_seen_at=func.now())
+        )
+        await db.commit()
 
 
 def text_field(message: object, name: str) -> str:
@@ -102,8 +138,11 @@ async def chat(ws: WebSocket) -> None:
 
     await ws.accept()
     user_id = user_id_to_string(user.id)  # the same spelling the recipients use
-    sockets.setdefault(user_id, set()).add(ws)
+    mine = sockets.setdefault(user_id, set())
+    mine.add(ws)
     try:
+        if len(mine) == 1:  # the first tab: they just came online
+            await save_presence(user)
         while True:
             try:
                 await send(user, await ws.receive_json())
@@ -112,7 +151,8 @@ async def chat(ws: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     finally:
-        mine = sockets.get(user_id, set())
         mine.discard(ws)
-        if not mine:
+        if not mine:  # the last tab closed
             sockets.pop(user_id, None)
+            # shielded: a cancelled handler (server shutdown) still records the leave
+            await asyncio.shield(save_presence(user))

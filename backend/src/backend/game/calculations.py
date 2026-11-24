@@ -9,13 +9,18 @@ def xp_to_next(level: int) -> int:
     return LEVEL_STEP * level
 
 
-def level_for(xp: int) -> int:
-    """The level a player has reached with this much total XP."""
+def level_progress(xp: int) -> tuple[int, int]:
+    """The level reached with this much total XP, and the XP earned since."""
     level = 1
     while xp >= xp_to_next(level):
         xp -= xp_to_next(level)
         level += 1
-    return level
+    return level, xp
+
+
+def level_for(xp: int) -> int:
+    """The level a player has reached with this much total XP."""
+    return level_progress(xp)[0]
 
 
 def add_xp(user, amount: int) -> None:

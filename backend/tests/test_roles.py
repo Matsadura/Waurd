@@ -374,3 +374,25 @@ class TestDeleteUser:
         response = await gm_client.delete(f"/admin/users/{uuid.uuid4()}")
 
         assert response.status_code == 404
+
+
+class TestAdminSeesXp:
+    async def test_user_details_include_xp_and_level(
+        self, gm_client, bob, session_maker
+    ):
+        async with session_maker() as db:
+            user = await db.get(User, bob.id)
+            user.xp, user.level = 120, 2
+            await db.commit()
+
+        details = (
+            await gm_client.get(f"/admin/users/{uuid.UUID(bytes=bob.id)}")
+        ).json()
+        listed = (await gm_client.get("/admin/users", params={"q": "bob"})).json()
+
+        assert (details["xp"], details["level"], details["xp_into_level"]) == (
+            120,
+            2,
+            20,
+        )
+        assert [u["xp"] for u in listed["users"] if u["username"] == "bob"] == [120]

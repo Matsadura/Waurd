@@ -80,8 +80,14 @@ class TestGetMe:
     async def test_does_not_expose_sensitive_columns(self, alice_client):
         response = await alice_client.get("/users/me")
 
-        # role, xp and level were added later; every other field must match exactly.
-        assert set(response.json()) - {"role", "xp", "level"} == {
+        # role and the XP fields were added later; every other field must match exactly.
+        assert set(response.json()) - {
+            "role",
+            "xp",
+            "level",
+            "xp_into_level",
+            "xp_for_next_level",
+        } == {
             "id",
             "username",
             "email",
@@ -99,8 +105,15 @@ class TestGetMe:
         me = (await alice_client.get("/users/me")).json()
         profile = (await alice_client.get(f"/users/{user_uuid(alice)}")).json()
 
-        assert (me["xp"], me["level"]) == (250, 2)
-        assert (profile["xp"], profile["level"]) == (250, 2)
+        # level 1 takes 100 XP, so 150 of the 200 that level 2 needs
+        expected = {
+            "xp": 250,
+            "level": 2,
+            "xp_into_level": 150,
+            "xp_for_next_level": 200,
+        }
+        assert {key: me[key] for key in expected} == expected
+        assert {key: profile[key] for key in expected} == expected
 
 
 class TestUpdateMe:

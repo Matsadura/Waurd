@@ -87,6 +87,8 @@ class UserResponse(UserBase):
     role: UserRole = Field(
         ..., description="USER or GAME_MASTER; the frontend shows admin tools to GMs"
     )
+    xp: int = Field(..., description="Total XP from matches and achievements")
+    level: int = Field(..., description="The level that XP has reached")
 
     @field_validator("id", mode="before")
     @classmethod

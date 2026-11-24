@@ -25,7 +25,7 @@ from backend.game.rules import (
     start_turn,
     use_time,
 )
-from backend.game.models import Glyph
+from backend.game.models import Cast, Glyph
 from backend.game.setup import new_match
 from fastapi import WebSocketDisconnect
 from starlette.testclient import TestClient
@@ -607,6 +607,49 @@ class TestAchievements:
         assert mine["first-win"]["unlocked_at"] is not None
         assert mine["heavy-hitter"]["progress_percentage"] == 6.0
         assert mine["heavy-hitter"]["unlocked_at"] is None
+
+    def test_every_collection_word_can_be_cast(self) -> None:
+        from collections import Counter
+
+        from backend.game.achievements import ANIMALS, ELEMENTS, PLANTS
+        from backend.game.setup import LETTERS
+
+        deck = {letter: copies for letter, (_, copies) in LETTERS.items()}
+        for word in ANIMALS | PLANTS | ELEMENTS:
+            assert word in match_ws.WORDS, word
+            assert all(deck.get(c, 0) >= n for c, n in Counter(word).items()), word
+
+    async def test_a_collection_counts_different_words_across_matches(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        def game_casting(*casts):  # type: ignore[no-untyped-def]
+            game = finished_game()
+            for turn, (seat, word) in enumerate(casts, start=1):
+                game.casts.append(
+                    Cast(turn, seat, word, [Glyph(c, 1) for c in word], len(word))
+                )
+            return game
+
+        first = await active_match(session_maker, alice, bob)
+        await records.save_result(
+            fake_app(redis),
+            first,
+            game_casting((0, "WOLF"), (1, "DOG"), (0, "CAT"), (0, "CAT"), (0, "ROSE")),
+        )
+        assert (await self.progress(session_maker, alice))["wild-wolf"] == (2, False)
+        assert (await self.progress(session_maker, bob))["wild-wolf"] == (1, False)
+
+        second = await active_match(session_maker, alice, bob, stats=False)
+        await records.save_result(
+            fake_app(redis),
+            second,
+            game_casting((0, "BEAR"), (0, "LION"), (0, "WOLF"), (0, "OWL")),
+        )
+
+        assert (await self.progress(session_maker, alice))["wild-wolf"] == (5, True)
+        assert (await self.progress(session_maker, alice))["green-thumb"] == (1, False)
+        # two matches' XP, First Steps and First Win, then the collection
+        assert await self.xp(session_maker, alice) == 2 * 50 + 50 + 100 + 150
 
     async def test_the_sync_keeps_icons_and_reward_perks(self, session_maker) -> None:
         async with session_maker() as db:

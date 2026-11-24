@@ -266,10 +266,10 @@ class TestClock:
         start_turn(game)
         return game
 
-    def test_each_player_gets_half_the_time_control(self) -> None:
+    def test_each_player_gets_the_whole_time_control(self) -> None:
         game = new_match(seed=1, time_control_seconds=300)
 
-        assert [player.time_left for player in game.players] == [150, 150]
+        assert [player.time_left for player in game.players] == [300, 300]
 
     def test_only_the_active_players_clock_runs(self) -> None:
         game = self.started()
@@ -277,8 +277,8 @@ class TestClock:
 
         use_time(game, 20.0)
 
-        assert game.players[first].time_left == 130
-        assert game.players[1 - first].time_left == 150
+        assert game.players[first].time_left == 280
+        assert game.players[1 - first].time_left == 300
 
     def test_a_long_turn_does_not_pass_on_its_own(self) -> None:
         game = self.started()
@@ -288,10 +288,10 @@ class TestClock:
         assert (game.turn, game.winner) == (1, None)
 
     def test_running_out_of_time_loses(self) -> None:
-        game = self.started(seconds=10)  # 5 seconds each
+        game = self.started(seconds=10)
         first = game.active_player_index
 
-        use_time(game, 5.0)
+        use_time(game, 10.0)
 
         assert (game.winner, game.end_reason) == (1 - first, "TIMEOUT")
 
@@ -321,7 +321,7 @@ class TestClock:
     ) -> None:
         match_id = await active_match(session_maker, alice, bob)  # 180 seconds
         game = finished_game()
-        game.players[0].time_left, game.players[1].time_left = 60, 80  # of 90 each
+        game.players[0].time_left, game.players[1].time_left = 150, 170  # of 180 each
 
         await records.save_result(fake_app(redis), match_id, game)
 
@@ -619,7 +619,7 @@ class TestSocket:
         self, client, monkeypatch
     ) -> None:  # type: ignore[no-untyped-def]
         async def tiny(match_id):  # type: ignore[no-untyped-def]
-            return 0.4  # 0.2 seconds each
+            return 0.2  # seconds on each clock
 
         monkeypatch.setattr(match_ws, "time_control", tiny)
         # No clock task: only the late message can notice the time ran out.

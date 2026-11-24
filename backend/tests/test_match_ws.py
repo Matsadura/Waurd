@@ -31,7 +31,15 @@ from fastapi import WebSocketDisconnect
 from starlette.testclient import TestClient
 
 from backend.main import app
-from backend.models import Match, MatchStatus, UserStats
+from sqlalchemy import select
+from backend.models import (
+    Achievement,
+    Match,
+    MatchStatus,
+    User,
+    UserAchievement,
+    UserStats,
+)
 
 ORIGIN = "http://localhost:5173"
 
@@ -48,11 +56,17 @@ def fresh_state(monkeypatch, session_maker):  # type: ignore[no-untyped-def]
         task.cancel()
 
 
-async def active_match(session_maker, alice, bob) -> str:  # type: ignore[no-untyped-def]
+@pytest.fixture(autouse=True)
+async def achievements(fresh_state):  # type: ignore[no-untyped-def]
+    """The startup step that fills the achievements table."""
+    await records.sync_achievements()
+
+
+async def active_match(session_maker, alice, bob, stats=True) -> str:  # type: ignore[no-untyped-def]
     match_id = uuid.uuid4()
     async with session_maker() as db:
         # Registration gives every user a stats row.
-        for user in (alice, bob):
+        for user in (alice, bob) if stats else ():
             db.add(
                 UserStats(
                     user_id=user.id,
@@ -504,6 +518,107 @@ class TestMatchLog:
         assert staying.messages[0]["type"] == "OPPONENT_DISCONNECTED"
         assert staying.messages[1]["log"][-1] == "alice disconnected"
         assert game.log[-1] == "alice disconnected"
+
+
+class TestAchievements:
+    async def progress(self, session_maker, user) -> dict:  # type: ignore[no-untyped-def]
+        """achievement id -> (current_progress, is_completed)"""
+        async with session_maker() as db:
+            rows = await db.scalars(
+                select(UserAchievement).where(UserAchievement.user_id == user.id)
+            )
+            return {
+                r.achievement_id: (r.current_progress, r.is_completed) for r in rows
+            }
+
+    async def xp(self, session_maker, user) -> int:  # type: ignore[no-untyped-def]
+        async with session_maker() as db:
+            return (await db.get(User, user.id)).xp
+
+    async def test_a_won_match_moves_both_players_forward(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+
+        await records.save_result(fake_app(redis), match_id, finished_game())
+
+        assert await self.progress(session_maker, alice) == {
+            "first-match": (1, True),
+            "first-win": (1, True),
+            "ten-wins": (1, False),
+            "heavy-hitter": (60, False),  # bob ended on 40 HP
+        }
+        assert await self.progress(session_maker, bob) == {"first-match": (1, True)}
+        # match XP plus each completed achievement's reward
+        assert await self.xp(session_maker, alice) == 50 + 50 + 100
+        assert await self.xp(session_maker, bob) == 20 + 50
+
+    async def test_a_completed_achievement_gives_its_xp_once(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        for first in (True, False):
+            match_id = await active_match(session_maker, alice, bob, stats=first)
+            await records.save_result(fake_app(redis), match_id, finished_game())
+
+        assert (await self.progress(session_maker, alice))["ten-wins"] == (2, False)
+        assert await self.xp(session_maker, alice) == 2 * 50 + 50 + 100
+
+    async def test_unlocked_at_is_when_it_was_completed(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+        async with session_maker() as db:  # started long ago, not completed
+            db.add(
+                UserAchievement(
+                    user_id=alice.id,
+                    achievement_id="first-win",
+                    current_progress=0,
+                    unlocked_at=datetime(2000, 1, 1),
+                )
+            )
+            await db.commit()
+
+        await records.save_result(fake_app(redis), match_id, finished_game())
+
+        async with session_maker() as db:
+            row = await db.get(UserAchievement, (alice.id, "first-win"))
+        assert row.is_completed and row.unlocked_at.year > 2000
+
+    async def test_wordsmith_counts_the_words_full_value(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+
+        await records.save_result(fake_app(redis), match_id, game_with_casts())
+
+        # the finishing CAT is worth 120 though it removed only 74 HP
+        assert (await self.progress(session_maker, alice))["wordsmith"] == (100, True)
+
+    async def test_progress_is_listed_for_the_player(
+        self, session_maker, redis, alice, bob, alice_client
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+        await records.save_result(fake_app(redis), match_id, finished_game())
+
+        listed = (await alice_client.get("/users/me/achievements")).json()
+
+        mine = {a["achievement_id"]: a for a in listed}
+        assert mine["first-win"]["is_completed"] is True
+        assert mine["first-win"]["unlocked_at"] is not None
+        assert mine["heavy-hitter"]["progress_percentage"] == 6.0
+        assert mine["heavy-hitter"]["unlocked_at"] is None
+
+    async def test_the_sync_keeps_icons_and_reward_perks(self, session_maker) -> None:
+        async with session_maker() as db:
+            row = await db.get(Achievement, "first-win")
+            row.icon_url, row.name = "/icons/first-win.png", "Renamed by hand"
+            await db.commit()
+
+        await records.sync_achievements()
+
+        async with session_maker() as db:
+            row = await db.get(Achievement, "first-win")
+        assert (row.icon_url, row.name) == ("/icons/first-win.png", "First Win")
 
 
 class DeadSocket:

@@ -89,6 +89,9 @@ class TestLifespan:
             pass
 
         monkeypatch.setattr(main_module, "abandon_unfinished_matches", no_database)
+        monkeypatch.setattr(
+            main_module, "reset_online_status", lambda: no_database(None)
+        )
         return client
 
     async def test_connects_to_redis_on_startup(self, startup_redis):

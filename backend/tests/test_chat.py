@@ -1,5 +1,6 @@
 """Chat: one socket per user for global, direct and match messages, plus history."""
 
+import asyncio
 import threading
 import time
 import uuid
@@ -19,6 +20,7 @@ from backend.models import (
     FriendshipStatus,
     Match,
     MatchStatus,
+    User,
 )
 
 ORIGIN = "http://localhost:5173"
@@ -32,6 +34,8 @@ def uid(user) -> str:  # type: ignore[no-untyped-def]
 def fresh_state(monkeypatch, session_maker):  # type: ignore[no-untyped-def]
     chat_ws.sockets.clear()
     monkeypatch.setattr(chat_ws, "async_session_maker", session_maker)
+    # a lock belongs to the event loop that first uses it, and each test has its own
+    monkeypatch.setattr(chat_ws, "presence_lock", asyncio.Lock())
 
 
 @pytest.fixture
@@ -67,6 +71,13 @@ def receive(socket) -> dict:  # type: ignore[no-untyped-def]
     reader.join(2)
     assert "message" in result, "no message arrived"
     return result["message"]
+
+
+def wait_until(condition, seconds: float = 2.0) -> None:  # type: ignore[no-untyped-def]
+    deadline = time.monotonic() + seconds
+    while not condition():
+        assert time.monotonic() < deadline, "timed out"
+        time.sleep(0.01)
 
 
 def online(count: int) -> None:
@@ -179,6 +190,54 @@ class TestChatSocket:
             client.websocket_connect("/ws/chat", headers={"origin": ORIGIN}) as ws,
         ):
             ws.receive_json()
+
+
+def presence(session_maker, user):  # type: ignore[no-untyped-def]
+    """(is_online, last_seen_at) as stored for the user."""
+
+    async def read():  # type: ignore[no-untyped-def]
+        async with session_maker() as db:
+            row = await db.get(User, user.id)
+            return row.is_online, row.last_seen_at
+
+    return asyncio.run(read())
+
+
+class TestOnlineStatus:
+    def test_online_while_any_tab_is_open(self, client, alice, session_maker) -> None:  # type: ignore[no-untyped-def]
+        with connect(client, alice):
+            online(1)
+            wait_until(lambda: presence(session_maker, alice)[0])
+            tabs = lambda: len(chat_ws.sockets.get(uid(alice), ()))  # noqa: E731
+            with connect(client, alice):  # a second tab
+                wait_until(lambda: tabs() == 2)
+            wait_until(lambda: tabs() == 1)  # the server handled the close
+            assert presence(session_maker, alice) == (True, None)  # one tab still open
+
+        wait_until(lambda: not presence(session_maker, alice)[0])
+        assert presence(session_maker, alice)[1] is not None  # last seen just now
+
+    def test_friends_see_who_is_online(
+        self, client, alice, bob, make_friendship, alice_client, session_maker
+    ) -> None:  # type: ignore[no-untyped-def]
+        asyncio.run(make_friendship(alice, bob, FriendshipStatus.ACCEPTED))
+        with connect(client, bob):
+            wait_until(lambda: presence(session_maker, bob)[0])
+
+            friends = asyncio.run(alice_client.get("/friends")).json()["items"]
+
+        assert [(f["username"], f["is_online"]) for f in friends] == [("bob", True)]
+
+    async def test_a_restart_sets_everyone_offline(self, alice, session_maker) -> None:
+        async with session_maker() as db:
+            (await db.get(User, alice.id)).is_online = True
+            await db.commit()
+
+        await chat_ws.reset_online_status()
+
+        async with session_maker() as db:
+            row = await db.get(User, alice.id)
+        assert (row.is_online, row.last_seen_at is not None) == (False, True)
 
 
 async def add_messages(session_maker, *messages) -> None:  # type: ignore[no-untyped-def]

@@ -81,6 +81,14 @@ def callback(client):
     return _callback
 
 
+def google_error(response: httpx.Response) -> str | None:
+    """The code the browser is sent back to the frontend with, if any."""
+    assert response.status_code == 303
+    location = urlparse(response.headers["location"])
+    assert location._replace(query="").geturl() == FRONTEND_URL
+    return parse_qs(location.query).get("google_error", [None])[0]
+
+
 async def count_users(session_maker) -> int:
     async with session_maker() as session:
         return await session.scalar(select(func.count()).select_from(User))
@@ -124,8 +132,7 @@ class TestGoogleCallbackState:
             params={"error": "access_denied"},
         )
 
-        assert response.status_code == 400
-        assert response.json() == {"detail": "Google authentication was cancelled"}
+        assert google_error(response) == "cancelled"
 
     @pytest.mark.parametrize("missing", ["code", "state"])
     async def test_missing_query_param_is_rejected(self, client, missing):
@@ -136,7 +143,7 @@ class TestGoogleCallbackState:
 
         response = await client.get("/auth/google/callback", params=params)
 
-        assert response.status_code == 400
+        assert google_error(response) == "invalid_state"
 
     async def test_missing_state_cookie_is_rejected(self, client):
         response = await client.get(
@@ -144,10 +151,7 @@ class TestGoogleCallbackState:
             params={"code": "auth-code", "state": "whatever"},
         )
 
-        assert response.status_code == 400
-        assert response.json() == {
-            "detail": "Invalid or expired Google authentication state"
-        }
+        assert google_error(response) == "invalid_state"
 
     async def test_state_issued_to_another_browser_is_rejected(
         self, client, make_client, mock_google, session_maker
@@ -166,7 +170,7 @@ class TestGoogleCallbackState:
             params={"code": "auth-code", "state": attacker_state},
         )
 
-        assert response.status_code == 400
+        assert google_error(response) == "invalid_state"
         assert await count_users(session_maker) == 0
 
     async def test_state_expired_from_redis_is_rejected(self, client, redis):
@@ -179,7 +183,7 @@ class TestGoogleCallbackState:
             params={"code": "auth-code", "state": state},
         )
 
-        assert response.status_code == 400
+        assert google_error(response) == "invalid_state"
 
     async def test_state_cannot_be_replayed(self, client, mock_google):
         mock_google()
@@ -192,7 +196,7 @@ class TestGoogleCallbackState:
         client.cookies.set("google_oauth_state", state)
         replay = await client.get("/auth/google/callback", params=params)
 
-        assert replay.status_code == 400
+        assert google_error(replay) == "invalid_state"
 
 
 class TestGoogleCallbackSuccess:
@@ -205,6 +209,7 @@ class TestGoogleCallbackSuccess:
 
         assert response.status_code == 303
         assert response.headers["location"] == FRONTEND_URL
+        assert google_error(response) is None
         async with session_maker() as session:
             user = await session.scalar(select(User))
         assert user.email == PROFILE["email"]
@@ -318,7 +323,7 @@ class TestGoogleCallbackFailures:
 
         response = await callback()
 
-        assert response.status_code == 409
+        assert google_error(response) == "account_exists"
         assert "session_id" not in response.headers.get("set-cookie", "")
         assert await count_users(session_maker) == 1
 
@@ -327,30 +332,28 @@ class TestGoogleCallbackFailures:
 
         response = await callback()
 
-        assert response.status_code == 502
-        assert response.json() == {"detail": "Could not complete Google authentication"}
+        assert google_error(response) == "google_failed"
 
     async def test_network_failure_is_bad_gateway(self, callback, mock_google):
         mock_google(token_response=httpx.ConnectError("boom"))
 
         response = await callback()
 
-        assert response.status_code == 502
+        assert google_error(response) == "google_failed"
 
     async def test_missing_access_token_is_bad_gateway(self, callback, mock_google):
         mock_google(token_response=httpx.Response(200, json={}))
 
         response = await callback()
 
-        assert response.status_code == 502
-        assert response.json() == {"detail": "Google did not return an access token"}
+        assert google_error(response) == "google_failed"
 
     async def test_profile_endpoint_error_is_bad_gateway(self, callback, mock_google):
         mock_google(profile_response=httpx.Response(500))
 
         response = await callback()
 
-        assert response.status_code == 502
+        assert google_error(response) == "google_failed"
 
     @pytest.mark.parametrize(
         "profile",
@@ -369,10 +372,7 @@ class TestGoogleCallbackFailures:
 
         response = await callback()
 
-        assert response.status_code == 400
-        assert response.json() == {
-            "detail": "Google account does not provide a verified email address"
-        }
+        assert google_error(response) == "email_not_verified"
         assert await count_users(session_maker) == 0
 
     async def test_missing_client_secret_is_unavailable(
@@ -383,4 +383,4 @@ class TestGoogleCallbackFailures:
 
         response = await callback()
 
-        assert response.status_code == 503
+        assert google_error(response) == "not_configured"

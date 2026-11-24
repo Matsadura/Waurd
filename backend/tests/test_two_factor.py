@@ -712,6 +712,28 @@ class TestGoogleLogin:
         assert verified.status_code == 200
         assert verified.json()["email"] == GOOGLE_PROFILE["email"]
 
+    async def test_a_second_code_too_soon_is_sent_back_as_cooldown(
+        self, client, make_user, mail
+    ):
+        await make_user(
+            email=GOOGLE_PROFILE["email"],
+            password_hash=None,
+            oauth_provider=OAuthProvider.GOOGLE,
+            oauth_id=GOOGLE_PROFILE["sub"],
+            two_factor_enabled=True,
+        )
+        await self.google_login(client)
+
+        response = await self.google_login(client)
+
+        assert response.status_code == 303
+        location = urlparse(response.headers["location"])
+        assert parse_qs(location.query) == {
+            "tab": ["play"],
+            "google_error": ["cooldown"],
+        }
+        assert len(mail.sent) == 1  # no second email
+
     async def test_user_without_2fa_gets_a_session(self, client, mail):
         response = await self.google_login(client)
 

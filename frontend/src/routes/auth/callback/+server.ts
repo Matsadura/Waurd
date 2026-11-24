@@ -3,6 +3,12 @@ import { SESSION_COOKIE, TWO_FACTOR_COOKIE } from '#lib/server/api.ts';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = ({ url, cookies }) => {
+	const googleError = url.searchParams.get('google_error');
+
+	if (googleError) {
+		redirect(303, `/login?google_error=${encodeURIComponent(googleError)}`);
+	}
+
 	const needsTwoFactor = url.searchParams.get('two_factor') === 'required';
 
 	if (needsTwoFactor) {

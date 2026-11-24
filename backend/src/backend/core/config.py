@@ -32,20 +32,14 @@ class Settings(BaseSettings):
         )
 
     # Redis Configuration
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: int = 6379
-    REDIS_PASSWORD: str | None = None
-    REDIS_DB: int = 0
     REDIS_POOL_SIZE: int = 20
-    REDIS_URL: str = (
-        os.getenv("REDIS_URL") or "redis://localhost:6379/0"
-    )  # Default value; will be overridden by computed property
+    REDIS_URL: str = os.getenv("REDIS_URL") or "redis://localhost:6379/0"
 
     # Google OAuth
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
-    # GOOGLE_FRONTEND_REDIRECT_URI: str = "http://localhost:3000"
+    # GOOGLE_FRONTEND_REDIRECT_URI: str = "http://localhost:5173"
     GOOGLE_FRONTEND_REDIRECT_URI: str = "http://localhost:8000/docs"  # For testing purposes; replace with your frontend URL in production
     GOOGLE_OAUTH_STATE_TTL_SECONDS: int = 600
 
@@ -76,12 +70,6 @@ class Settings(BaseSettings):
     MAIL_STARTTLS: bool = True
     MAIL_SSL_TLS: bool = False
 
-    # @computed_field
-    # @property
-    # def REDIS_URL(self) -> str:
-    #     auth = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
-    #     return f"redis://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-
     # Cookie & Session Security
     SESSION_COOKIE_NAME: str = "session_id"
     CSRF_COOKIE_NAME: str = "csrf_token"
@@ -90,7 +78,7 @@ class Settings(BaseSettings):
     SESSION_COOKIE_SAMESITE: str = "lax"  # Options: 'strict', 'lax', 'none'
 
     # CORS (Must specify exact origins when allow_credentials=True)
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
 settings = Settings()

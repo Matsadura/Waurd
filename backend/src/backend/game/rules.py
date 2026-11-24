@@ -1,4 +1,6 @@
-from backend.game.models import Match
+from dataclasses import replace
+
+from backend.game.models import Cast, Match
 
 HAND_SIZE = 12
 STARTING_HP = 100
@@ -7,6 +9,8 @@ STARTING_HP = 100
 def start_turn(match: Match) -> None:
     """Start a new turn: the active player draws up to HAND_SIZE glyphs."""
     match.turn += 1
+    if match.turn == 1:
+        match.log.append(f"{match.names[match.active_player_index]} goes first")
     player = match.players[match.active_player_index]
     while len(player.hand) < HAND_SIZE:
         if not player.draw_pile:
@@ -28,6 +32,8 @@ def cast_word(
         raise ValueError("It's not your turn.")
 
     caster = match.players[player_index]
+    if any(type(i) is not int for i in positions):
+        raise ValueError("Positions must be whole numbers.")
     if not positions:
         raise ValueError("Pick at least one glyph.")
     if len(set(positions)) != len(positions):
@@ -41,13 +47,28 @@ def cast_word(
         raise ValueError(f"{word} is an invalid word.")
 
     target = match.players[1 - player_index]
-    target.hp = max(0, target.hp - sum(glyph.damage for glyph in glyphs_to_cast))
+    damage = min(target.hp, sum(glyph.damage for glyph in glyphs_to_cast))
+    match.casts.append(
+        Cast(
+            turn=match.turn,
+            player_index=player_index,
+            word=word,
+            glyphs=[
+                replace(glyph) for glyph in glyphs_to_cast
+            ],  # copies: perks may change the originals later
+            damage=damage,
+        )
+    )
+    target.hp -= damage
+    match.log.append(f"{match.names[player_index]} cast {word} for {damage} damage")
 
     caster.discard_pile += caster.hand
     caster.hand = []
 
     if target.hp == 0:
         match.winner = player_index
+        match.end_reason = "HEALTH_DEPLETED"
+        win(match, f"{match.names[1 - player_index]} has no HP left")
         return
     match.active_player_index = 1 - player_index
     start_turn(match)
@@ -63,6 +84,49 @@ def pass_turn(match: Match, player_index: int) -> None:
     player = match.players[player_index]
     player.discard_pile += player.hand
     player.hand = []
+    match.log.append(f"{match.names[player_index]} passed")
 
     match.active_player_index = 1 - player_index
     start_turn(match)
+
+
+def resign(match: Match, player_index: int) -> None:
+    """Resign the match for the given player."""
+    if match.winner is not None:
+        raise ValueError("Match is already over.")
+    match.winner = 1 - player_index
+    match.end_reason = "RESIGNATION"
+    win(match, f"{match.names[player_index]} resigned")
+
+
+def lose_by_disconnect(match: Match, player_index: int) -> None:
+    """The player left and didn't come back in time: the other player wins."""
+    if match.winner is not None:
+        raise ValueError("Match is already over.")
+    match.winner = 1 - player_index
+    match.end_reason = "DISCONNECT"
+    win(match, f"{match.names[player_index]} didn't come back in time")
+
+
+def use_time(match: Match, now: float) -> None:
+    """Charge the active player for the time since the last check.
+
+    `now` is any steadily increasing clock in seconds (the runtime passes
+    time.monotonic()). Running out of time loses the match.
+    """
+    elapsed = now - match.clock_checked_at
+    match.clock_checked_at = now
+    if match.winner is not None or match.turn == 0:
+        return
+
+    player = match.players[match.active_player_index]
+    player.time_left = max(0.0, player.time_left - elapsed)
+    if player.time_left == 0:
+        match.winner = 1 - match.active_player_index
+        match.end_reason = "TIMEOUT"
+        win(match, f"{match.names[match.active_player_index]} ran out of time")
+
+
+def win(match: Match, why: str) -> None:
+    """The log's last line: why the match ended and who won."""
+    match.log.append(f"{why}. {match.names[match.winner]} wins!")

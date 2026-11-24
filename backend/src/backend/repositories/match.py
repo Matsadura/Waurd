@@ -9,7 +9,7 @@ from backend.core.exceptions import (
     ForbiddenException,
 )
 from backend.core.identifiers import user_id_to_bytes
-from backend.models.match import Match, MatchCast, MatchStatus
+from backend.models.match import Match, MatchCast, MatchEndReason, MatchStatus
 from backend.repositories.base import BaseRepository
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -241,6 +241,30 @@ class MatchRepository(BaseRepository[Match]):
         await self.session.refresh(match)
         return match
 
+    async def finish_match(
+        self,
+        match_id_bytes: bytes,
+        winner_seat: int,
+        player1_hp: int,
+        player2_hp: int,
+        total_turns: int,
+        end_reason: MatchEndReason,
+    ) -> Match:
+        """Marks an ACTIVE match FINISHED with its result."""
+        match = await self.get_match_by_id(match_id_bytes)
+        if match is None or match.status != MatchStatus.ACTIVE:
+            raise BadRequestException("Match is not active.")
+
+        match.status = MatchStatus.FINISHED
+        match.end_reason = end_reason
+        match.winner_id = match.player1_id if winner_seat == 0 else match.player2_id
+        match.player1_final_hp = player1_hp
+        match.player2_final_hp = player2_hp
+        match.total_turns = total_turns
+        match.ended_at = func.now()
+        await self.session.flush()
+        return match
+
     async def get_by_id(self, match_id: bytes) -> Match | None:
         return await self.get_one_or_none(Match.id == match_id)
 
@@ -251,3 +275,26 @@ class MatchRepository(BaseRepository[Match]):
                 order_by=[Match.created_at.desc()],
             )
         )
+
+    async def get_matches_for_user(
+        self, user_id: bytes, skip: int = 0, limit: int = 20
+    ) -> tuple[list[Match], int]:
+        # Base filter condition (reuse your existing user match condition here)
+        condition = (Match.player1_id == user_id) | (Match.player2_id == user_id)
+
+        # 1. Get total count
+        count_stmt = select(func.count()).select_from(Match).where(condition)
+        total = (await self.session.execute(count_stmt)).scalar_one()
+
+        # 2. Get paginated items (always include order_by for deterministic pages!)
+        stmt = (
+            select(Match)
+            .where(condition)
+            .order_by(Match.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        matches = list(result.scalars().all())
+
+        return matches, total

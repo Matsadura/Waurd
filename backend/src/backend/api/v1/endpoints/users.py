@@ -24,8 +24,9 @@ from backend.core.session_store import RedisSessionStore
 from backend.db.uow import UnitOfWork
 from backend.models.user import User, UserRole
 from backend.schemas.match import MatchResponse
+from backend.schemas.pagination import PaginatedResponse
 from backend.schemas.user import UserResponse, UserStatsResponse, UserUpdateRequest
-from fastapi import APIRouter, Depends, File, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse, RedirectResponse
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -220,17 +221,23 @@ async def get_user_stats(
         return UserStatsResponse.model_validate(user_stats)
 
 
-@router.get("/{user_id}/matches", response_model=list[MatchResponse])
+@router.get("/{user_id}/matches", response_model=PaginatedResponse[MatchResponse])
 async def get_user_matches(
     user_id: UUID,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    size: int = Query(20, ge=1, le=100, description="Items per page"),
     current_user: User = Depends(get_current_user),
     uow: UnitOfWork = Depends(),
-) -> list[MatchResponse]:
-    """Retrieve a list of matches for a specific user."""
+) -> PaginatedResponse[MatchResponse]:
+    """Retrieve a paginated list of matches for a specific user."""
     async with uow:
         if not _can_view(current_user, user_id):
             raise ForbiddenException(
                 "You do not have permission to access this user's matches."
             )
-        matches = await uow.matches.get_all_matches_for_user(user_id.bytes)
-        return [MatchResponse.model_validate(match) for match in matches]
+        skip = (page - 1) * size
+        matches, total = await uow.matches.get_matches_for_user(
+            user_id.bytes, skip=skip, limit=size
+        )
+        items = [MatchResponse.model_validate(match) for match in matches]
+        return PaginatedResponse.create(items=items, total=total, page=page, size=size)

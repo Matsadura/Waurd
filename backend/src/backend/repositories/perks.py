@@ -6,7 +6,7 @@ from backend.models.perk import Perk
 from backend.models.user_achievements import UserAchievement
 from backend.models.user_loadout import UserLoadout
 from backend.repositories.base import BaseRepository
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -17,21 +17,38 @@ class PerkRepository(BaseRepository[Perk]):
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(Perk, session)
 
-    async def get_all_perks(self) -> Sequence[Perk]:
-        """Fetch all master game perks from the catalog."""
-        stmt = select(Perk).order_by(Perk.rarity.asc(), Perk.name.asc())
-        result = await self.session.execute(stmt)
-        return result.scalars().all()
+    async def get_all_perks(
+        self, skip: int = 0, limit: int = 20
+    ) -> tuple[list[Perk], int]:
+        total = (
+            await self.session.execute(select(func.count()).select_from(Perk))
+        ).scalar_one()
 
-    async def get_all_achievements(self) -> Sequence[Achievement]:
-        """Fetch all achievements, criteria, XP rewards, and associated perk unlocks."""
+        stmt = (
+            select(Perk)
+            .order_by(Perk.id.asc())  # or Perk.name.asc()
+            .offset(skip)
+            .limit(limit)
+        )
+        perks = list((await self.session.execute(stmt)).scalars().all())
+        return perks, total
+
+    async def get_all_achievements(
+        self, skip: int = 0, limit: int = 20
+    ) -> tuple[list[Achievement], int]:
+        total = (
+            await self.session.execute(select(func.count()).select_from(Achievement))
+        ).scalar_one()
+
         stmt = (
             select(Achievement)
             .options(selectinload(Achievement.reward_perk))
-            .order_by(Achievement.xp_reward.asc(), Achievement.name.asc())
+            .order_by(Achievement.id.asc())
+            .offset(skip)
+            .limit(limit)
         )
-        result = await self.session.execute(stmt)
-        return result.scalars().all()
+        achievements = list((await self.session.execute(stmt)).scalars().all())
+        return achievements, total
 
     async def get_user_achievements_progress(self, user_id: bytes) -> list[dict]:
         """

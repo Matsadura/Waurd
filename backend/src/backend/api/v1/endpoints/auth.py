@@ -14,9 +14,8 @@ from backend.api.v1.endpoints.two_factor import start_login_challenge
 from backend.core.config import settings
 from backend.core.email import EmailSender, get_email_sender
 from backend.core.exceptions import (
-    BadGatewayException,
-    BadRequestException,
     ServiceUnavailableException,
+    TooManyRequestsException,
     UnauthorizedException,
     UserAlreadyExistsException,
 )
@@ -58,6 +57,17 @@ def _with_query_param(url: str, key: str, value: str) -> str:
     return urlunsplit(parts._replace(query=query))
 
 
+def _google_error(code: str) -> RedirectResponse:
+    """Back to the frontend with ?google_error=<code>: the browser is on our
+    callback, so a JSON error would be shown raw instead of in the login UI."""
+    response = RedirectResponse(
+        _with_query_param(settings.GOOGLE_FRONTEND_REDIRECT_URI, "google_error", code),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+    response.delete_cookie("google_oauth_state", path="/")
+    return response
+
+
 @router.post(
     "/login",
     response_model=UserResponse,
@@ -72,7 +82,7 @@ def _with_query_param(url: str, key: str, value: str) -> str:
 async def login(
     credentials: LoginRequest,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     session_store: RedisSessionStore = Depends(get_session_store),
     two_factor_store: TwoFactorStore = Depends(get_two_factor_store),
     email_sender: EmailSender = Depends(get_email_sender),
@@ -158,7 +168,7 @@ async def google_callback(
 ) -> RedirectResponse:
     """Exchange Google's code, create or find the user, and start a session."""
     if error:
-        raise BadRequestException("Google authentication was cancelled")
+        return _google_error("cancelled")
     if (
         not code
         or not state
@@ -166,9 +176,9 @@ async def google_callback(
         or not secrets.compare_digest(state, state_cookie)
         or not await session_store.consume_oauth_state(state)
     ):
-        raise BadRequestException("Invalid or expired Google authentication state")
+        return _google_error("invalid_state")
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
-        raise ServiceUnavailableException("Google authentication is not configured")
+        return _google_error("not_configured")
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -185,7 +195,7 @@ async def google_callback(
             token_response.raise_for_status()
             access_token = token_response.json().get("access_token")
             if not access_token:
-                raise BadGatewayException("Google did not return an access token")
+                return _google_error("google_failed")
 
             profile_response = await client.get(
                 "https://openidconnect.googleapis.com/v1/userinfo",
@@ -193,8 +203,8 @@ async def google_callback(
             )
             profile_response.raise_for_status()
             profile = profile_response.json()
-    except httpx.HTTPError as exc:
-        raise BadGatewayException("Could not complete Google authentication") from exc
+    except httpx.HTTPError:
+        return _google_error("google_failed")
 
     google_id = profile.get("sub")
     email = profile.get("email")
@@ -203,18 +213,14 @@ async def google_callback(
         or not isinstance(email, str)
         or not profile.get("email_verified")
     ):
-        raise BadRequestException(
-            "Google account does not provide a verified email address"
-        )
+        return _google_error("email_not_verified")
 
     async with UnitOfWork() as uow:
         user = await uow.users.get_by_oauth_id(google_id)
         if user is None:
             existing_user = await uow.users.get_by_email(email)
             if existing_user:
-                raise UserAlreadyExistsException(
-                    "An account with this email already exists. Log in with your password first."
-                )
+                return _google_error("account_exists")
 
             user = await uow.users.create(
                 User(
@@ -232,7 +238,10 @@ async def google_callback(
 
     if user.two_factor_enabled:
         # The frontend sees ?two_factor=required and asks for the emailed code.
-        token, _ = await start_login_challenge(user, two_factor_store, email_sender)
+        try:
+            token, _ = await start_login_challenge(user, two_factor_store, email_sender)
+        except TooManyRequestsException:
+            return _google_error("cooldown")
         response = RedirectResponse(
             _with_query_param(
                 settings.GOOGLE_FRONTEND_REDIRECT_URI, "two_factor", "required"

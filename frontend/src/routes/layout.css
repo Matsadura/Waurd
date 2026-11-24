@@ -5,6 +5,14 @@
 @import '@fontsource-variable/eb-garamond';
 @import '@fontsource/im-fell-english';
 
+@font-face {
+	font-family: 'Kreon';
+	src: url('/fonts/Kreon-Medium.ttf') format('woff2');
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+
 @theme {
 	--color-background: #100d14;
 	--color-text-primary: #f5f3f5;
@@ -304,3 +312,26 @@
 		width: 0;
 	}
 } */
+
+@theme {
+	--color-arena-yallow-100: #fff1c3;
+	--color-card-skill: #063528;
+	--font-kreon: 'Kreon';
+	--animate-ready-pulse: pulse 1.4s ease-in-out infinite;
+
+	@keyframes pulse {
+		0% {
+			transform: scale(0.99);
+			box-shadow: 0 0 0 0 #063528;
+		}
+
+		70% {
+			transform: scale(1);
+			box-shadow: 0 0 0 40px #06352800;
+		}
+
+		100% {
+			transform: scale(0.99);
+		}
+	}
+}

@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { APIFetch } from '#lib/utils/APIFetch.ts';
+	import { goto, refreshAll } from '$app/navigation';
+
 	let {
 		open = $bindable(false),
 		username,
@@ -23,6 +26,11 @@
 		if (event.target instanceof Node && !profileControls.contains(event.target)) {
 			closeMenu();
 		}
+	}
+	async function logout() {
+		await APIFetch('POST', 'auth/logout');
+		await refreshAll();
+		await goto('/login');
 	}
 </script>
 
@@ -113,7 +121,7 @@
 			<button
 				type="button"
 				class="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-accent-red"
-				onclick={closeMenu}
+				onclick={logout}
 			>
 				Log out
 			</button>

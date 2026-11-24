@@ -32,6 +32,7 @@ def state(**changes):  # type: ignore[no-untyped-def]
         "you": {"hp": 100, "hand": hand(("C", 12), ("A", 6), ("T", 8))},
         "opponent": {"hp": 100, "hand_size": 0},
         "time_left": {"you": 90, "opponent": 90},
+        "log": ["alice goes first"],
     }
     return {**base, **changes}
 
@@ -48,7 +49,7 @@ class TestSpelling:
 
 
 class TestTurns:
-    def test_a_cast_word_is_sent_and_its_damage_reported(self) -> None:
+    def test_a_cast_word_is_sent_and_the_server_log_shown(self) -> None:
         game = ws_client.Game(me="alice", opponent="bob")
         game.on_message(state())
 
@@ -59,10 +60,12 @@ class TestTurns:
                 your_turn=False,
                 you={"hp": 100, "hand": []},
                 opponent={"hp": 74, "hand_size": 12},
+                log=["alice goes first", "alice cast CAT for 26 damage"],
             )
         )
 
-        assert "You cast CAT for 26 damage" in game.log[-1]
+        assert len(game.log) == 2  # each server line shown once
+        assert "alice cast CAT for 26 damage" in game.log[-1]
 
     def test_resigning_needs_confirmation(self) -> None:
         game = ws_client.Game(me="alice", opponent="bob")

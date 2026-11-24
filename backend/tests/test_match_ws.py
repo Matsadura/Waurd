@@ -17,7 +17,14 @@ records = pytest.importorskip(
     "backend.ws.records", reason="The match socket is not merged yet"
 )
 
-from backend.game.rules import cast_word, resign, start_turn, use_time
+from backend.game.rules import (
+    cast_word,
+    lose_by_disconnect,
+    pass_turn,
+    resign,
+    start_turn,
+    use_time,
+)
 from backend.game.models import Glyph
 from backend.game.setup import new_match
 from fastapi import WebSocketDisconnect
@@ -448,6 +455,57 @@ class TestCastHistory:
             )
 
 
+def named_game():  # type: ignore[no-untyped-def]
+    game = new_match(seed=1, time_control_seconds=300)
+    game.names = ("alice", "bob")
+    game.active_player_index = 0
+    use_time(game, 0.0)
+    start_turn(game)
+    return game
+
+
+class TestMatchLog:
+    def test_the_log_tells_each_move_and_the_winner(self) -> None:
+        game = named_game()
+        pass_turn(game, 0)
+        game.players[1].hand = [Glyph("C", 50), Glyph("A", 30), Glyph("T", 40)]
+        cast_word(game, 1, [0, 1, 2], {"CAT"})
+
+        assert game.log == [
+            "alice goes first",
+            "alice passed",
+            "bob cast CAT for 100 damage",
+            "alice has no HP left. bob wins!",
+        ]
+
+    def test_each_way_of_losing_is_explained(self) -> None:
+        resigned, left, timed_out = named_game(), named_game(), named_game()
+        resign(resigned, 1)
+        lose_by_disconnect(left, 0)
+        use_time(timed_out, 300.0)
+
+        assert resigned.log[-1] == "bob resigned. alice wins!"
+        assert left.log[-1] == "alice didn't come back in time. bob wins!"
+        assert timed_out.log[-1] == "alice ran out of time. bob wins!"
+
+    def test_the_state_carries_the_log(self) -> None:
+        game = named_game()
+
+        assert match_ws.view(game, 1)["log"] == ["alice goes first"]
+
+    async def test_a_disconnect_is_logged_for_the_other_player(self) -> None:
+        match_ws.matches["m"] = game = named_game()
+        leaving, staying = LiveSocket(), LiveSocket()
+        leaving.app = None  # type: ignore[attr-defined]
+        match_ws.sockets["m"] = {0: leaving, 1: staying}
+
+        await match_ws.left(leaving, "m", 0)
+
+        assert staying.messages[0]["type"] == "OPPONENT_DISCONNECTED"
+        assert staying.messages[1]["log"][-1] == "alice disconnected"
+        assert game.log[-1] == "alice disconnected"
+
+
 class DeadSocket:
     async def send_json(self, message: dict) -> None:
         raise WebSocketDisconnect(code=1006)
@@ -503,10 +561,10 @@ def client(monkeypatch):  # type: ignore[no-untyped-def]
     monkeypatch.setattr(match_ws, "user_id_from_cookie", user)
     monkeypatch.setattr(match_ws, "seat_in_match", seat)
 
-    async def five_minutes(match_id):  # type: ignore[no-untyped-def]
-        return 300
+    async def setup(match_id):  # type: ignore[no-untyped-def]
+        return 300, ("a", "b")  # five minutes each, and the names in the log
 
-    monkeypatch.setattr(match_ws, "time_control", five_minutes)
+    monkeypatch.setattr(match_ws, "match_setup", setup)
     monkeypatch.setattr(match_ws, "end_match", end)
     monkeypatch.setattr(match_ws.settings, "CORS_ORIGINS", [ORIGIN])
     test_client = TestClient(app)
@@ -547,7 +605,8 @@ class TestSocket:
                 assert active.receive_json()["type"] == "ACTION_REJECTED"
 
             active.send_json({"type": "PASS_TURN"})
-            assert active.receive_json()["type"] == "STATE"
+            passed = active.receive_json()
+            assert passed["log"][-1] in ("a passed", "b passed")  # the players' names
 
     def test_match_ids_are_normalized(self, client) -> None:  # type: ignore[no-untyped-def]
         match_id = str(uuid.uuid4())
@@ -619,9 +678,9 @@ class TestSocket:
         self, client, monkeypatch
     ) -> None:  # type: ignore[no-untyped-def]
         async def tiny(match_id):  # type: ignore[no-untyped-def]
-            return 0.2  # seconds on each clock
+            return 0.2, ("a", "b")  # seconds on each clock
 
-        monkeypatch.setattr(match_ws, "time_control", tiny)
+        monkeypatch.setattr(match_ws, "match_setup", tiny)
         # No clock task: only the late message can notice the time ran out.
         monkeypatch.setattr(match_ws, "restart_clock", lambda *args: None)
         match_id = str(uuid.uuid4())

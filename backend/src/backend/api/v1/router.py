@@ -2,6 +2,7 @@ from backend.api.dependencies.auth import verify_csrf
 from backend.api.v1.endpoints import (
     admin,
     auth,
+    chat,
     friendship,
     matchmaking,
     password,
@@ -38,6 +39,11 @@ api_v1_router.include_router(
 
 api_v1_router.include_router(
     perks.router,
+    dependencies=[Depends(verify_csrf)],
+)
+
+api_v1_router.include_router(
+    chat.router,
     dependencies=[Depends(verify_csrf)],
 )
 

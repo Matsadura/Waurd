@@ -145,9 +145,8 @@ async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
             total_turns=match.turn,
             end_reason=match.end_reason,
         )
-        # both clocks started at half the time control
-        time_used = record.time_control_seconds - sum(
-            p.time_left for p in match.players
+        time_used = sum(
+            record.time_control_seconds - p.time_left for p in match.players
         )
         record.duration_seconds = round(time_used)
         await db.commit()

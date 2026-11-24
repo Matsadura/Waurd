@@ -37,7 +37,7 @@ def build_deck() -> list[Glyph]:
 
 
 def new_match(seed: int | None, time_control_seconds: int = 300) -> Match:
-    """The time control is the whole match: each player's clock gets half."""
+    """Each player's clock starts with the whole time control."""
     rng = random.Random(seed)
     players = []
     for _ in range(2):

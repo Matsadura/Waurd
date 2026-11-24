@@ -41,3 +41,5 @@ class Match:
     end_reason: str | None = None
     clock_checked_at: float = 0.0
     casts: list[Cast] = field(default_factory=list)
+    names: tuple[str, str] = ("Player 1", "Player 2")
+    log: list[str] = field(default_factory=list)  # what happened, ready to show

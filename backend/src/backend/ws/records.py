@@ -104,11 +104,14 @@ async def update_stats(db: AsyncSession, record: MatchRecord, match: Match) -> N
     record.player2_elo_after = p2.rating_elo
 
 
-async def time_control(match_id: str) -> int:
-    """Seconds on each player's clock, as chosen when the match was created."""
+async def match_setup(match_id: str) -> tuple[int, tuple[str, str]]:
+    """Seconds on each player's clock, and the players' names for the log."""
     async with async_session_maker() as db:
         record = await MatchRepository(db).get_match_by_id(uuid.UUID(match_id).bytes)
-    return record.time_control_seconds
+        users = UserRepository(db)
+        player1 = await users.get_by_id(record.player1_id)
+        player2 = await users.get_by_id(record.player2_id)
+    return record.time_control_seconds, (player1.username, player2.username)
 
 
 def cast_rows(
@@ -145,9 +148,8 @@ async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
             total_turns=match.turn,
             end_reason=match.end_reason,
         )
-        # both clocks started at half the time control
-        time_used = record.time_control_seconds - sum(
-            p.time_left for p in match.players
+        time_used = sum(
+            record.time_control_seconds - p.time_left for p in match.players
         )
         record.duration_seconds = round(time_used)
         await db.commit()

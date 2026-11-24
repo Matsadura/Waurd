@@ -37,14 +37,14 @@ def build_deck() -> list[Glyph]:
 
 
 def new_match(seed: int | None, time_control_seconds: int = 300) -> Match:
-    """The time control is the whole match: each player's clock gets half."""
+    """Each player's clock starts with the whole time control."""
     rng = random.Random(seed)
     players = []
     for _ in range(2):
         deck = build_deck()
         rng.shuffle(deck)
         players.append(
-            Player(hp=STARTING_HP, draw_pile=deck, time_left=time_control_seconds / 2)
+            Player(hp=STARTING_HP, draw_pile=deck, time_left=time_control_seconds)
         )
     return Match(players=players, rng=rng, active_player_index=rng.randrange(2))
 

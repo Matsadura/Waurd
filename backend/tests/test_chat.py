@@ -1,0 +1,262 @@
+"""Chat: one socket per user for global, direct and match messages, plus history."""
+
+import threading
+import time
+import uuid
+
+import pytest
+from anyio.from_thread import start_blocking_portal
+
+chat_ws = pytest.importorskip("backend.ws.chat_ws", reason="Chat is not merged yet")
+
+from fastapi import WebSocketDisconnect
+from starlette.testclient import TestClient
+
+from backend.main import app
+from backend.models import (
+    ChannelType,
+    ChatMessage,
+    FriendshipStatus,
+    Match,
+    MatchStatus,
+)
+
+ORIGIN = "http://localhost:5173"
+
+
+def uid(user) -> str:  # type: ignore[no-untyped-def]
+    return str(uuid.UUID(bytes=user.id))
+
+
+@pytest.fixture(autouse=True)
+def fresh_state(monkeypatch, session_maker):  # type: ignore[no-untyped-def]
+    chat_ws.sockets.clear()
+    monkeypatch.setattr(chat_ws, "async_session_maker", session_maker)
+
+
+@pytest.fixture
+def client(monkeypatch):  # type: ignore[no-untyped-def]
+    """The logged-in user is named by an x-user header holding their id."""
+
+    async def user(ws):  # type: ignore[no-untyped-def]
+        return ws.headers.get("x-user")
+
+    monkeypatch.setattr(chat_ws, "user_id_from_cookie", user)
+    monkeypatch.setattr(chat_ws.settings, "CORS_ORIGINS", [ORIGIN])
+    test_client = TestClient(app)
+    # One event loop for every socket, as on the server; otherwise a message
+    # sent to another socket doesn't wake that socket's reader.
+    with start_blocking_portal() as portal:
+        test_client.portal = portal
+        yield test_client
+
+
+def connect(client, user):  # type: ignore[no-untyped-def]
+    return client.websocket_connect(
+        "/ws/chat", headers={"origin": ORIGIN, "x-user": uid(user)}
+    )
+
+
+def receive(socket) -> dict:  # type: ignore[no-untyped-def]
+    """The socket's next message; fails instead of hanging if none comes."""
+    result: dict = {}
+    reader = threading.Thread(
+        target=lambda: result.setdefault("message", socket.receive_json()), daemon=True
+    )
+    reader.start()
+    reader.join(2)
+    assert "message" in result, "no message arrived"
+    return result["message"]
+
+
+def online(count: int) -> None:
+    """Wait until the server has registered that many users' sockets."""
+    deadline = time.monotonic() + 2
+    while len(chat_ws.sockets) < count:
+        assert time.monotonic() < deadline, "timed out"
+        time.sleep(0.01)
+
+
+async def add_match(session_maker, player1, player2) -> str:  # type: ignore[no-untyped-def]
+    match_id = uuid.uuid4()
+    async with session_maker() as db:
+        db.add(
+            Match(
+                id=match_id.bytes,
+                player1_id=player1.id,
+                player2_id=player2.id,
+                time_control_seconds=180,
+                status=MatchStatus.ACTIVE,
+            )
+        )
+        await db.commit()
+    return str(match_id)
+
+
+class TestChatSocket:
+    def test_global_reaches_everyone_online(self, client, alice, bob) -> None:  # type: ignore[no-untyped-def]
+        with connect(client, alice) as a, connect(client, bob) as b:
+            online(2)
+            a.send_json({"type": "GLOBAL", "text": "  hello all  "})
+
+            for socket in (a, b):
+                message = receive(socket)
+                assert message["type"] == "CHAT_MESSAGE"
+                assert message["channel"] == "GLOBAL"
+                assert (message["sender_username"], message["text"]) == (
+                    "alice",
+                    "hello all",
+                )
+
+    def test_direct_reaches_only_the_two_players(
+        self, client, alice, bob, carol
+    ) -> None:  # type: ignore[no-untyped-def]
+        with (
+            connect(client, alice) as a,
+            connect(client, bob) as b,
+            connect(client, carol) as c,
+        ):
+            online(3)
+            a.send_json({"type": "DIRECT", "to": uid(bob), "text": "hi bob"})
+
+            assert receive(b)["receiver_id"] == uid(bob)
+            assert receive(a)["text"] == "hi bob"  # the sender's other tabs see it too
+            c.send_json({"type": "GLOBAL", "text": "ping"})
+            assert receive(c)["text"] == "ping"  # carol got nothing before this
+
+    def test_a_block_stops_direct_messages(
+        self, client, alice, bob, make_friendship
+    ) -> None:  # type: ignore[no-untyped-def]
+        import asyncio
+
+        asyncio.run(make_friendship(bob, alice, FriendshipStatus.BLOCKED))
+        with connect(client, alice) as a:
+            a.send_json({"type": "DIRECT", "to": uid(bob), "text": "hey"})
+
+            assert receive(a) == {
+                "type": "CHAT_REJECTED",
+                "reason": "You can't message this player.",
+            }
+
+    def test_match_chat_is_for_its_players_only(
+        self, client, alice, bob, carol, session_maker
+    ) -> None:  # type: ignore[no-untyped-def]
+        import asyncio
+
+        match_id = asyncio.run(add_match(session_maker, alice, bob))
+        with connect(client, bob) as b, connect(client, carol) as c:
+            online(2)
+            c.send_json({"type": "MATCH", "match_id": match_id, "text": "gg"})
+            assert receive(c)["reason"] == "You're not a player in this match."
+
+            b.send_json({"type": "MATCH", "match_id": match_id, "text": "gg"})
+            message = receive(b)
+            assert (message["channel"], message["match_id"]) == ("MATCH", match_id)
+
+    def test_bad_messages_are_rejected_and_the_socket_stays_open(
+        self, client, alice
+    ) -> None:  # type: ignore[no-untyped-def]
+        with connect(client, alice) as a:
+            for bad in (
+                [1, 2],
+                {"type": "SHOUT", "text": "hi"},
+                {"type": "GLOBAL"},
+                {"type": "GLOBAL", "text": "   "},
+                {"type": "GLOBAL", "text": "x" * 501},
+                {"type": "DIRECT", "to": "not-an-id", "text": "hi"},
+                {"type": "DIRECT", "to": uid(alice), "text": "talking to myself"},
+                {"type": "MATCH", "match_id": str(uuid.uuid4()), "text": "hi"},
+            ):
+                a.send_json(bad)
+                assert receive(a)["type"] == "CHAT_REJECTED", bad
+
+            a.send_json({"type": "GLOBAL", "text": "still here"})
+            assert receive(a)["text"] == "still here"
+
+    def test_without_a_session_the_socket_is_refused(self, client) -> None:  # type: ignore[no-untyped-def]
+        with (
+            pytest.raises(WebSocketDisconnect),
+            client.websocket_connect("/ws/chat", headers={"origin": ORIGIN}) as ws,
+        ):
+            ws.receive_json()
+
+
+async def add_messages(session_maker, *messages) -> None:  # type: ignore[no-untyped-def]
+    async with session_maker() as db:
+        db.add_all(messages)
+        await db.commit()
+
+
+class TestChatHistory:
+    async def test_direct_history_is_both_ways_newest_first(
+        self, alice_client, alice, bob, carol, session_maker
+    ) -> None:
+        await add_messages(
+            session_maker,
+            ChatMessage(
+                sender_id=alice.id,
+                receiver_id=bob.id,
+                channel_type=ChannelType.DIRECT,
+                message_content="one",
+            ),
+            ChatMessage(
+                sender_id=bob.id,
+                receiver_id=alice.id,
+                channel_type=ChannelType.DIRECT,
+                message_content="two",
+            ),
+            ChatMessage(
+                sender_id=carol.id,
+                receiver_id=alice.id,
+                channel_type=ChannelType.DIRECT,
+                message_content="other chat",
+            ),
+        )
+
+        page = (await alice_client.get(f"/chat/direct/{uid(bob)}?size=1")).json()
+        second = (
+            await alice_client.get(f"/chat/direct/{uid(bob)}?size=1&page=2")
+        ).json()
+
+        assert (page["total"], page["pages"]) == (2, 2)
+        assert [page["items"][0]["text"], second["items"][0]["text"]] == ["two", "one"]
+        assert page["items"][0]["sender_username"] == "bob"
+
+    async def test_global_history(self, alice_client, bob, session_maker) -> None:
+        await add_messages(
+            session_maker,
+            ChatMessage(
+                sender_id=bob.id,
+                channel_type=ChannelType.GLOBAL,
+                message_content="hello",
+            ),
+        )
+
+        page = (await alice_client.get("/chat/global")).json()
+
+        assert [(m["sender_username"], m["text"]) for m in page["items"]] == [
+            ("bob", "hello")
+        ]
+
+    async def test_match_history_is_for_its_players_only(
+        self, alice_client, carol_client, alice, bob, session_maker
+    ) -> None:
+        match_id = await add_match(session_maker, alice, bob)
+        await add_messages(
+            session_maker,
+            ChatMessage(
+                sender_id=bob.id,
+                channel_type=ChannelType.MATCH,
+                match_id=uuid.UUID(match_id).bytes,
+                message_content="gg",
+            ),
+        )
+
+        mine = await alice_client.get(f"/chat/matches/{match_id}")
+        theirs = await carol_client.get(f"/chat/matches/{match_id}")
+
+        assert [m["text"] for m in mine.json()["items"]] == ["gg"]
+        assert theirs.status_code == 403
+        assert (
+            await alice_client.get(f"/chat/matches/{uuid.uuid4()}")
+        ).status_code == 404

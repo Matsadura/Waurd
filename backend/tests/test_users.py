@@ -80,8 +80,8 @@ class TestGetMe:
     async def test_does_not_expose_sensitive_columns(self, alice_client):
         response = await alice_client.get("/users/me")
 
-        # role was added later; every other field must match exactly.
-        assert set(response.json()) - {"role"} == {
+        # role, xp and level were added later; every other field must match exactly.
+        assert set(response.json()) - {"role", "xp", "level"} == {
             "id",
             "username",
             "email",
@@ -89,6 +89,18 @@ class TestGetMe:
             "created_at",
             "updated_at",
         }
+
+    async def test_shows_xp_and_level(self, alice_client, alice, session_maker):
+        async with session_maker() as db:
+            user = await db.get(User, alice.id)
+            user.xp, user.level = 250, 2
+            await db.commit()
+
+        me = (await alice_client.get("/users/me")).json()
+        profile = (await alice_client.get(f"/users/{user_uuid(alice)}")).json()
+
+        assert (me["xp"], me["level"]) == (250, 2)
+        assert (profile["xp"], profile["level"]) == (250, 2)
 
 
 class TestUpdateMe:

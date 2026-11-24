@@ -44,8 +44,8 @@ class TestRegister:
     async def test_response_never_exposes_credentials(self, client):
         response = await client.post("/auth/register", json=register_payload())
 
-        # role was added later; every other field must match exactly.
-        assert set(response.json()) - {"role"} == {
+        # role, xp and level were added later; every other field must match exactly.
+        assert set(response.json()) - {"role", "xp", "level"} == {
             "id",
             "username",
             "email",

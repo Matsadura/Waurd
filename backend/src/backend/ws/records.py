@@ -183,6 +183,14 @@ async def record_achievements(db: AsyncSession, user_id: bytes) -> None:
     gives its XP, once."""
     stats = await UserStatsRepository(db).get_by_id(user_id)
     user = await UserRepository(db).get_by_id(user_id)
+    # every match's casts are saved before this step runs
+    words = set(
+        await db.scalars(
+            select(MatchCast.word_played)
+            .where(MatchCast.player_id == user_id)
+            .distinct()
+        )
+    )
     rows = {
         row.achievement_id: row
         for row in await db.scalars(
@@ -190,7 +198,7 @@ async def record_achievements(db: AsyncSession, user_id: bytes) -> None:
         )
     }
     for achievement in ACHIEVEMENTS:
-        progress = min(achievement.progress(stats), achievement.target_value)
+        progress = min(achievement.progress(stats, words), achievement.target_value)
         row = rows.get(achievement.id)
         if progress == 0 or (row is not None and row.is_completed):
             continue

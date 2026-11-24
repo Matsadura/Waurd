@@ -23,7 +23,7 @@ from backend.ws.records import (
     final_result,
     save_result,
     seat_in_match,
-    time_control,
+    match_setup,
 )
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 
@@ -133,11 +133,13 @@ async def left(ws: WebSocket, match_id: str, me: int) -> None:
     if match is None or match.winner is not None:
         return
     if match.turn > 0:
+        match.log.append(f"{match.names[me]} disconnected")
         await send_to_others(
             match_id,
             me,
             {"type": "OPPONENT_DISCONNECTED", "grace_seconds": GRACE_SECONDS},
         )
+        await broadcast(match_id)  # the log line
     timers[(match_id, me)] = asyncio.create_task(
         end_if_still_gone(ws.app, match_id, me)
     )
@@ -166,6 +168,7 @@ def view(match: Match, me: int) -> dict:
             "you": round(player.time_left, 1),
             "opponent": round(opponent.time_left, 1),
         },
+        "log": match.log,
     }
 
 
@@ -250,10 +253,11 @@ async def play(ws: WebSocket, match_id: str) -> None:
         await ws.close()
         return
 
-    seconds = await time_control(match_id)
+    seconds, names = await match_setup(match_id)
     await ws.accept()
     if match_id not in matches:
         matches[match_id] = new_match(seed=None, time_control_seconds=seconds)
+        matches[match_id].names = names
     sockets.setdefault(match_id, {})[me] = ws
     match = matches[match_id]
 
@@ -261,6 +265,7 @@ async def play(ws: WebSocket, match_id: str) -> None:
     if timer is not None:
         timer.cancel()
         if match.turn > 0:
+            match.log.append(f"{match.names[me]} reconnected")
             await send_to_others(match_id, me, {"type": "OPPONENT_RECONNECTED"})
 
     other = 1 - me

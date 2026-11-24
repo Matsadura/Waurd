@@ -9,6 +9,8 @@ STARTING_HP = 100
 def start_turn(match: Match) -> None:
     """Start a new turn: the active player draws up to HAND_SIZE glyphs."""
     match.turn += 1
+    if match.turn == 1:
+        match.log.append(f"{match.names[match.active_player_index]} goes first")
     player = match.players[match.active_player_index]
     while len(player.hand) < HAND_SIZE:
         if not player.draw_pile:
@@ -58,6 +60,7 @@ def cast_word(
         )
     )
     target.hp -= damage
+    match.log.append(f"{match.names[player_index]} cast {word} for {damage} damage")
 
     caster.discard_pile += caster.hand
     caster.hand = []
@@ -65,6 +68,7 @@ def cast_word(
     if target.hp == 0:
         match.winner = player_index
         match.end_reason = "HEALTH_DEPLETED"
+        win(match, f"{match.names[1 - player_index]} has no HP left")
         return
     match.active_player_index = 1 - player_index
     start_turn(match)
@@ -80,6 +84,7 @@ def pass_turn(match: Match, player_index: int) -> None:
     player = match.players[player_index]
     player.discard_pile += player.hand
     player.hand = []
+    match.log.append(f"{match.names[player_index]} passed")
 
     match.active_player_index = 1 - player_index
     start_turn(match)
@@ -91,6 +96,7 @@ def resign(match: Match, player_index: int) -> None:
         raise ValueError("Match is already over.")
     match.winner = 1 - player_index
     match.end_reason = "RESIGNATION"
+    win(match, f"{match.names[player_index]} resigned")
 
 
 def lose_by_disconnect(match: Match, player_index: int) -> None:
@@ -99,6 +105,7 @@ def lose_by_disconnect(match: Match, player_index: int) -> None:
         raise ValueError("Match is already over.")
     match.winner = 1 - player_index
     match.end_reason = "DISCONNECT"
+    win(match, f"{match.names[player_index]} didn't come back in time")
 
 
 def use_time(match: Match, now: float) -> None:
@@ -117,3 +124,9 @@ def use_time(match: Match, now: float) -> None:
     if player.time_left == 0:
         match.winner = 1 - match.active_player_index
         match.end_reason = "TIMEOUT"
+        win(match, f"{match.names[match.active_player_index]} ran out of time")
+
+
+def win(match: Match, why: str) -> None:
+    """The log's last line: why the match ended and who won."""
+    match.log.append(f"{why}. {match.names[match.winner]} wins!")

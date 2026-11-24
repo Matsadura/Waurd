@@ -651,7 +651,7 @@ class TestAchievements:
         # two matches' XP, First Steps and First Win, then the collection
         assert await self.xp(session_maker, alice) == 2 * 50 + 50 + 100 + 150
 
-    async def test_the_sync_keeps_icons_and_reward_perks(self, session_maker) -> None:
+    async def test_the_sync_keeps_icons(self, session_maker) -> None:
         async with session_maker() as db:
             row = await db.get(Achievement, "first-win")
             row.icon_url, row.name = "/icons/first-win.png", "Renamed by hand"
@@ -662,6 +662,69 @@ class TestAchievements:
         async with session_maker() as db:
             row = await db.get(Achievement, "first-win")
         assert (row.icon_url, row.name) == ("/icons/first-win.png", "First Win")
+
+
+class TestAchievementRewards:
+    @pytest.fixture
+    async def perk(self, session_maker):  # type: ignore[no-untyped-def]
+        from backend.models.perk import ModificationType, Perk, Rarity, TargetGlyphType
+
+        async with session_maker() as db:
+            db.add(
+                Perk(
+                    id="first_blood",
+                    name="First Blood",
+                    description="An achievement perk.",
+                    rarity=Rarity.RARE,
+                    target_glyph_type=TargetGlyphType.ANY,
+                    modification_type=ModificationType.POWER_VALUE,
+                    effect_payload={},
+                )
+            )
+            await db.commit()
+
+    def reward(self, monkeypatch, perk_id):  # type: ignore[no-untyped-def]
+        """First Win gives this perk."""
+        from dataclasses import replace
+
+        rewarded = [
+            replace(a, reward_perk_id=perk_id) if a.id == "first-win" else a
+            for a in records.ACHIEVEMENTS
+        ]
+        monkeypatch.setattr(records, "ACHIEVEMENTS", rewarded)
+
+    async def test_completing_it_unlocks_the_perk(
+        self, session_maker, redis, alice, bob, alice_client, perk, monkeypatch
+    ) -> None:
+        self.reward(monkeypatch, "first_blood")
+        await records.sync_achievements()
+        match_id = await active_match(session_maker, alice, bob)
+
+        await records.save_result(fake_app(redis), match_id, finished_game())
+
+        loadout = (await alice_client.get("/users/me/loadout")).json()
+        assert [p["id"] for p in loadout["unlocked_perks"]] == ["first_blood"]
+        listed = (await alice_client.get("/achievements?size=100")).json()["items"]
+        first_win = next(a for a in listed if a["id"] == "first-win")
+        assert first_win["reward_perk"]["name"] == "First Blood"
+
+    async def test_the_loser_does_not_get_it(
+        self, session_maker, redis, alice, bob, bob_client, perk, monkeypatch
+    ) -> None:
+        self.reward(monkeypatch, "first_blood")
+        await records.sync_achievements()
+        match_id = await active_match(session_maker, alice, bob)
+
+        await records.save_result(fake_app(redis), match_id, finished_game())
+
+        loadout = (await bob_client.get("/users/me/loadout")).json()
+        assert loadout["unlocked_perks"] == []
+
+    async def test_an_unknown_reward_perk_stops_the_sync(self, monkeypatch) -> None:
+        self.reward(monkeypatch, "no_such_perk")
+
+        with pytest.raises(ValueError, match="no_such_perk"):
+            await records.sync_achievements()
 
 
 class DeadSocket:

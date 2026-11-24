@@ -1,16 +1,21 @@
-"""The match rows in MySQL: who sits where, saving results, abandoning."""
+"""The match rows in MySQL: who sits where, saving results, abandoning, and
+the achievements a result moves forward."""
 
 import uuid
 from dataclasses import asdict
+from datetime import UTC, datetime
 
 from backend.core.identifiers import user_id_to_bytes, user_id_to_string
 from backend.core.matchmaking_store import MatchmakingQueueStore
 from backend.db.session import async_session_maker
+from backend.game.achievements import ACHIEVEMENTS
 from backend.game.calculations import XP_PER_LOSS, XP_PER_WIN, add_xp, new_elo_ratings
 from backend.game.models import Match
 from backend.game.rules import STARTING_HP
 from backend.models.match import Match as MatchRecord
+from backend.models.achievements import Achievement
 from backend.models.match import MatchCast, MatchStatus
+from backend.models.user_achievements import UserAchievement
 from backend.repositories.match import MatchRepository
 from backend.repositories.user import UserRepository
 from backend.repositories.user_stats import UserStatsRepository
@@ -135,9 +140,9 @@ def cast_rows(
 async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
     """Write the result to MySQL, then let both players queue again.
 
-    The result is committed on its own first, so a failure in the stats or
-    cast history steps can't leave the match ACTIVE and the players unable
-    to queue."""
+    The result is committed on its own first, so a failure in the stats, cast
+    history or achievement steps can't leave the match ACTIVE and the players
+    unable to queue."""
     match_id_bytes = uuid.UUID(match_id).bytes
     async with async_session_maker() as db:
         record = await MatchRepository(db).finish_match(
@@ -163,10 +168,56 @@ async def save_result(app: FastAPI, match_id: str, match: Match) -> None:
         async with async_session_maker() as db:
             db.add_all(cast_rows(match_id_bytes, player_ids, match))
             await db.commit()
+        async with async_session_maker() as db:
+            for player_id in player_ids:
+                await record_achievements(db, player_id)
+            await db.commit()
     finally:
         queue_store = MatchmakingQueueStore(app.state.redis)
         for player_id in player_ids:
             await queue_store.clear_matched_ticket(user_id_to_string(player_id))
+
+
+async def record_achievements(db: AsyncSession, user_id: bytes) -> None:
+    """Move the player's achievements forward from their stats. Completing one
+    gives its XP, once."""
+    stats = await UserStatsRepository(db).get_by_id(user_id)
+    user = await UserRepository(db).get_by_id(user_id)
+    rows = {
+        row.achievement_id: row
+        for row in await db.scalars(
+            select(UserAchievement).where(UserAchievement.user_id == user_id)
+        )
+    }
+    for achievement in ACHIEVEMENTS:
+        progress = min(achievement.progress(stats), achievement.target_value)
+        row = rows.get(achievement.id)
+        if progress == 0 or (row is not None and row.is_completed):
+            continue
+        if row is None:
+            row = UserAchievement(user_id=user_id, achievement_id=achievement.id)
+            db.add(row)
+        row.current_progress = progress
+        if progress == achievement.target_value:
+            row.is_completed = True
+            row.unlocked_at = datetime.now(UTC).replace(tzinfo=None)
+            add_xp(user, achievement.xp_reward)
+
+
+async def sync_achievements() -> None:
+    """Write the achievements list into the table. An icon or reward perk set
+    in the database is kept."""
+    async with async_session_maker() as db:
+        for achievement in ACHIEVEMENTS:
+            row = await db.get(Achievement, achievement.id)
+            if row is None:
+                row = Achievement(id=achievement.id, icon_url="")
+                db.add(row)
+            row.name = achievement.name
+            row.description = achievement.description
+            row.xp_reward = achievement.xp_reward
+            row.target_value = achievement.target_value
+        await db.commit()
 
 
 async def abandon(app: FastAPI, match_id: str) -> None:

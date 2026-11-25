@@ -20,6 +20,7 @@ services:
     volumes:
       - ./backend:/app
       - /app/.venv
+      - media_data:/app/media
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DB_HOST=db
@@ -76,3 +77,4 @@ volumes:
   redis_data:
     driver: local
   mysql_data:
+  media_data:

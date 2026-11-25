@@ -1,25 +1,18 @@
-import { BACKEND_URL } from '$app/env/private';
 import { error, fail, redirect } from '@sveltejs/kit';
 import * as v from 'valibot';
 import { twoFactorCodeSchema } from '#lib/schemas/two-factor.ts';
+import { api, jsonPost, errorMessage, SESSION_COOKIE, CSRF_COOKIE } from '#lib/server/api.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
-	const sessionId = cookies.get('session_id');
-
-	if (!sessionId) {
+	if (!cookies.get(SESSION_COOKIE)) {
 		redirect(303, '/login');
 	}
 
 	let response: Response;
 
 	try {
-		response = await fetch(`${BACKEND_URL}/api/v1/auth/2fa`, {
-			headers: {
-				Cookie: `session_id=${sessionId}`
-			}
-		});
+		response = await fetch(api('/auth/2fa'));
 	} catch {
 		error(502, 'Cannot connect to the backend.');
 	}
@@ -47,37 +40,13 @@ function getAction(data: FormData): TwoFactorAction | null {
 	return action === 'enable' || action === 'disable' ? action : null;
 }
 
-function authHeaders(sessionId: string, csrfToken: string) {
-	return {
-		'Content-Type': 'application/json',
-		Cookie: `session_id=${sessionId}; csrf_token=${csrfToken}`,
-		'X-CSRF-Token': csrfToken
-	};
-}
-
-async function extractError(response: Response): Promise<string> {
-	const json = await response.json().catch(() => null);
-
-	if (
-		typeof json === 'object' &&
-		json !== null &&
-		'detail' in json &&
-		typeof json.detail === 'string'
-	) {
-		return json.detail;
-	}
-
-	return 'Something went wrong. Please try again.';
-}
-
 export const actions = {
 	requestCode: async ({ request, fetch, cookies }) => {
-		const sessionId = cookies.get('session_id');
-		const csrfToken = cookies.get('csrf_token');
+		if (!cookies.get(SESSION_COOKIE)) {
+			redirect(303, '/login');
+		}
 
-		if (!sessionId) redirect(303, '/login');
-
-		if (!csrfToken) {
+		if (!cookies.get(CSRF_COOKIE)) {
 			return fail(403, {
 				step: null,
 				action: null,
@@ -99,11 +68,7 @@ export const actions = {
 		let response: Response;
 
 		try {
-			response = await fetch(`${BACKEND_URL}/api/v1/auth/2fa/code`, {
-				method: 'POST',
-				headers: authHeaders(sessionId, csrfToken),
-				body: JSON.stringify({ action })
-			});
+			response = await fetch(api('/auth/2fa/code'), jsonPost({ action }));
 		} catch {
 			return fail(502, {
 				step: null,
@@ -112,13 +77,15 @@ export const actions = {
 			});
 		}
 
-		if (response.status === 401) redirect(303, '/login');
+		if (response.status === 401) {
+			redirect(303, '/login');
+		}
 
 		if (!response.ok) {
 			return fail(response.status, {
 				step: null,
 				action,
-				error: await extractError(response)
+				error: await errorMessage(response, 'Something went wrong. Please try again.')
 			});
 		}
 
@@ -130,12 +97,11 @@ export const actions = {
 	},
 
 	confirmCode: async ({ request, fetch, cookies }) => {
-		const sessionId = cookies.get('session_id');
-		const csrfToken = cookies.get('csrf_token');
+		if (!cookies.get(SESSION_COOKIE)) {
+			redirect(303, '/login');
+		}
 
-		if (!sessionId) redirect(303, '/login');
-
-		if (!csrfToken) {
+		if (!cookies.get(CSRF_COOKIE)) {
 			return fail(403, {
 				step: null,
 				action: null,
@@ -168,11 +134,7 @@ export const actions = {
 		let response: Response;
 
 		try {
-			response = await fetch(`${BACKEND_URL}/api/v1/auth/2fa/${action}`, {
-				method: 'POST',
-				headers: authHeaders(sessionId, csrfToken),
-				body: JSON.stringify(result.output)
-			});
+			response = await fetch(api(`/auth/2fa/${action}`), jsonPost(result.output));
 		} catch {
 			return fail(502, {
 				step: 'code',
@@ -181,13 +143,15 @@ export const actions = {
 			});
 		}
 
-		if (response.status === 401) redirect(303, '/login');
+		if (response.status === 401) {
+			redirect(303, '/login');
+		}
 
 		if (!response.ok) {
 			return fail(response.status, {
 				step: 'code',
 				action,
-				error: await extractError(response)
+				error: await errorMessage(response, 'Something went wrong. Please try again.')
 			});
 		}
 

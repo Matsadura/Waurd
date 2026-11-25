@@ -36,4 +36,5 @@ EXPOSE 8000
 
 # run fastapi in development mode with uvicorn
 # CMD ["uvicorn", "src.backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
-CMD ["fastapi", "dev", "src/backend/main.py", "--port", "8000", "--host", "0.0.0.0"]
+# migrate first so a fresh database has its tables before the app starts
+CMD ["sh", "-c", "alembic upgrade head && exec fastapi dev src/backend/main.py --port 8000 --host 0.0.0.0"]

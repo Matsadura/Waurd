@@ -12,19 +12,21 @@
 	let email = $derived(form?.values?.email ?? '');
 	let password = $state('');
 
-	const googleErrorMessages: Record<string, string> = {
-		cancelled: 'Google sign-in was cancelled.',
-		invalid_state: 'That sign-in attempt expired. Please try again.',
-		not_configured: 'Google sign-in is not available right now.',
-		google_failed: 'Google authentication failed. Please try again.',
-		email_not_verified: 'Your Google account does not have a verified email.',
-		account_exists: 'An account with this email already exists.',
-		cooldown: 'A code was sent recently. Wait a minute before trying again.'
-	};
+	const googleErrorMessages = new Map<string, string>([
+		['cancelled', 'Google sign-in was cancelled.'],
+		['invalid_state', 'That sign-in attempt expired. Please try again.'],
+		['not_configured', 'Google sign-in is not available right now.'],
+		['google_failed', 'Google authentication failed. Please try again.'],
+		['email_not_verified', 'Your Google account does not have a verified email.'],
+		['account_exists', 'An account with this email already exists.'],
+		['cooldown', 'A code was sent recently. Wait a minute before trying again.']
+	]);
 
-	let googleError = $derived(
-		googleErrorMessages[page.url.searchParams.get('google_error') ?? ''] ?? null
-	);
+	let googleError = $derived.by(() => {
+		const code = page.url.searchParams.get('google_error');
+		if (!code) return null;
+		return googleErrorMessages.get(code) ?? 'Google sign-in failed. Please try again.';
+	});
 
 	function handleGoogle() {
 		window.location.assign(`${PUBLIC_BACKEND_URL}/api/v1/auth/google`);

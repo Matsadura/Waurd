@@ -61,7 +61,7 @@
 {:else}
 	{#if form?.sent}
 		<p class="text-center text-lg text-success-light" role="status">
-			*If an account with that email exists, you will receive a password reset link shortly.
+			If an account with that email exists, you will receive a password reset link shortly.
 		</p>
 	{:else}
 		<form method="POST" action="?/request" class="flex flex-col gap-5">

@@ -18,6 +18,7 @@ def update_payload(**overrides):
         "username": "renamed",
         "email": "renamed@example.com",
         "password": "BrandNewPassw0rd!",
+        "current_password": PASSWORD,
         **overrides,
     }
 
@@ -233,6 +234,75 @@ class TestUpdateMe:
         response = await alice_client.patch("/users/me", json=update_payload())
 
         assert response.status_code == 200
+
+    async def test_wrong_current_password_is_rejected(self, alice_client, client):
+        response = await alice_client.patch(
+            "/users/me", json=update_payload(current_password="NotMyPassw0rd!")
+        )
+
+        assert response.status_code == 400
+        assert response.json() == {"detail": "Current password is incorrect."}
+        assert (await alice_client.get("/users/me")).json()["username"] == "alice"
+        login = await client.post(
+            "/auth/login", json={"email": "alice@example.com", "password": PASSWORD}
+        )
+        assert login.status_code == 200
+
+    async def test_new_password_needs_the_current_one(self, alice_client):
+        response = await alice_client.patch(
+            "/users/me", json={"password": "BrandNewPassw0rd!"}
+        )
+
+        assert response.status_code == 400
+        assert response.json() == {"detail": "Current password is incorrect."}
+
+    async def test_account_without_password_can_set_one(
+        self, alice_client, alice, client, session_maker
+    ):
+        # Google-only accounts have no password to confirm.
+        async with session_maker() as session:
+            stored = await session.get(User, alice.id)
+            stored.password_hash = None
+            await session.commit()
+
+        response = await alice_client.patch(
+            "/users/me", json={"password": "BrandNewPassw0rd!"}
+        )
+
+        assert response.status_code == 200
+        login = await client.post(
+            "/auth/login",
+            json={"email": "alice@example.com", "password": "BrandNewPassw0rd!"},
+        )
+        assert login.status_code == 200
+
+    async def test_new_username_keeps_the_session(self, login_as, alice):
+        first = await login_as(alice)
+        second = await login_as(alice)
+
+        response = await first.patch("/users/me", json={"username": "renamed"})
+
+        assert response.status_code == 200
+        assert (await first.get("/users/me")).json()["username"] == "renamed"
+        assert (await second.get("/users/me")).status_code == 200
+
+    async def test_resending_the_same_email_keeps_the_session(
+        self, alice_client, alice
+    ):
+        response = await alice_client.patch(
+            "/users/me", json={"username": "renamed", "email": alice.email}
+        )
+
+        assert response.status_code == 200
+        assert (await alice_client.get("/users/me")).status_code == 200
+
+    async def test_new_email_revokes_the_sessions(self, alice_client):
+        response = await alice_client.patch(
+            "/users/me", json={"email": "renamed@example.com"}
+        )
+
+        assert response.status_code == 200
+        assert (await alice_client.get("/users/me")).status_code == 401
 
 
 class TestGetUserById:

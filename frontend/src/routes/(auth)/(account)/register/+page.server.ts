@@ -1,21 +1,8 @@
-import { BACKEND_URL } from '$app/env/private';
 import { fail, redirect } from '@sveltejs/kit';
+import { api, jsonPost, errorMessage } from '#lib/server/api.ts';
 import * as v from 'valibot';
 import { registerSchema } from '#lib/schemas/register.ts';
 import type { Actions } from './$types';
-
-function extractError(json: unknown): string {
-	if (
-		typeof json === 'object' &&
-		json !== null &&
-		'detail' in json &&
-		typeof json.detail === 'string'
-	) {
-		return json.detail;
-	}
-
-	return 'Registration failed. Please try again.';
-}
 
 export const actions = {
 	default: async ({ request, fetch }) => {
@@ -46,15 +33,14 @@ export const actions = {
 
 		let response: Response;
 		try {
-			response = await fetch(`${BACKEND_URL}/api/v1/auth/register`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
+			response = await fetch(
+				api('/auth/register'),
+				jsonPost({
 					username: result.output.username,
 					email: result.output.email,
 					password: result.output.password
 				})
-			});
+			);
 		} catch {
 			return fail(502, {
 				error: 'Cannot connect to the server. Please try again.',
@@ -63,8 +49,10 @@ export const actions = {
 		}
 
 		if (!response.ok) {
-			const json = await response.json().catch(() => null);
-			return fail(response.status, { error: extractError(json), values });
+			return fail(response.status, {
+				error: await errorMessage(response, 'Registration failed. Please try again.'),
+				values
+			});
 		}
 
 		redirect(303, '/login');

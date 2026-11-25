@@ -65,7 +65,12 @@ class UserUpdateRequest(BaseModel):
         None,
         min_length=8,
         max_length=128,
-        description="New password (8-128 characters)",
+        description="New password (8-128 characters); needs current_password",
+    )
+    current_password: str | None = Field(
+        None,
+        max_length=128,
+        description="Required with password when the account already has one",
     )
     avatar_url: str | None = Field(None, description="New avatar image URL")
 

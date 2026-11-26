@@ -36,6 +36,7 @@ from sqlalchemy import select
 from backend.models import (
     Achievement,
     Match,
+    MatchCast,
     MatchStatus,
     User,
     UserAchievement,
@@ -94,6 +95,10 @@ async def active_match(session_maker, alice, bob, stats=True) -> str:  # type: i
 def finished_game():  # type: ignore[no-untyped-def]
     game = new_match(seed=1)
     game.players[1].hp = 40
+    # HP only changes through casts, and stats add up the casts' damage
+    game.casts.append(
+        Cast(1, 0, "HIT", [Glyph("H", 20), Glyph("I", 20), Glyph("T", 20)], 60)
+    )
     game.turn = 5
     resign(game, 1)  # player 0 wins
     return game
@@ -120,6 +125,50 @@ class TestSavingTheResult:
         assert winner.total_damage_dealt == 60
         assert record.status == MatchStatus.FINISHED
         assert (record.player1_elo_before, record.player1_elo_after) == (1200, 1216)
+
+    async def test_win_streaks_count_wins_in_a_row(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        async def play(winner_is_alice: bool, first: bool) -> None:
+            match_id = await active_match(session_maker, alice, bob, stats=first)
+            game = finished_game()  # player 0 (alice) wins
+            if not winner_is_alice:
+                game.winner = 1
+            await records.save_result(fake_app(redis), match_id, game)
+
+        await play(True, first=True)
+        await play(True, first=False)
+        await play(False, first=False)
+
+        async with session_maker() as db:
+            a = await db.get(UserStats, alice.id)
+            b = await db.get(UserStats, bob.id)
+        assert (a.win_streak, a.best_win_streak) == (0, 2)
+        assert (b.win_streak, b.best_win_streak) == (1, 1)
+
+    async def test_highest_heal_and_damage_come_from_the_casts(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+        game = finished_game()
+        # bob healed 25 back, so his final HP (40) undercounts alice's damage
+        game.casts.append(Cast(2, 1, "AYE", [Glyph("A", 25, "power", "heal")], 0, 25))
+        game.casts.append(Cast(3, 0, "TOT", [Glyph("T", 25)], 25))
+        game.casts.append(Cast(4, 1, "AI", [Glyph("A", 9, "power", "heal")], 0, 9))
+
+        await records.save_result(fake_app(redis), match_id, game)
+
+        async with session_maker() as db:
+            a = await db.get(UserStats, alice.id)
+            b = await db.get(UserStats, bob.id)
+            heals = (
+                await db.scalars(
+                    select(MatchCast.heal_amount).order_by(MatchCast.turn_number)
+                )
+            ).all()
+        assert a.total_damage_dealt == 60 + 25
+        assert (a.highest_heal, b.highest_heal) == (0, 25)
+        assert heals == [0, 25, 0, 9]
 
     async def test_result_is_kept_when_the_stats_step_fails(
         self, session_maker, redis, alice, bob, monkeypatch
@@ -680,6 +729,15 @@ class TestEffects:
         pass_turn(game, first)
         assert game.players[1 - first].defense == 0
 
+    def test_a_cast_records_the_hp_it_healed(self) -> None:
+        game = effects_game()
+        game.players[0].hp = 95
+        game.players[0].hand = [Glyph("A", 9, "power", "heal"), hit(4)]
+
+        cast_word(game, 0, [0, 1], {"AT"})
+
+        assert (game.casts[-1].damage, game.casts[-1].healed) == (4, 5)
+
     def test_the_deck_has_every_effect(self) -> None:
         deck = new_match(seed=1).players[0].draw_pile
 
@@ -761,6 +819,7 @@ class TestAchievements:
             "first-win": (1, True),
             "ten-wins": (1, False),
             "heavy-hitter": (60, False),  # bob ended on 40 HP
+            "wordsmith": (60, False),  # HIT scored 60
         }
         assert await self.progress(session_maker, bob) == {"first-match": (1, True)}
         # match XP plus each completed achievement's reward
@@ -838,6 +897,7 @@ class TestAchievements:
     ) -> None:
         def game_casting(*casts):  # type: ignore[no-untyped-def]
             game = finished_game()
+            game.casts.clear()  # only these casts count here
             for turn, (seat, word) in enumerate(casts, start=1):
                 game.casts.append(
                     Cast(turn, seat, word, [Glyph(c, 1) for c in word], len(word))

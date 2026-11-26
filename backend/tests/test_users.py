@@ -390,6 +390,9 @@ class TestGetUserStats:
             "highest_scoring_word": "QUIZZIFY",
             "highest_word_score": 100,
             "total_damage_dealt": 5000,
+            "win_streak": 0,
+            "best_win_streak": 0,
+            "highest_heal": 0,
         }
 
     async def test_user_without_stats_is_not_found(self, alice_client, alice):

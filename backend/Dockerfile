@@ -25,6 +25,8 @@ RUN groupadd -g 1001 appgroup && \
 
 COPY --from=builder --chown=appuser:appgroup /app/.venv /app/.venv
 COPY --from=builder --chown=appuser:appgroup /app /app
+# uploads go to a volume; the app user must own it to write avatars
+RUN mkdir -p /app/media && chown appuser:appgroup /app/media
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \

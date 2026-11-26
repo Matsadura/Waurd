@@ -4,6 +4,7 @@ from backend.api.v1.endpoints import (
     auth,
     chat,
     friendship,
+    leaderboards,
     matchmaking,
     password,
     perks,
@@ -39,6 +40,11 @@ api_v1_router.include_router(
 
 api_v1_router.include_router(
     perks.router,
+    dependencies=[Depends(verify_csrf)],
+)
+
+api_v1_router.include_router(
+    leaderboards.router,
     dependencies=[Depends(verify_csrf)],
 )
 

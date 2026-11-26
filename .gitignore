@@ -202,3 +202,8 @@ __marimo__/
 
 .vscode
 node_modules/
+
+# Vault local secrets and sensitive files
+vault/secrets.env
+vault/init-output.txt
+vault/keys/

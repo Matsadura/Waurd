@@ -20,6 +20,15 @@ export function jsonPost(body: unknown): RequestInit {
 	};
 }
 
+// Prepare a JSON PATCH request
+export function jsonPatch(body: unknown): RequestInit {
+	return {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(body)
+	};
+}
+
 // Extract FastAPI's error message
 export async function errorMessage(response: Response, fallback: string): Promise<string> {
 	const json: unknown = await response.json().catch(() => null);
@@ -46,8 +55,8 @@ export function forwardCookies(
 	const parsed = setCookieHeaders.map((rawCookie) => cookies.parse(rawCookie));
 	//const parsed = response.headers.getSetCookie().map((header) => cookies.parse(header)); //.map goes through every element, transforms it, and returns a NEW array.
 
-	const valid = requiredNames.every((name) =>
-		parsed.some((cookie) => cookie.name === name && Boolean(cookie.value))//check that the response includes the required cookies with nonempty values
+	const valid = requiredNames.every(
+		(name) => parsed.some((cookie) => cookie.name === name && Boolean(cookie.value)) //check that the response includes the required cookies with nonempty values
 	);
 
 	if (!valid) return false;

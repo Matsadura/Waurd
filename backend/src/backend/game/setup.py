@@ -1,7 +1,7 @@
 import random
 
 from backend.game.models import Glyph, Match, Player
-from backend.game.rules import STARTING_HP
+from backend.game.rules import SECOND_PLAYER_SHIELD, STARTING_HP
 
 # letter: (type, effect, value, copies). Effects follow the demo/full-game table;
 # a skill glyph's value is how many of the target's turns its status lasts.
@@ -48,7 +48,9 @@ def new_match(seed: int | None, time_control_seconds: int = 300) -> Match:
         players.append(
             Player(hp=STARTING_HP, draw_pile=deck, time_left=time_control_seconds)
         )
-    return Match(players=players, rng=rng, active_player_index=rng.randrange(2))
+    first = rng.randrange(2)
+    players[1 - first].defense = SECOND_PLAYER_SHIELD
+    return Match(players=players, rng=rng, active_player_index=first)
 
 
 def load_words(path: str) -> set[str]:

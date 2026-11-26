@@ -271,6 +271,59 @@ class TestRules:
         with pytest.raises(ValueError):
             cast_word(game, game.active_player_index, [True, False], {"ab"})
 
+    def test_a_glyph_is_shown_with_its_type_and_effect(self) -> None:
+        game = new_match(seed=1)
+        start_turn(game)
+        me = game.active_player_index
+
+        glyph = match_ws.view(game, me)["you"]["hand"][0]
+
+        assert glyph == {
+            "position": 0,
+            "letter": game.players[me].hand[0].letter,
+            "type": "power",
+            "effect_type": "damage",
+            "effect_value": game.players[me].hand[0].effect_value,
+        }
+
+    def test_the_state_shows_my_piles_and_only_counts_for_the_opponent(self) -> None:
+        game = new_match(seed=1)
+        start_turn(game)
+        me = game.active_player_index
+        pass_turn(game, me)  # my hand goes to my discard pile
+        player, opponent = game.players[me], game.players[1 - me]
+
+        state = match_ws.view(game, me)
+
+        assert [g["letter"] for g in state["you"]["discard_pile"]] == [
+            g.letter for g in player.discard_pile
+        ]
+        assert len(player.discard_pile) == 12
+        # the draw pile is sorted, so it doesn't give the next draws away
+        assert [g["letter"] for g in state["you"]["draw_pile"]] == sorted(
+            g.letter for g in player.draw_pile
+        )
+        assert state["opponent"] == {
+            "hp": opponent.hp,
+            "hand_size": len(opponent.hand),
+            "draw_pile_size": len(opponent.draw_pile),
+            "discard_pile_size": 0,
+        }
+        assert "draw_pile" not in state["opponent"]
+
+    def test_only_damage_effects_hurt(self) -> None:
+        game = new_match(seed=1)
+        game.active_player_index = 0
+        start_turn(game)
+        game.players[0].hand = [
+            Glyph("A", 6),
+            Glyph("T", 30, type="power", effect_type="heal"),
+        ]
+
+        cast_word(game, 0, [0, 1], {"AT"})
+
+        assert game.players[1].hp == 94
+
     def test_the_state_says_who_won(self) -> None:
         game = finished_game()
 
@@ -392,7 +445,20 @@ class TestCastHistory:
             for c in casts
         ] == [(1, alice_id, "CAT", 26), (2, bob_id, "AT", 14), (3, alice_id, "CAT", 74)]
         assert casts[1]["glyphs_payload"] == {
-            "glyphs": [{"letter": "A", "damage": 6}, {"letter": "T", "damage": 8}]
+            "glyphs": [
+                {
+                    "letter": "A",
+                    "effect_value": 6,
+                    "type": "power",
+                    "effect_type": "damage",
+                },
+                {
+                    "letter": "T",
+                    "effect_value": 8,
+                    "type": "power",
+                    "effect_type": "damage",
+                },
+            ]
         }
         assert [c["created_at"][:16] for c in casts] == [
             "2026-01-01T12:00",

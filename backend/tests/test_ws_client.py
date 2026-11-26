@@ -16,8 +16,14 @@ ws_client = pytest.importorskip(
 
 def hand(*glyphs: tuple[str, int]) -> list[dict]:
     return [
-        {"position": i, "letter": letter, "damage": damage}
-        for i, (letter, damage) in enumerate(glyphs)
+        {
+            "position": i,
+            "letter": letter,
+            "type": "power",
+            "effect_type": "damage",
+            "effect_value": value,
+        }
+        for i, (letter, value) in enumerate(glyphs)
     ]
 
 

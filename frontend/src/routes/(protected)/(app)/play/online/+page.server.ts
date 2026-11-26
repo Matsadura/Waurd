@@ -1,21 +1,28 @@
-import { redirect } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { PUBLIC_BACKEND_URL } from '$app/env/public';
 import type { Actions, PageServerLoad } from './$types';
-import type { Ticket } from '../+page.server';
 
 export const load: PageServerLoad = async ({ fetch }) => {
 	const res = await fetch(`${PUBLIC_BACKEND_URL}/api/v1/matchmaking/status`);
 
 	if (!res.ok) {
 		redirect(302, '/play');
-	}
+	} else {
+		const ticket = await res.json();
 
-	const ticket: Ticket = await res.json();
-	if (ticket.matched_match_id) {
-		redirect(302, `/match/${ticket.matched_match_id}`);
+		if (ticket.status === 'QUEUED' || ticket.status === 'CLAIMING') {
+			return { ticket };
+		} else if (ticket.status === 'WAITING') {
+			redirect(302, '/play/friend');
+		} else if (
+			(ticket.status === 'MATCHED' || ticket.status === 'ACTIVE') &&
+			ticket.matched_match_id
+		) {
+			redirect(302, '/battle/arena');
+		} else {
+			redirect(302, '/play');
+		}
 	}
-
-	return { ticket };
 };
 
 export const actions: Actions = {
@@ -23,14 +30,16 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const seconds = Number(formData.get('time_control_seconds'));
 
-		await fetch(`${PUBLIC_BACKEND_URL}/api/v1/matchmaking/queue`, {
+		const res = await fetch(`${PUBLIC_BACKEND_URL}/api/v1/matchmaking/queue`, {
 			method: 'DELETE',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ time_control_seconds: seconds })
 		});
 
-		// Redirecting to /play re-runs /play's load check: if a match was found right as
-		// the player clicked cancel, /play will automatically forward them into the match.
-		redirect(303, '/play');
+		if (!res.ok && res.status !== 404) {
+			return fail(res.status, { error: `Could not leave queue (HTTP ${res.status}).` });
+		} else {
+			redirect(303, '/play');
+		}
 	}
 };

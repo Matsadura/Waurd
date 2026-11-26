@@ -102,6 +102,18 @@ class UserResponse(UserBase):
     )
     xp: int = Field(..., description="Total XP from matches and achievements")
     level: int = Field(..., description="The level that XP has reached")
+    # read from password_hash, which never leaves the server; only whether it is set
+    has_password: bool = Field(
+        ...,
+        validation_alias="password_hash",
+        description="False for Google-only accounts, which can set a password "
+        "without current_password",
+    )
+
+    @field_validator("has_password", mode="before")
+    @classmethod
+    def password_is_set(cls, password_hash: str | None) -> bool:
+        return password_hash is not None
 
     @computed_field(description="XP earned since reaching the current level")
     @property

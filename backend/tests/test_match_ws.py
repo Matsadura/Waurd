@@ -18,6 +18,7 @@ records = pytest.importorskip(
 )
 
 from backend.game.rules import (
+    SECOND_PLAYER_SHIELD,
     cast_word,
     lose_by_disconnect,
     pass_turn,
@@ -668,6 +669,16 @@ class TestEffects:
             9,
             {"weak": 2},
         )
+
+    def test_the_second_player_starts_with_defense_until_their_turn(self) -> None:
+        game = new_match(seed=1)
+        start_turn(game)
+        first = game.active_player_index
+
+        assert game.players[first].defense == 0
+        assert game.players[1 - first].defense == SECOND_PLAYER_SHIELD
+        pass_turn(game, first)
+        assert game.players[1 - first].defense == 0
 
     def test_the_deck_has_every_effect(self) -> None:
         deck = new_match(seed=1).players[0].draw_pile

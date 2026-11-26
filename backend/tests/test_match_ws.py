@@ -308,6 +308,8 @@ class TestRules:
             "hand_size": len(opponent.hand),
             "draw_pile_size": len(opponent.draw_pile),
             "discard_pile_size": 0,
+            "defense": 0,
+            "statuses": {},
         }
         assert "draw_pile" not in state["opponent"]
 
@@ -544,6 +546,141 @@ def named_game():  # type: ignore[no-untyped-def]
     return game
 
 
+def effects_game():  # type: ignore[no-untyped-def]
+    """Player 0 to move on turn 1, with empty hands to fill in each test."""
+    game = new_match(seed=1)
+    game.names = ("alice", "bob")
+    game.active_player_index = 0
+    start_turn(game)
+    game.players[0].hand = []
+    return game
+
+
+def hit(value):  # type: ignore[no-untyped-def]
+    return Glyph("T", value)
+
+
+class TestEffects:
+    def test_heal_restores_the_caster_up_to_full_hp(self) -> None:
+        game = effects_game()
+        game.players[0].hp = 95
+        game.players[0].hand = [Glyph("A", 9, "power", "heal"), hit(4)]
+
+        cast_word(game, 0, [0, 1], {"AT"})
+
+        assert game.players[0].hp == 100
+        assert game.players[1].hp == 96
+        assert game.log[-1] == "alice cast AT for 4 damage, healed 5"
+
+    def test_defense_blocks_damage_before_hp(self) -> None:
+        game = effects_game()
+        game.players[0].hand = [Glyph("O", 9, "power", "defense"), Glyph("N", 1)]
+        cast_word(game, 0, [0, 1], {"ON"})
+        assert game.players[0].defense == 9
+
+        game.players[1].hand = [hit(12)]
+        cast_word(game, 1, [0], {"T"})
+
+        assert game.players[0].defense == 0
+        assert game.players[0].hp == 97
+        assert game.log[-1] == "bob cast T for 3 damage (9 blocked)"
+
+    def test_defense_lasts_until_the_owners_next_turn(self) -> None:
+        game = effects_game()
+        game.players[0].hand = [Glyph("O", 9, "power", "defense")]
+        cast_word(game, 0, [0], {"O"})
+
+        pass_turn(game, 1)
+
+        assert game.players[0].defense == 0
+
+    def test_vulnerable_adds_half_to_later_damage(self) -> None:
+        game = effects_game()
+        game.players[0].hand = [Glyph("V", 2, "skill", "vulnerable"), hit(10)]
+        cast_word(game, 0, [0, 1], {"VT"})
+        # the status starts after the word that put it on
+        assert game.players[1].hp == 90
+        assert (
+            game.log[-1] == "alice cast VT for 10 damage, bob is vulnerable for 2 turns"
+        )
+
+        pass_turn(game, 1)
+        game.players[0].hand = [hit(10), hit(5)]
+        cast_word(game, 0, [0, 1], {"TT"})
+
+        assert game.players[1].hp == 90 - 15 - 7  # 5 * 1.5 rounds down
+
+    def test_weak_lowers_every_power_glyph_by_a_quarter(self) -> None:
+        game = effects_game()
+        game.players[0].hp = 50
+        game.players[0].statuses = {"weak": 1}
+        game.players[0].hand = [
+            hit(10),
+            Glyph("A", 10, "power", "heal"),
+            Glyph("O", 10, "power", "defense"),
+            Glyph("V", 2, "skill", "vulnerable"),
+        ]
+
+        cast_word(game, 0, [0, 1, 2, 3], {"TAOV"})
+
+        assert game.players[1].hp == 93
+        assert game.players[0].hp == 57
+        assert game.players[0].defense == 7
+        assert game.players[1].statuses == {"vulnerable": 2}  # durations stay whole
+
+    def test_a_status_counts_down_at_the_end_of_its_owners_turns(self) -> None:
+        game = effects_game()
+        game.players[0].hand = [Glyph("E", 2, "skill", "weak")]
+        cast_word(game, 0, [0], {"E"})
+        assert game.players[1].statuses == {"weak": 2}
+
+        pass_turn(game, 1)
+        assert game.players[1].statuses == {"weak": 1}
+        pass_turn(game, 0)  # only bob's own turns count
+        assert game.players[1].statuses == {"weak": 1}
+        pass_turn(game, 1)
+        assert game.players[1].statuses == {}
+
+    def test_a_status_already_there_keeps_the_longer_time(self) -> None:
+        game = effects_game()
+        game.players[1].statuses = {"weak": 3}
+        game.players[0].hand = [Glyph("E", 2, "skill", "weak")]
+
+        cast_word(game, 0, [0], {"E"})
+
+        assert game.players[1].statuses == {"weak": 3}
+
+    def test_the_state_shows_defense_and_statuses_for_both_players(self) -> None:
+        game = effects_game()
+        game.players[0].hand = [
+            Glyph("O", 9, "power", "defense"),
+            Glyph("E", 2, "skill", "weak"),
+        ]
+        cast_word(game, 0, [0, 1], {"OE"})
+
+        mine, theirs = match_ws.view(game, 0), match_ws.view(game, 1)
+
+        assert (mine["you"]["defense"], mine["opponent"]["statuses"]) == (
+            9,
+            {"weak": 2},
+        )
+        assert (theirs["opponent"]["defense"], theirs["you"]["statuses"]) == (
+            9,
+            {"weak": 2},
+        )
+
+    def test_the_deck_has_every_effect(self) -> None:
+        deck = new_match(seed=1).players[0].draw_pile
+
+        assert {(g.type, g.effect_type) for g in deck} == {
+            ("power", "damage"),
+            ("power", "heal"),
+            ("power", "defense"),
+            ("skill", "vulnerable"),
+            ("skill", "weak"),
+        }
+
+
 class TestMatchLog:
     def test_the_log_tells_each_move_and_the_winner(self) -> None:
         game = named_game()
@@ -680,7 +817,7 @@ class TestAchievements:
         from backend.game.achievements import ANIMALS, ELEMENTS, PLANTS
         from backend.game.setup import LETTERS
 
-        deck = {letter: copies for letter, (_, copies) in LETTERS.items()}
+        deck = {letter: spec[-1] for letter, spec in LETTERS.items()}  # copies
         for word in ANIMALS | PLANTS | ELEMENTS:
             assert word in match_ws.WORDS, word
             assert all(deck.get(c, 0) >= n for c, n in Counter(word).items()), word

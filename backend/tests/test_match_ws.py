@@ -170,6 +170,27 @@ class TestSavingTheResult:
         assert (a.highest_heal, b.highest_heal) == (0, 25)
         assert heals == [0, 25, 0, 9]
 
+    async def test_saved_casts_keep_defense_and_statuses(
+        self, session_maker, redis, alice, bob
+    ) -> None:
+        match_id = await active_match(session_maker, alice, bob)
+        game = finished_game()
+        game.casts.append(
+            Cast(2, 1, "OE", [Glyph("O", 9, "power", "defense")], 0, 0, 9, {"weak": 2})
+        )
+
+        await records.save_result(fake_app(redis), match_id, game)
+
+        async with session_maker() as db:
+            rows = (
+                await db.execute(
+                    select(
+                        MatchCast.defense_gained, MatchCast.status_effects_applied
+                    ).order_by(MatchCast.turn_number)
+                )
+            ).all()
+        assert [tuple(row) for row in rows] == [(0, None), (9, {"weak": 2})]
+
     async def test_result_is_kept_when_the_stats_step_fails(
         self, session_maker, redis, alice, bob, monkeypatch
     ) -> None:
@@ -737,6 +758,17 @@ class TestEffects:
         cast_word(game, 0, [0, 1], {"AT"})
 
         assert (game.casts[-1].damage, game.casts[-1].healed) == (4, 5)
+
+    def test_a_cast_records_its_defense_and_statuses(self) -> None:
+        game = effects_game()
+        game.players[0].hand = [
+            Glyph("O", 9, "power", "defense"),
+            Glyph("E", 2, "skill", "weak"),
+        ]
+
+        cast_word(game, 0, [0, 1], {"OE"})
+
+        assert (game.casts[-1].defense, game.casts[-1].statuses) == (9, {"weak": 2})
 
     def test_the_deck_has_every_effect(self) -> None:
         deck = new_match(seed=1).players[0].draw_pile

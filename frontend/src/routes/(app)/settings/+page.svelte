@@ -1,103 +1,227 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import FormField from '#lib/components/auth/FormField.svelte';
+	import SettingsSection from '#lib/components/settings/SettingsSection.svelte';
+	import Avatar from '#lib/components/ui/Avatar.svelte';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Divider from '#lib/components/ui/Divider.svelte';
+	import Frame from '#lib/components/ui/Frame.svelte';
+	import Notice from '#lib/components/ui/Notice.svelte';
 	import type { ActionData, PageData } from './$types';
 
-	let {
-		data,
-		form
-	}: {
-		data: PageData;
-		form: ActionData | null;
-	} = $props();
+	let { data, form }: { data: PageData; form: ActionData | null } = $props();
 
+	// After a failed save the form shows what was typed, otherwise the saved values
+	let username = $derived(form?.values?.username ?? data.user.username);
+	let email = $derived(form?.values?.email ?? data.user.email);
+	let newPassword = $state('');
+	let confirmPassword = $state('');
 	let code = $state('');
 
-	let updated = $derived(page.url.searchParams.get('two_factor_updated') === '1');
+	let twoFactorUpdated = $derived(page.url.searchParams.get('two_factor_updated') === '1');
 </script>
 
 <svelte:head>
 	<title>Settings</title>
 </svelte:head>
 
-<section class="mx-auto w-full max-w-3xl px-4 py-8 text-text-primary sm:px-6">
-	<h1 class="text-3xl font-bold">Settings</h1>
+<div class="mx-auto w-full max-w-4xl px-3 py-6 font-body text-bone sm:px-4">
+	<Frame class="fade-in">
+		<header class="flex flex-wrap items-center justify-between gap-x-8 gap-y-3">
+			<div>
+				<h1 class="text-3xl sm:text-4xl">Settings</h1>
+				<p class="text-lg text-ash italic">Member since {data.user.joined}</p>
+			</div>
 
-	<div class="mt-8 rounded-xl border border-white/15 bg-[#2d353c] p-5 sm:p-6">
-		<h2 class="text-xl font-bold">Two-Factor Authentication</h2>
+			<Button href="/profile" outline variant="secondary" size="sm">Back to profile</Button>
+		</header>
 
-		<p class="mt-3">
-			Status:
-			<span class={data.twoFactorEnabled ? 'text-green-400' : 'text-red-400'}>
-				{data.twoFactorEnabled ? 'Enabled' : 'Disabled'}
-			</span>
-		</p>
+		<Divider class="my-6" />
 
-		<p class="mt-3 text-sm text-white/70">
-			Protect your account with a verification code sent to your email.
-		</p>
-
-		{#if updated}
-			<p class="mt-4 text-green-400" role="status">
-				Two-factor authentication settings updated successfully!
-			</p>
-		{/if}
-
-		{#if form?.step === 'code'}
-			<p class="mt-5 text-sm text-white/80" role="status">
-				A verification code was sent to your email. Enter it below.
-			</p>
-
-			<form method="POST" action="?/confirmCode" class="mt-4 flex flex-col gap-4">
-				<input type="hidden" name="action" value={form.action ?? ''} />
-
-				<div class="flex flex-col gap-2">
-					<label for="two-factor-code" class="font-bold">
-						Verification Code
-					</label>
-
-					<input
-						id="two-factor-code"
-						name="code"
-						type="text"
-						inputmode="numeric"
-						autocomplete="one-time-code"
-						maxlength="6"
-						bind:value={code}
-						class="h-11 w-full max-w-xs rounded-xl bg-[#1c232a] px-4 text-center
-							text-white outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
+		<div class="flex flex-col gap-8">
+			<SettingsSection title="Profile" description="How other players see you.">
+				<div class="flex items-center gap-4">
+					<Avatar
+						name={data.user.username}
+						src={data.user.avatarUrl ?? undefined}
+						alt=""
+						class="size-20 text-4xl"
 					/>
+
+					<div class="flex min-w-0 flex-col gap-2">
+						<form
+							method="POST"
+							action="?/uploadAvatar"
+							enctype="multipart/form-data"
+							class="flex flex-wrap items-center gap-2"
+						>
+							<input
+								type="file"
+								name="file"
+								required
+								accept="image/png,image/jpeg,image/webp,image/gif"
+								aria-label="Choose an avatar image"
+								class="max-w-full min-w-0 text-base text-ash file:mr-3 file:cursor-pointer file:border file:border-bronze/60 file:bg-transparent file:px-3 file:py-0.5 file:text-bone hover:file:border-bone"
+							/>
+							<Button type="submit" size="sm" outline>Upload</Button>
+						</form>
+
+						{#if data.user.avatarUrl}
+							<form method="POST" action="?/removeAvatar">
+								<Button type="submit" size="sm" outline variant="secondary">Remove avatar</Button>
+							</form>
+						{/if}
+
+						<p class="text-base text-ash">PNG, JPEG, WebP or GIF, up to 2 MB.</p>
+					</div>
 				</div>
 
-				<button
-					type="submit"
-					class="min-h-11 w-full rounded-lg bg-accent-action px-6 font-bold text-white
-						hover:brightness-110 sm:w-fit"
-				>
-					CONFIRM {form.action === 'enable' ? 'ENABLE' : 'DISABLE'}
-				</button>
-			</form>
-		{:else}
-			<form method="POST" action="?/requestCode" class="mt-5">
-				<input
-					type="hidden"
-					name="action"
-					value={data.twoFactorEnabled ? 'disable' : 'enable'}
-				/>
+				{#if form?.section === 'avatar'}
+					{#if form.error}
+						<Notice class="mt-3">{form.error}</Notice>
+					{:else if form.message}
+						<Notice variant="success" class="mt-3">{form.message}</Notice>
+					{/if}
+				{/if}
 
-				<button
-					type="submit"
-					class="min-h-11 w-full rounded-lg bg-accent-action px-6 font-bold text-white
-						hover:brightness-110 sm:w-fit"
-				>
-					{data.twoFactorEnabled ? 'DISABLE 2FA' : 'ENABLE 2FA'}
-				</button>
-			</form>
-		{/if}
+				<form method="POST" action="?/updateProfile" class="mt-6 flex flex-col gap-5">
+					<FormField
+						label="Username"
+						name="username"
+						autocomplete="username"
+						bind:value={username}
+					/>
+					<FormField
+						label="Email"
+						name="email"
+						type="email"
+						autocomplete="email"
+						bind:value={email}
+					/>
 
-		{#if form?.error}
-			<p class="mt-4 text-red-400" role="alert">
-				*{form.error}
-			</p>
-		{/if}
-	</div>
-</section>
+					<div>
+						<Button type="submit">Save changes</Button>
+						<p class="mt-2 text-base text-ash italic">
+							Changing your email will require you to log in again.
+						</p>
+					</div>
+
+					{#if form?.section === 'profile'}
+						{#if form.error}
+							<Notice>{form.error}</Notice>
+						{:else if form.message}
+							<Notice variant="success">{form.message}</Notice>
+						{/if}
+					{/if}
+				</form>
+			</SettingsSection>
+
+			<Divider />
+
+			<SettingsSection title="Password" description="Choose a new one to keep your account safe.">
+				<form method="POST" action="?/changePassword" class="flex flex-col gap-5">
+					<FormField
+						label="Current password"
+						name="current-password"
+						type="password"
+						autocomplete="current-password"
+						required={false}
+					/>
+					<p class="text-base text-ash italic -mt-4">
+						If you signed up with Google and haven't set a password yet, leave this field empty.
+					</p>
+
+					<FormField
+						label="New password"
+						name="new-password"
+						type="password"
+						autocomplete="new-password"
+						bind:value={newPassword}
+					/>
+					<FormField
+						label="Confirm new password"
+						name="confirm-password"
+						type="password"
+						autocomplete="new-password"
+						bind:value={confirmPassword}
+					/>
+
+					<div>
+						<Button type="submit">Change password</Button>
+						<p class="mt-2 text-base text-ash italic">You will be signed out after changing it.</p>
+					</div>
+
+					{#if form?.section === 'password' && form.error}
+						<Notice>{form.error}</Notice>
+					{/if}
+				</form>
+			</SettingsSection>
+
+			<Divider />
+
+			<SettingsSection title="Two-factor" description="A code sent to your email when you log in.">
+				<p class="text-lg">
+					Status:
+					<span class={data.twoFactorEnabled ? 'text-success-light' : 'text-danger-light'}>
+						{data.twoFactorEnabled ? 'Enabled' : 'Disabled'}
+					</span>
+				</p>
+
+				{#if twoFactorUpdated}
+					<Notice variant="success" class="mt-3">
+						Two-factor authentication settings updated.
+					</Notice>
+				{/if}
+
+				{#if form?.section === 'twoFactor' && form.step === 'code'}
+					<p class="mt-3 text-ash italic" role="status">
+						A verification code was sent to your email. Enter it below.
+					</p>
+
+					<form method="POST" action="?/confirmCode" class="mt-4 flex flex-col gap-5">
+						<input type="hidden" name="action" value={form.action ?? ''} />
+
+						<div class="flex flex-col gap-1.5">
+							<label for="two-factor-code" class="field-label">Verification code</label>
+							<input
+								id="two-factor-code"
+								name="code"
+								type="text"
+								inputmode="numeric"
+								autocomplete="one-time-code"
+								maxlength="6"
+								bind:value={code}
+								class="field max-w-48 text-center tracking-widest"
+							/>
+						</div>
+
+						<div>
+							<Button type="submit" variant={form.action === 'disable' ? 'danger' : 'primary'}>
+								Confirm {form.action === 'enable' ? 'enable' : 'disable'}
+							</Button>
+						</div>
+					</form>
+				{:else}
+					<form method="POST" action="?/requestCode" class="mt-4">
+						<input
+							type="hidden"
+							name="action"
+							value={data.twoFactorEnabled ? 'disable' : 'enable'}
+						/>
+						<Button
+							type="submit"
+							outline={data.twoFactorEnabled}
+							variant={data.twoFactorEnabled ? 'danger' : 'primary'}
+						>
+							{data.twoFactorEnabled ? 'Disable two-factor' : 'Enable two-factor'}
+						</Button>
+					</form>
+				{/if}
+
+				{#if form?.section === 'twoFactor' && form.error}
+					<Notice class="mt-4">{form.error}</Notice>
+				{/if}
+			</SettingsSection>
+		</div>
+	</Frame>
+</div>

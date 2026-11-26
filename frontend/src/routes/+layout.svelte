@@ -1,9 +1,17 @@
 <script lang="ts">
 	import './layout.css';
+	import { afterNavigate } from '$app/navigation';
+	import { page } from '$app/state';
 	import favicon from '#lib/assets/favicon.svg';
 	import Frame from '#lib/components/ui/Frame.svelte';
 
 	let { children } = $props();
+
+	afterNavigate((nav) => {
+		if (nav.type === 'popstate' && window.location.pathname !== page.url.pathname) {
+			window.history.replaceState(window.history.state, '', page.url.href);
+		}
+	});
 </script>
 
 <svelte:head>

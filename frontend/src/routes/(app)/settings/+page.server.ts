@@ -44,8 +44,13 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	}
 
 	// Response to JS Object
-	const me: { username: string; email: string; avatar_url: string | null; created_at: string } =
-		await meResponse.json();
+	const me: {
+		username: string;
+		email: string;
+		avatar_url: string | null;
+		created_at: string;
+		has_password: boolean;
+	} = await meResponse.json();
 	const twoFactor: { enabled: boolean } = await twoFactorResponse.json();
 
 	return {
@@ -59,7 +64,8 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 				month: 'short',
 				day: 'numeric',
 				year: 'numeric'
-			})
+			}),
+			hasPassword: me.has_password
 		},
 		twoFactorEnabled: twoFactor.enabled
 	};

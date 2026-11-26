@@ -120,16 +120,14 @@
 
 			<SettingsSection title="Password" description="Choose a new one to keep your account safe.">
 				<form method="POST" action="?/changePassword" class="flex flex-col gap-5">
-					<FormField
-						label="Current password"
-						name="current-password"
-						type="password"
-						autocomplete="current-password"
-						required={false}
-					/>
-					<p class="-mt-4 text-base text-ash italic">
-						If you signed up with Google and haven't set a password yet, leave this field empty.
-					</p>
+					{#if data.user.hasPassword}
+						<FormField
+							label="Current password"
+							name="current-password"
+							type="password"
+							autocomplete="current-password"
+						/>
+					{/if}
 
 					<FormField
 						label="New password"

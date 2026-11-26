@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from backend.game.models import Cast, Match
+from backend.game.models import Cast, Glyph, Match
 
 HAND_SIZE = 12
 STARTING_HP = 100
@@ -20,6 +20,11 @@ def start_turn(match: Match) -> None:
             player.discard_pile = []
             match.rng.shuffle(player.draw_pile)
         player.hand.append(player.draw_pile.pop())
+
+
+def attack_of(glyphs: list[Glyph]) -> int:
+    """The damage a cast deals before the target's HP caps it."""
+    return sum(g.effect_value for g in glyphs if g.effect_type == "damage")
 
 
 def cast_word(
@@ -47,7 +52,7 @@ def cast_word(
         raise ValueError(f"{word} is an invalid word.")
 
     target = match.players[1 - player_index]
-    damage = min(target.hp, sum(glyph.damage for glyph in glyphs_to_cast))
+    damage = min(target.hp, attack_of(glyphs_to_cast))
     match.casts.append(
         Cast(
             turn=match.turn,

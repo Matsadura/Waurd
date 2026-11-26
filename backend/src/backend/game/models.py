@@ -6,7 +6,9 @@ from datetime import UTC, datetime
 @dataclass
 class Glyph:
     letter: str
-    damage: int
+    effect_value: int
+    type: str = "power"  # power or skill
+    effect_type: str = "damage"  # only damage for now: heal, defense... come later
 
 
 @dataclass

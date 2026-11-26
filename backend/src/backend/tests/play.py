@@ -76,7 +76,7 @@ def show(match: Match) -> None:
     me = match.active_player_index
     player = match.players[me]
     opponent = match.players[1 - me]
-    hand = "  ".join(f"{g.letter}({g.damage})" for g in player.hand)
+    hand = "  ".join(f"{g.letter}({g.effect_value})" for g in player.hand)
     print(f"\n--- Turn {match.turn}: Player {me + 1} ---")
     print(f"You: {player.hp} HP   Opponent: {opponent.hp} HP")
     print(f"Hand: {hand}")

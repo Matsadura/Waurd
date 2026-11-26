@@ -11,6 +11,7 @@ from backend.db.session import async_session_maker
 from backend.game.achievements import ACHIEVEMENTS
 from backend.game.calculations import XP_PER_LOSS, XP_PER_WIN, add_xp, new_elo_ratings
 from backend.game.models import Match
+from backend.game.rules import attack_of
 from backend.models.match import Match as MatchRecord
 from backend.models.achievements import Achievement
 from backend.models.match import MatchCast, MatchStatus
@@ -105,7 +106,7 @@ async def update_stats(db: AsyncSession, record: MatchRecord, match: Match) -> N
     for cast in match.casts:
         player = (p1, p2)[cast.player_index]
         player.total_damage_dealt += cast.damage
-        score = sum(glyph.damage for glyph in cast.glyphs)
+        score = attack_of(cast.glyphs)
         if score > player.highest_word_score:
             player.highest_word_score = score
             player.highest_scoring_word = cast.word

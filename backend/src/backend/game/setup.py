@@ -31,8 +31,8 @@ LETTERS = {
 
 def build_deck() -> list[Glyph]:
     deck = []
-    for letter, (damage, copies) in LETTERS.items():
-        deck += [Glyph(letter, damage) for _ in range(copies)]
+    for letter, (value, copies) in LETTERS.items():
+        deck += [Glyph(letter, value) for _ in range(copies)]
     return deck
 
 

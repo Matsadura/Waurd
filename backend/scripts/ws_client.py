@@ -272,7 +272,7 @@ def opponent_of(http: httpx.Client, match_id: str, my_id: str) -> str:
 
 def positions_for(word: str, hand: list[dict]) -> list[int] | None:
     """Hand positions spelling the word, strongest glyph first for repeated letters."""
-    strongest_first = sorted(hand, key=lambda glyph: -glyph["damage"])
+    strongest_first = sorted(hand, key=lambda glyph: -glyph["effect_value"])
     picked: list[int] = []
     for letter in word.upper():
         glyph = next(
@@ -482,7 +482,11 @@ class Game:
         rows = ["  "] * 5
         for g in glyphs:
             color = (
-                MAGENTA if g["damage"] >= 15 else YELLOW if g["damage"] >= 10 else CYAN
+                MAGENTA
+                if g["effect_value"] >= 15
+                else YELLOW
+                if g["effect_value"] >= 10
+                else CYAN
             )
             rows[0] += paint("┌───┐", color) + " "
             rows[1] += (
@@ -491,7 +495,7 @@ class Game:
                 + paint("│", color)
                 + " "
             )
-            rows[2] += paint(f"│{g['damage']:>3}│", color) + " "
+            rows[2] += paint(f"│{g['effect_value']:>3}│", color) + " "
             rows[3] += paint("└───┘", color) + " "
             rows[4] += paint(f"{g['position']:^5}", DIM) + " "
         return rows

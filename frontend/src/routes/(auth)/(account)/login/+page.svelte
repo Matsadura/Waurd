@@ -28,6 +28,9 @@
 		return googleErrorMessages.get(code) ?? 'Google sign-in failed. Please try again.';
 	});
 
+	// The settings page sends people here after they change their username, email or password
+	let accountUpdated = $derived(page.url.searchParams.get('account_updated') === '1');
+
 	function handleGoogle() {
 		window.location.assign(`${PUBLIC_BACKEND_URL}/api/v1/auth/google`);
 	}
@@ -59,6 +62,10 @@
 	</div>
 
 	<Button type="submit" size="lg" class="mt-2 w-full">Login</Button>
+
+	{#if accountUpdated && !form?.error}
+		<Notice variant="success">Your account was updated. Please log in again.</Notice>
+	{/if}
 
 	{#if form?.error || googleError}
 		<Notice>{form?.error ?? googleError}</Notice>

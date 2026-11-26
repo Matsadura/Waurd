@@ -7,8 +7,10 @@ from datetime import UTC, datetime
 class Glyph:
     letter: str
     effect_value: int
-    type: str = "power"  # power or skill
-    effect_type: str = "damage"  # only damage for now: heal, defense... come later
+    # power: damage, heal or defense; skill: vulnerable or weak, and then
+    # effect_value is how many of the target's turns the status lasts
+    type: str = "power"
+    effect_type: str = "damage"
 
 
 @dataclass
@@ -18,6 +20,8 @@ class Player:
     hand: list[Glyph] = field(default_factory=list)
     discard_pile: list[Glyph] = field(default_factory=list)
     time_left: float = 0.0
+    defense: int = 0  # soaks up damage; gone when this player's next turn starts
+    statuses: dict[str, int] = field(default_factory=dict)  # effect -> turns left
 
 
 @dataclass

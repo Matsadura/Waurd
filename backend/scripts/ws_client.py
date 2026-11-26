@@ -44,6 +44,14 @@ LIVE_ROWS = (2, 3, 5)  # the rows with running clocks, redrawn every half second
 COLOR = sys.stdout.isatty() and "NO_COLOR" not in os.environ
 BOLD, DIM, INVERT = "1", "2", "7"
 RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN = "31", "32", "33", "34", "35", "36"
+# how a glyph's effect looks on its card: (mark before the value, color)
+EFFECTS = {
+    "damage": ("*", RED),
+    "heal": ("+", GREEN),
+    "defense": ("#", BLUE),
+    "vulnerable": ("v", MAGENTA),
+    "weak": ("w", YELLOW),
+}
 
 REASONS = {  # end_reason: (said to the winner, said to the loser)
     "HEALTH_DEPLETED": ("{opponent} ran out of HP", "you ran out of HP"),
@@ -370,6 +378,7 @@ class Game:
             elif name in ("h", "help"):
                 self.say("Type a word to cast it with your glyphs, like: cat")
                 self.say("Or type hand positions in spelling order, like: 0 4 2")
+                self.say("Glyphs: * damage, + heal, # defense, v vulnerable, w weak")
                 self.say("/pass ends your turn, /resign gives up the match")
                 self.say("/quit leaves; run the client again within 30s to come back")
             else:
@@ -443,7 +452,10 @@ class Game:
         return left + " " * max(1, WIDTH - used - len(turn)) + paint(turn, DIM)
 
     def player_row(self, mine: bool) -> str:
-        hp = self.state["you" if mine else "opponent"]["hp"]
+        side = self.state["you" if mine else "opponent"]
+        hp = side["hp"]
+        extras = [f"# {side['defense']} defense"] if side.get("defense") else []
+        extras += [f"{e} {t}" for e, t in side.get("statuses", {}).items()]
         active = self.running() and self.state["your_turn"] == mine
         seconds = self.time_left(mine)
         name = (self.me if mine else self.opponent)[:14]
@@ -455,6 +467,7 @@ class Game:
             f"{paint(f'{name:<14}', BOLD if mine else '')}  "
             f"{bar(hp, STARTING_HP, 20, hp_color)} {hp:>3} HP   "
             f"{paint('⏱ ' + clock(seconds), *clock_style)}"
+            + (paint("   " + ", ".join(extras), CYAN) if extras else "")
         )
 
     def status(self) -> str:
@@ -481,13 +494,7 @@ class Game:
             return ["", paint(f"   {text}", DIM), "", "", ""]
         rows = ["  "] * 5
         for g in glyphs:
-            color = (
-                MAGENTA
-                if g["effect_value"] >= 15
-                else YELLOW
-                if g["effect_value"] >= 10
-                else CYAN
-            )
+            mark, color = EFFECTS.get(g["effect_type"], ("?", CYAN))
             rows[0] += paint("┌───┐", color) + " "
             rows[1] += (
                 paint("│", color)
@@ -495,7 +502,7 @@ class Game:
                 + paint("│", color)
                 + " "
             )
-            rows[2] += paint(f"│{g['effect_value']:>3}│", color) + " "
+            rows[2] += paint(f"│{mark}{g['effect_value']:>2}│", color) + " "
             rows[3] += paint("└───┘", color) + " "
             rows[4] += paint(f"{g['position']:^5}", DIM) + " "
         return rows

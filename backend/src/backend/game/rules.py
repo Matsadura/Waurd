@@ -3,7 +3,9 @@ from dataclasses import replace
 from backend.game.models import Cast, Glyph, Match
 
 HAND_SIZE = 12
-STARTING_HP = 100
+STARTING_HP = 100  # also the most HP healing can reach
+VULNERABLE_PERCENT = 50  # extra damage a vulnerable player takes
+WEAK_PERCENT = 25  # how much a weak player's power glyphs lose
 
 
 def start_turn(match: Match) -> None:
@@ -12,6 +14,7 @@ def start_turn(match: Match) -> None:
     if match.turn == 1:
         match.log.append(f"{match.names[match.active_player_index]} goes first")
     player = match.players[match.active_player_index]
+    player.defense = 0
     while len(player.hand) < HAND_SIZE:
         if not player.draw_pile:
             if not player.discard_pile:
@@ -23,7 +26,7 @@ def start_turn(match: Match) -> None:
 
 
 def attack_of(glyphs: list[Glyph]) -> int:
-    """The damage a cast deals before the target's HP caps it."""
+    """A word's raw damage: its damage glyphs before statuses, defense and HP."""
     return sum(g.effect_value for g in glyphs if g.effect_type == "damage")
 
 
@@ -52,7 +55,32 @@ def cast_word(
         raise ValueError(f"{word} is an invalid word.")
 
     target = match.players[1 - player_index]
-    damage = min(target.hp, attack_of(glyphs_to_cast))
+    totals = {"damage": 0, "heal": 0, "defense": 0}
+    statuses: dict[str, int] = {}
+    for glyph in glyphs_to_cast:
+        if glyph.type == "skill":
+            turns = statuses.get(glyph.effect_type, 0)
+            statuses[glyph.effect_type] = max(turns, glyph.effect_value)
+            continue
+        value = glyph.effect_value
+        # percentages round down glyph by glyph: weak first, then vulnerable
+        if "weak" in caster.statuses:
+            value = value * (100 - WEAK_PERCENT) // 100
+        if glyph.effect_type == "damage" and "vulnerable" in target.statuses:
+            value = value * (100 + VULNERABLE_PERCENT) // 100
+        totals[glyph.effect_type] += value
+
+    blocked = min(totals["damage"], target.defense)
+    target.defense -= blocked
+    damage = min(target.hp, totals["damage"] - blocked)
+    target.hp -= damage
+    healed = min(totals["heal"], STARTING_HP - caster.hp)
+    caster.hp += healed
+    caster.defense += totals["defense"]
+    # statuses start after the word; a status already there keeps the longer time
+    for effect, turns in statuses.items():
+        target.statuses[effect] = max(target.statuses.get(effect, 0), turns)
+
     match.casts.append(
         Cast(
             turn=match.turn,
@@ -64,17 +92,34 @@ def cast_word(
             damage=damage,
         )
     )
-    target.hp -= damage
-    match.log.append(f"{match.names[player_index]} cast {word} for {damage} damage")
-
-    caster.discard_pile += caster.hand
-    caster.hand = []
+    line = f"{match.names[player_index]} cast {word} for {damage} damage"
+    if blocked:
+        line += f" ({blocked} blocked)"
+    if healed:
+        line += f", healed {healed}"
+    if totals["defense"]:
+        line += f", +{totals['defense']} defense"
+    for effect, turns in statuses.items():
+        s = "" if turns == 1 else "s"
+        line += f", {match.names[1 - player_index]} is {effect} for {turns} turn{s}"
+    match.log.append(line)
 
     if target.hp == 0:
+        caster.discard_pile += caster.hand
+        caster.hand = []
         match.winner = player_index
         match.end_reason = "HEALTH_DEPLETED"
         win(match, f"{match.names[1 - player_index]} has no HP left")
         return
+    end_turn(match, player_index)
+
+
+def end_turn(match: Match, player_index: int) -> None:
+    """Discard the hand, count down the player's statuses, start the other turn."""
+    player = match.players[player_index]
+    player.discard_pile += player.hand
+    player.hand = []
+    player.statuses = {e: t - 1 for e, t in player.statuses.items() if t > 1}
     match.active_player_index = 1 - player_index
     start_turn(match)
 
@@ -86,13 +131,8 @@ def pass_turn(match: Match, player_index: int) -> None:
     if player_index != match.active_player_index:
         raise ValueError("It's not your turn.")
 
-    player = match.players[player_index]
-    player.discard_pile += player.hand
-    player.hand = []
     match.log.append(f"{match.names[player_index]} passed")
-
-    match.active_player_index = 1 - player_index
-    start_turn(match)
+    end_turn(match, player_index)
 
 
 def resign(match: Match, player_index: int) -> None:

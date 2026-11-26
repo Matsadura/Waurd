@@ -176,6 +176,8 @@ def view(match: Match, me: int) -> dict:
                 glyph_view(g) for g in sorted(player.draw_pile, key=lambda g: g.letter)
             ],
             "discard_pile": [glyph_view(g) for g in player.discard_pile],
+            "defense": player.defense,
+            "statuses": player.statuses,
         },
         # the opponent's glyphs stay hidden: only how many
         "opponent": {
@@ -183,6 +185,8 @@ def view(match: Match, me: int) -> dict:
             "hand_size": len(opponent.hand),
             "draw_pile_size": len(opponent.draw_pile),
             "discard_pile_size": len(opponent.discard_pile),
+            "defense": opponent.defense,
+            "statuses": opponent.statuses,
         },
         "time_left": {
             "you": round(player.time_left, 1),

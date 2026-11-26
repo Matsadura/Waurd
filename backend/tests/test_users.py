@@ -81,8 +81,9 @@ class TestGetMe:
     async def test_does_not_expose_sensitive_columns(self, alice_client):
         response = await alice_client.get("/users/me")
 
-        # role and the XP fields were added later; every other field must match exactly.
+        # role, XP and has_password were added later; the rest must match exactly.
         assert set(response.json()) - {
+            "has_password",
             "role",
             "xp",
             "level",
@@ -96,6 +97,32 @@ class TestGetMe:
             "created_at",
             "updated_at",
         }
+
+    async def test_says_whether_the_account_has_a_password(
+        self, alice_client, alice, session_maker
+    ):
+        assert (await alice_client.get("/users/me")).json()["has_password"] is True
+
+        async with session_maker() as session:
+            stored = await session.get(User, alice.id)
+            stored.password_hash = None  # a Google-only account
+            await session.commit()
+
+        assert (await alice_client.get("/users/me")).json()["has_password"] is False
+
+    async def test_setting_a_first_password_turns_has_password_on(
+        self, alice_client, alice, session_maker
+    ):
+        async with session_maker() as session:
+            stored = await session.get(User, alice.id)
+            stored.password_hash = None
+            await session.commit()
+
+        response = await alice_client.patch(
+            "/users/me", json={"password": "BrandNewPassw0rd!"}
+        )
+
+        assert response.json()["has_password"] is True
 
     async def test_shows_xp_and_level(self, alice_client, alice, session_maker):
         async with session_maker() as db:

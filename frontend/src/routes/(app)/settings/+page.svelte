@@ -127,7 +127,7 @@
 						autocomplete="current-password"
 						required={false}
 					/>
-					<p class="text-base text-ash italic -mt-4">
+					<p class="-mt-4 text-base text-ash italic">
 						If you signed up with Google and haven't set a password yet, leave this field empty.
 					</p>
 

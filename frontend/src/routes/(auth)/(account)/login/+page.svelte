@@ -28,7 +28,7 @@
 		return googleErrorMessages.get(code) ?? 'Google sign-in failed. Please try again.';
 	});
 
-	// The settings page sends people here after they change their username, email or password
+	// Redirected here after changing an email or password
 	let accountUpdated = $derived(page.url.searchParams.get('account_updated') === '1');
 
 	function handleGoogle() {

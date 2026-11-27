@@ -456,6 +456,75 @@ class TestGetUserMatches:
 
         assert response.json()["items"] == []
 
+    async def test_matches_show_both_usernames(
+        self, alice_client, alice, bob, session_maker
+    ):
+        await self.add_match(session_maker, bob, alice)
+
+        item = (await alice_client.get(f"/users/{user_uuid(alice)}/matches")).json()[
+            "items"
+        ][0]
+
+        assert (item["player1_username"], item["player2_username"]) == ("bob", "alice")
+
+    async def test_a_waiting_lobby_has_no_second_username(
+        self, alice_client, alice, session_maker
+    ):
+        async with session_maker() as session:
+            session.add(
+                Match(
+                    id=self.MATCH_ID.bytes,
+                    player1_id=alice.id,
+                    time_control_seconds=300,
+                    status=MatchStatus.WAITING,
+                )
+            )
+            await session.commit()
+
+        item = (await alice_client.get(f"/users/{user_uuid(alice)}/matches")).json()[
+            "items"
+        ][0]
+
+        assert (item["player1_username"], item["player2_username"]) == ("alice", None)
+
+    async def test_status_filter_keeps_pages_full(
+        self, alice_client, alice, bob, session_maker
+    ):
+        async with session_maker() as session:
+            for n, match_status in enumerate(
+                [MatchStatus.FINISHED, MatchStatus.ABANDONED, MatchStatus.FINISHED]
+            ):
+                session.add(
+                    Match(
+                        id=uuid.UUID(int=n + 1).bytes,
+                        player1_id=alice.id,
+                        player2_id=bob.id,
+                        time_control_seconds=300,
+                        status=match_status,
+                    )
+                )
+            await session.commit()
+
+        everything = (
+            await alice_client.get(f"/users/{user_uuid(alice)}/matches")
+        ).json()
+        finished = (
+            await alice_client.get(
+                f"/users/{user_uuid(alice)}/matches?status=FINISHED&size=2"
+            )
+        ).json()
+
+        assert everything["total"] == 3
+        assert finished["total"] == 2
+        assert [i["status"] for i in finished["items"]] == ["FINISHED", "FINISHED"]
+
+    async def test_unknown_status_is_rejected(self, alice_client, alice):
+        response = await alice_client.get(
+            f"/users/{user_uuid(alice)}/matches?status=DONE"
+        )
+
+        assert response.status_code == 422
+
     async def test_invalid_uuid_is_rejected(self, alice_client):
         response = await alice_client.get("/users/not-a-uuid/matches")
 

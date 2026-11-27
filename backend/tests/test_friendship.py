@@ -172,6 +172,103 @@ class TestListPendingRequests:
         assert incoming["items"] == []
         assert outgoing["items"] == []
 
+    async def test_each_request_carries_its_id(
+        self, alice_client, alice, bob, carol, make_friendship
+    ):
+        sent = await make_friendship(alice, bob, FriendshipStatus.PENDING)
+        received = await make_friendship(carol, alice, FriendshipStatus.PENDING)
+
+        incoming = (await alice_client.get("/friends/requests")).json()["items"]
+        outgoing = (
+            await alice_client.get("/friends/requests?direction=outgoing")
+        ).json()["items"]
+
+        assert [(i["username"], i["request_id"]) for i in incoming] == [
+            ("carol", received.id)
+        ]
+        assert [(i["username"], i["request_id"]) for i in outgoing] == [
+            ("bob", sent.id)
+        ]
+        assert set(incoming[0]) == {
+            "id",
+            "username",
+            "avatar_url",
+            "is_online",
+            "last_seen_at",
+            "request_id",
+            "requested_at",
+        }
+
+    async def test_the_listed_id_accepts_the_request(
+        self, bob_client, alice, bob, make_friendship
+    ):
+        await make_friendship(alice, bob, FriendshipStatus.PENDING)
+        listed = (await bob_client.get("/friends/requests")).json()["items"][0]
+
+        response = await bob_client.patch(
+            f"/friends/requests/{listed['request_id']}", json={"action": "ACCEPTED"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "ACCEPTED"
+
+
+class TestWithdrawFriendRequest:
+    async def test_sender_withdraws_a_pending_request(
+        self, alice_client, bob_client, alice, bob, make_friendship
+    ):
+        request = await make_friendship(alice, bob, FriendshipStatus.PENDING)
+
+        response = await alice_client.delete(f"/friends/requests/{request.id}")
+
+        assert response.status_code == 200
+        assert response.json() == {"detail": "Friend request withdrawn"}
+        assert (await bob_client.get("/friends/requests")).json()["items"] == []
+
+    async def test_can_request_again_after_withdrawing(
+        self, alice_client, alice, bob, make_friendship
+    ):
+        request = await make_friendship(alice, bob, FriendshipStatus.PENDING)
+        await alice_client.delete(f"/friends/requests/{request.id}")
+
+        response = await alice_client.post(
+            "/friends/requests", json={"username": "bob"}
+        )
+
+        assert response.status_code == 201
+
+    async def test_recipient_cannot_withdraw(
+        self, bob_client, alice, bob, make_friendship
+    ):
+        request = await make_friendship(alice, bob, FriendshipStatus.PENDING)
+
+        response = await bob_client.delete(f"/friends/requests/{request.id}")
+
+        assert response.status_code == 404  # bob declines with PATCH instead
+
+    async def test_accepted_friendship_cannot_be_withdrawn(
+        self, alice_client, alice, bob, make_friendship
+    ):
+        friendship = await make_friendship(alice, bob, FriendshipStatus.ACCEPTED)
+
+        response = await alice_client.delete(f"/friends/requests/{friendship.id}")
+
+        assert response.status_code == 404
+        assert len((await alice_client.get("/friends")).json()["items"]) == 1
+
+    async def test_unknown_request_is_not_found(self, alice_client):
+        response = await alice_client.delete("/friends/requests/999999")
+
+        assert response.status_code == 404
+
+    async def test_requires_csrf_token(self, alice_client, alice, bob, make_friendship):
+        request = await make_friendship(alice, bob, FriendshipStatus.PENDING)
+        del alice_client.headers["X-CSRF-Token"]
+
+        response = await alice_client.delete(f"/friends/requests/{request.id}")
+
+        assert response.status_code == 403
+
 
 class TestSendFriendRequest:
     async def test_by_username(self, alice_client, alice, bob):

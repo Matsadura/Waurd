@@ -1,8 +1,9 @@
 """The rules every perk shares: drafting, holding, applying and durability.
 
-A turn with perks: apply any perks to glyphs in your hand, cast a word, then
-pick one of the offered perks (or skip). Picking ends the turn, and the clock
-keeps running while you choose. Passing skips the draft too.
+A turn with perks: apply any perks to glyphs in your hand, then cast a word.
+Casting ends the turn at once, and gives the caster a draft: pick one of the
+offered perks (or skip) whenever you like, even during the opponent's turn.
+An offer still open at your next cast is replaced by a new one.
 """
 
 from backend.game.balance import DRAFT_SIZE, RARITY_WEIGHTS, REROLLS_PER_MATCH  # noqa: F401
@@ -82,8 +83,6 @@ def apply(match: Match, player_index: int, instance_id: int, position: int) -> b
     if player_index != match.active_player_index:
         raise ValueError("It's not your turn.")
     player = match.players[player_index]
-    if player.draft:
-        raise ValueError("You already cast this turn: pick a perk or skip.")
     instance = next((p for p in player.perks if p.id == instance_id), None)
     if type(instance_id) is not int or instance is None:
         raise ValueError("You don't have that perk.")

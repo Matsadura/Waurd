@@ -38,13 +38,11 @@ def attack_of(glyphs: list[Glyph]) -> int:
 def cast_word(
     match: Match, player_index: int, positions: list[int], words: set[str]
 ) -> None:
-    """Cast a word for the given player. Unless it wins, a perk draft follows,
-    and picking (or skipping) ends the turn."""
+    """Cast a word for the given player. The turn ends right away; unless the
+    word wins, the caster gets a perk draft to pick from in their own time."""
     _check_turn(match, player_index)
 
     caster = match.players[player_index]
-    if caster.draft:
-        raise ValueError("You already cast this turn: pick a perk or skip.")
     if any(type(i) is not int for i in positions):
         raise ValueError("Positions must be whole numbers.")
     if not positions:
@@ -124,22 +122,28 @@ def cast_word(
         match.end_reason = "HEALTH_DEPLETED"
         win(match, f"{match.names[1 - player_index]} has no HP left")
         return
+    # an offer not picked from by now is replaced
     caster.draft = perks.offer(match)
-    if not caster.draft:  # no perk is ready to offer
-        end_turn(match, player_index)
+    end_turn(match, player_index)
 
 
+def _check_running(match: Match) -> None:
+    if match.winner is not None:
+        raise ValueError("Match is already over.")
+
+
+# The draft is the caster's, not the turn's: pick or reroll any time, even
+# during the opponent's turn, until your next cast replaces it.
 def reroll_perks(match: Match, player_index: int) -> None:
     """Swap the offered perks for new ones; a few rerolls per match."""
-    _check_turn(match, player_index)
+    _check_running(match)
     perks.reroll(match, player_index)
 
 
 def select_perks(match: Match, player_index: int, perk_ids: list[str]) -> None:
-    """Take one offered perk (or none, to skip). Ends the turn."""
-    _check_turn(match, player_index)
+    """Take one offered perk (or none, to skip)."""
+    _check_running(match)
     perks.take(match, player_index, perk_ids)
-    end_turn(match, player_index)
 
 
 def apply_perk(
@@ -154,14 +158,13 @@ def end_turn(match: Match, player_index: int) -> None:
     player = match.players[player_index]
     player.discard_pile += player.hand
     player.hand = []
-    player.draft = []
     player.statuses = {e: t - 1 for e, t in player.statuses.items() if t > 1}
     match.active_player_index = 1 - player_index
     start_turn(match)
 
 
 def pass_turn(match: Match, player_index: int) -> None:
-    """Pass the turn for the given player (after a cast, this skips the draft)."""
+    """Pass the turn for the given player."""
     _check_turn(match, player_index)
 
     match.log.append(f"{match.names[player_index]} passed")

@@ -60,7 +60,8 @@ class FriendshipRepository(BaseRepository[Friendship]):
 
     async def get_pending_requests_by_direction(
         self, user_id: bytes, direction: str, skip: int = 0, limit: int = 20
-    ) -> tuple[list[User], int]:
+    ) -> tuple[list[tuple[User, Friendship]], int]:
+        """The other player and the request itself, newest first."""
         if direction == "incoming":
             condition = (Friendship.addressee_id == user_id) & (
                 Friendship.status == FriendshipStatus.PENDING
@@ -76,12 +77,12 @@ class FriendshipRepository(BaseRepository[Friendship]):
         total = (await self.session.execute(count_stmt)).scalar_one()
 
         stmt = (
-            select(User)
+            select(User, Friendship)
             .join(Friendship, user_join)
             .where(condition)
             .order_by(Friendship.created_at.desc())
             .offset(skip)
             .limit(limit)
         )
-        users = list((await self.session.execute(stmt)).scalars().all())
-        return users, total
+        rows = [tuple(row) for row in (await self.session.execute(stmt)).all()]
+        return rows, total

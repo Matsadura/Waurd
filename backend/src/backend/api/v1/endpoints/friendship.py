@@ -17,6 +17,7 @@ from backend.schemas.friendship import (
     FriendRequestUpdate,
     FriendshipResponse,
     FriendUserResponse,
+    PendingRequestResponse,
     RequestAction,
 )
 from backend.schemas.pagination import PaginatedResponse
@@ -61,7 +62,7 @@ async def get_friends(
 
 @router.get(
     "/requests",
-    response_model=PaginatedResponse[FriendUserResponse],
+    response_model=PaginatedResponse[PendingRequestResponse],
     status_code=status.HTTP_200_OK,
     summary="List pending incoming or outgoing friend requests",
 )
@@ -76,11 +77,18 @@ async def get_pending_requests(
 ):
     repo = FriendshipRepository(db)
     skip = (page - 1) * size
-    users, total = await repo.get_pending_requests_by_direction(
+    rows, total = await repo.get_pending_requests_by_direction(
         current_user.id, direction=direction, skip=skip, limit=size
     )
 
-    items = [_to_friend_user_response(user) for user in users]
+    items = [
+        PendingRequestResponse(
+            **_to_friend_user_response(user).model_dump(),
+            request_id=friendship.id,
+            requested_at=friendship.created_at,
+        )
+        for user, friendship in rows
+    ]
     return PaginatedResponse.create(items=items, total=total, page=page, size=size)
 
 
@@ -178,6 +186,32 @@ async def handle_friend_request(
         created_at=updated.created_at,
         updated_at=updated.updated_at,
     )
+
+
+@router.delete(
+    "/requests/{request_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Withdraw a friend request you sent",
+)
+async def withdraw_friend_request(
+    request_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db, scope="function"),
+):
+    """Only the sender can withdraw, and only while the request is pending;
+    the recipient declines with PATCH instead."""
+    friend_repo = FriendshipRepository(db)
+    friendship = await friend_repo.get_by_id(request_id)
+
+    if (
+        not friendship
+        or friendship.requester_id != current_user.id
+        or friendship.status != FriendshipStatus.PENDING
+    ):
+        raise EntityNotFoundException("Pending friend request you sent not found")
+
+    await friend_repo.delete(friendship)
+    return {"detail": "Friend request withdrawn"}
 
 
 @router.delete(

@@ -5,18 +5,24 @@
 	// Pass href once there is a page for a single duel, then the row becomes a link.
 	let { match, href }: { match: Match; href?: string } = $props();
 
-	const resultWord: Record<MatchResult, string> = { win: 'Victory', loss: 'Defeat' };
+	const resultWord: Record<MatchResult, string> = {
+		win: 'Victory',
+		loss: 'Defeat',
+		draw: 'Draw'
+	};
+
 	const resultColor: Record<MatchResult, string> = {
 		win: 'text-warning-light',
-		loss: 'text-danger-light'
+		loss: 'text-danger-light',
+		draw: 'text-ash'
 	};
 </script>
 
 <Row
 	{href}
 	title={match.opponent}
-	note={String(match.opponentElo)}
-	subtitle="{match.mode} · {match.turns} turns · {match.date}"
+	note={match.opponentElo === null ? undefined : String(match.opponentElo)}
+	subtitle={`${match.mode} · ${match.turns === null ? 'Turns unavailable' : `${match.turns} turns`} · ${match.date}`}
 >
 	<span
 		class={[
@@ -24,7 +30,9 @@
 			resultColor[match.result]
 		]}>{resultWord[match.result]}</span
 	>
-	<span class="row-sub block text-base">
-		{match.eloChange > 0 ? '+' : ''}{match.eloChange} elo
-	</span>
+	{#if match.eloChange !== null}
+		<span class="row-sub block text-base">
+			{match.eloChange > 0 ? '+' : ''}{match.eloChange} elo
+		</span>
+	{/if}
 </Row>

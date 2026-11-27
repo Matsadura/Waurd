@@ -190,17 +190,41 @@ class TestDraft:
         draft = g.players[0].draft
         assert len(draft) == len(set(draft)) == 3
         assert all(CATALOG[p].ready for p in draft)
-        assert g.active_player_index == 0  # still alice's turn until she picks
 
-    def test_casting_again_before_picking_is_rejected(self) -> None:
+    def test_the_turn_ends_the_moment_the_word_is_cast(self) -> None:
         g = game()
-        g.players[0].hand = [hit("A", 1), hit("T", 1), hit("A", 1), hit("T", 1)]
+        g.players[0].hand = [hit("A", 1), hit("T", 1)]
+
         cast_word(g, 0, [0, 1], {"AT"})
 
-        with pytest.raises(ValueError, match="pick a perk or skip"):
-            cast_word(g, 0, [0, 1], {"AT"})
+        assert g.active_player_index == 1  # bob's turn, while alice's draft is open
+        assert g.players[0].hand == []
+        assert len(g.players[1].hand) > 0
 
-    def test_picking_grants_the_perk_and_ends_the_turn(self) -> None:
+    def test_an_unpicked_offer_is_replaced_at_the_next_cast(self) -> None:
+        g = game()
+        g.players[0].hand = [hit("A", 1), hit("T", 1)]
+        cast_word(g, 0, [0, 1], {"AT"})
+        g.players[0].draft = ["stale", "offer", "here"]
+        pass_turn(g, 1)
+        g.players[0].hand = [hit("A", 1), hit("T", 1)]
+
+        cast_word(g, 0, [0, 1], {"AT"})
+
+        assert len(g.players[0].draft) == 3 and "stale" not in g.players[0].draft
+
+    def test_the_draft_stays_open_into_your_next_turn(self) -> None:
+        g = game()
+        g.players[0].hand = [hit("A", 1), hit("T", 1)]
+        cast_word(g, 0, [0, 1], {"AT"})
+        offered = list(g.players[0].draft)
+
+        pass_turn(g, 1)
+        select_perks(g, 0, [offered[1]])
+
+        assert [p.perk_id for p in g.players[0].perks] == [offered[1]]
+
+    def test_picking_during_the_opponents_turn_grants_the_perk(self) -> None:
         g = game()
         g.players[0].hand = [hit("A", 1), hit("T", 1)]
         cast_word(g, 0, [0, 1], {"AT"})
@@ -214,27 +238,18 @@ class TestDraft:
             CATALOG[chosen].durability,
         )
         assert g.players[0].draft == []
-        assert g.active_player_index == 1
+        assert g.active_player_index == 1  # picking doesn't touch bob's turn
         assert g.log[-1] == f"alice took {CATALOG[chosen].name}"
 
-    def test_skipping_ends_the_turn_without_a_perk(self) -> None:
+    def test_skipping_closes_the_draft_without_a_perk(self) -> None:
         g = game()
         g.players[0].hand = [hit("A", 1), hit("T", 1)]
         cast_word(g, 0, [0, 1], {"AT"})
 
         select_perks(g, 0, [])
 
-        assert g.players[0].perks == []
+        assert (g.players[0].perks, g.players[0].draft) == ([], [])
         assert g.active_player_index == 1
-
-    def test_passing_after_a_cast_skips_the_draft(self) -> None:
-        g = game()
-        g.players[0].hand = [hit("A", 1), hit("T", 1)]
-        cast_word(g, 0, [0, 1], {"AT"})
-
-        pass_turn(g, 0)
-
-        assert (g.players[0].draft, g.active_player_index) == ([], 1)
 
     @pytest.mark.parametrize(
         ("picks", "problem"),
@@ -279,13 +294,24 @@ class TestDraft:
         with pytest.raises(ValueError, match="No rerolls left"):
             reroll_perks(g, 0)
 
-    def test_the_other_player_cannot_pick(self) -> None:
+    def test_the_opponent_cannot_pick_from_your_draft(self) -> None:
         g = game()
         g.players[0].hand = [hit("A", 1), hit("T", 1)]
         cast_word(g, 0, [0, 1], {"AT"})
+        offered = g.players[0].draft[0]
 
-        with pytest.raises(ValueError, match="not your turn"):
-            select_perks(g, 1, [])
+        with pytest.raises(ValueError, match="no perk draft"):
+            select_perks(g, 1, [offered])
+        assert g.players[1].perks == []
+
+    def test_no_picking_once_the_match_is_over(self) -> None:
+        g = game()
+        g.players[0].hand = [hit("A", 1), hit("T", 1)]
+        cast_word(g, 0, [0, 1], {"AT"})
+        g.winner = 1
+
+        with pytest.raises(ValueError, match="already over"):
+            select_perks(g, 0, [])
 
     def test_a_winning_cast_offers_nothing(self) -> None:
         g = game()
@@ -366,7 +392,7 @@ class TestApply:
         g.players[0].hand = [hit("A", 1), hit("T", 1), hit()]
         cast_word(g, 0, [0, 1], {"AT"})
 
-        with pytest.raises(ValueError, match="already cast"):
+        with pytest.raises(ValueError, match="not your turn"):  # the cast ended it
             apply_perk(g, 0, instance, 0)
 
     @pytest.mark.parametrize(
@@ -762,6 +788,7 @@ def test_the_state_shows_perks_the_draft_and_bonus_slots() -> None:
     g = game(loadout=["last_bonus"])
     g.players[0].hand = [hit("A", 1), hit("T", 1)]
     apply_perk(g, 0, g.players[0].perks[0].id, 1)
+    assert match_ws.view(g, 0)["you"]["hand"][1]["bonus"] == "last_bonus"
     cast_word(g, 0, [0], {"A"})
 
     mine, theirs = match_ws.view(g, 0), match_ws.view(g, 1)
@@ -781,7 +808,7 @@ def test_the_state_shows_perks_the_draft_and_bonus_slots() -> None:
     }
     assert [o["perk_id"] for o in mine["you"]["draft"]["options"]] == g.players[0].draft
     assert mine["you"]["draft"]["rerolls_left"] == play.REROLLS_PER_MATCH
-    assert mine["you"]["hand"][1]["bonus"] == "last_bonus"
+    assert (mine["your_turn"], theirs["your_turn"]) == (False, True)
     assert theirs["you"]["draft"] is None
     assert theirs["opponent"]["perk_count"] == 1
 
@@ -833,10 +860,12 @@ def test_perk_messages_over_the_socket(client) -> None:  # type: ignore[no-untyp
         a.send_json({"type": "CAST_WORD", "positions": [0, 1]})
         state = a.receive_json()
         b.receive_json()
-        b.receive_json()
-        assert state["your_turn"] is True and state["you"]["draft"] is not None
+        on_cast = b.receive_json()
+        # the cast ended a's turn: b plays now, while a's draft is open
+        assert state["your_turn"] is False and state["you"]["draft"] is not None
+        assert on_cast["your_turn"] is True and len(on_cast["you"]["hand"]) > 0
 
-        a.send_json({"type": "REROLL_PERKS"})
+        a.send_json({"type": "REROLL_PERKS"})  # during b's turn
         rerolled = a.receive_json()
         b.receive_json()
         assert rerolled["you"]["draft"]["rerolls_left"] == play.REROLLS_PER_MATCH - 1
@@ -844,5 +873,7 @@ def test_perk_messages_over_the_socket(client) -> None:  # type: ignore[no-untyp
         pick = rerolled["you"]["draft"]["options"][0]["perk_id"]
         a.send_json({"type": "SELECT_PERKS", "perk_ids": [pick]})
         after = a.receive_json()
-        assert after["your_turn"] is False
+        for_b = b.receive_json()
+        assert after["you"]["draft"] is None
         assert pick in [p["perk_id"] for p in after["you"]["perks"]]
+        assert for_b["your_turn"] is True  # still b's turn

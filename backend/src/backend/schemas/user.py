@@ -156,6 +156,10 @@ class UserStatsResponse(BaseModel):
         description="Total damage dealt by the user across all matches",
         example=5000,
     )
+    win_streak: int = Field(
+        ..., description="Wins in a row up to now; a loss resets it"
+    )
+    best_win_streak: int = Field(..., description="The longest run of wins ever")
 
     @field_validator("user_id", mode="before")
     @classmethod

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { FEEL, getArena, setArena } from '#lib/utils/arena.svelte.ts';
+	import { BattleSocket } from '#lib/utils/battleSocket.svelte.ts';
 	import './layout.css';
 
 	import Slots from './Slots.svelte';
@@ -12,8 +13,11 @@
 	import TurnBanner from './TurnBanner.svelte';
 	import GlyphsList from '#lib/components/arena/GlyphsList.svelte';
 
+	let { data } = $props();
+
 	setArena();
 	let arena = getArena();
+	const battle = new BattleSocket(() => data.ticket.matched_match_id);
 </script>
 
 <div
@@ -63,14 +67,29 @@
 	{/if}
 
 	<!-- debugging buttons -->
-	<div class="absolute top-10 left-1/2 flex -translate-1/2 bg-red-200/20 p-4">
-		<button
-			onclick={() => arena.changeToNextPlayerTurn()}
-			class="cursor-pointer rounded bg-green-950 px-1 py-1 text-arena-yallow-100"
-			>Change turn</button
-		>
-	</div>
+	<!-- <div class="absolute top-10 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
+		<div class="flex gap-2 bg-red-200/20 p-2">
+			<button
+				onclick={() => arena.changeToNextPlayerTurn()}
+				class="cursor-pointer rounded bg-green-950 px-2 py-1 text-arena-yallow-100"
+				>Change turn</button
+			>
+		</div>
+	</div> -->
 	<TurnBanner />
+	<pre
+		class="absolute inset-0 max-h-[60%] w-full overflow-auto rounded border border-white/20 bg-black/80 p-3 text-left text-xs text-green-200 select-text">{JSON.stringify(
+			{
+				battleId: data.ticket.matched_match_id,
+				status: battle.status,
+				error: battle.error,
+				aborted: battle.aborted,
+				opponentGraceSeconds: battle.opponentGraceSeconds,
+				state: battle.state
+			},
+			null,
+			2
+		)}</pre>
 </div>
 
 <style>

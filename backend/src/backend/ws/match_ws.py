@@ -8,7 +8,7 @@ from pathlib import Path
 
 from backend.core.config import settings
 from backend.core.session_store import RedisSessionStore
-from backend.game.models import Match
+from backend.game.models import Glyph, Match
 from backend.game.rules import (
     cast_word,
     lose_by_disconnect,
@@ -145,6 +145,15 @@ async def left(ws: WebSocket, match_id: str, me: int) -> None:
     )
 
 
+def glyph_view(glyph: Glyph) -> dict:
+    return {
+        "letter": glyph.letter,
+        "type": glyph.type,
+        "effect_type": glyph.effect_type,
+        "effect_value": glyph.effect_value,
+    }
+
+
 def view(match: Match, me: int) -> dict:
     """What one player is allowed to see: their own hand, never the opponent's."""
     player = match.players[me]
@@ -159,11 +168,26 @@ def view(match: Match, me: int) -> dict:
         "you": {
             "hp": player.hp,
             "hand": [
-                {"position": i, "letter": glyph.letter, "damage": glyph.damage}
+                {"position": i, **glyph_view(glyph)}
                 for i, glyph in enumerate(player.hand)
             ],
+            # sorted so the next draws stay secret
+            "draw_pile": [
+                glyph_view(g) for g in sorted(player.draw_pile, key=lambda g: g.letter)
+            ],
+            "discard_pile": [glyph_view(g) for g in player.discard_pile],
+            "defense": player.defense,
+            "statuses": player.statuses,
         },
-        "opponent": {"hp": opponent.hp, "hand_size": len(opponent.hand)},
+        # the opponent's glyphs stay hidden: only how many
+        "opponent": {
+            "hp": opponent.hp,
+            "hand_size": len(opponent.hand),
+            "draw_pile_size": len(opponent.draw_pile),
+            "discard_pile_size": len(opponent.discard_pile),
+            "defense": opponent.defense,
+            "statuses": opponent.statuses,
+        },
         "time_left": {
             "you": round(player.time_left, 1),
             "opponent": round(opponent.time_left, 1),

@@ -11,6 +11,7 @@ from backend.db.session import async_session_maker
 from backend.game.achievements import ACHIEVEMENTS
 from backend.game.calculations import XP_PER_LOSS, XP_PER_WIN, add_xp, new_elo_ratings
 from backend.game.models import Match
+from backend.game.rules import attack_of
 from backend.models.match import Match as MatchRecord
 from backend.models.achievements import Achievement
 from backend.models.match import MatchCast, MatchStatus
@@ -66,8 +67,8 @@ async def final_result(match_id: str, user_id: str) -> dict | None:
 
 
 async def update_stats(db: AsyncSession, record: MatchRecord, match: Match) -> None:
-    """Wins, losses, streaks, damage, best word, Elo and XP for both players,
-    plus the Elo history."""
+    """Wins, losses, streaks, damage, best word and heal, Elo and XP for both
+    players, plus the Elo history."""
     stats = UserStatsRepository(db)
     p1 = await stats.get_by_id(record.player1_id)
     p2 = await stats.get_by_id(record.player2_id)
@@ -100,12 +101,14 @@ async def update_stats(db: AsyncSession, record: MatchRecord, match: Match) -> N
     p1.matches_played += 1
     p2.matches_played += 1
 
-    # Damage is the HP each cast took, added up. A word's score is its full
-    # glyph value, even past the opponent's last HP.
+    # Damage is the HP each cast took (heals can win HP back, so the final HP
+    # alone undercounts). A word's score is its full glyph value, even past
+    # the opponent's last HP.
     for cast in match.casts:
         player = (p1, p2)[cast.player_index]
         player.total_damage_dealt += cast.damage
-        score = sum(glyph.damage for glyph in cast.glyphs)
+        player.highest_heal = max(player.highest_heal, cast.healed)
+        score = attack_of(cast.glyphs)
         if score > player.highest_word_score:
             player.highest_word_score = score
             player.highest_scoring_word = cast.word
@@ -135,6 +138,10 @@ def cast_rows(
             player_id=player_ids[cast.player_index],
             word_played=cast.word,
             damage_dealt=cast.damage,
+            heal_amount=cast.healed,
+            defense_gained=cast.defense,
+            # effect -> turns, e.g. {"weak": 2}; None when the word put none on
+            status_effects_applied=cast.statuses or None,
             glyphs_payload={"glyphs": [asdict(glyph) for glyph in cast.glyphs]},
             created_at=cast.cast_at,
         )

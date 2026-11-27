@@ -25,6 +25,10 @@ PLAYER_BOARDS = {
         func.coalesce(UserStats.best_win_streak, 0),
         func.coalesce(UserStats.win_streak, 0),
     ),
+    LeaderboardFilter.HEAL: (
+        func.coalesce(UserStats.highest_heal, 0),
+        func.coalesce(UserStats.wins, 0),
+    ),
 }
 
 

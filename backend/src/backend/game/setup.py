@@ -1,38 +1,40 @@
 import random
 
 from backend.game.models import Glyph, Match, Player
-from backend.game.rules import STARTING_HP
+from backend.game.rules import SECOND_PLAYER_SHIELD, STARTING_HP
 
+# letter: (type, effect, value, copies). Effects follow the demo/full-game table;
+# a skill glyph's value is how many of the target's turns its status lasts.
 LETTERS = {
-    "A": (6, 4),
-    "E": (6, 4),
-    "I": (6, 3),
-    "O": (6, 3),
-    "U": (6, 1),
-    "N": (8, 2),
-    "R": (8, 2),
-    "S": (8, 3),
-    "T": (8, 3),
-    "L": (8, 2),
-    "D": (10, 2),
-    "C": (12, 1),
-    "M": (12, 1),
-    "P": (12, 1),
-    "H": (12, 1),
-    "G": (14, 1),
-    "B": (20, 1),
-    "F": (16, 1),
-    "K": (18, 1),
-    "W": (18, 1),
-    "Y": (14, 1),
-    "V": (20, 1),
+    "A": ("power", "heal", 9, 4),
+    "E": ("skill", "weak", 2, 4),
+    "I": ("power", "heal", 7, 3),
+    "O": ("power", "defense", 9, 3),
+    "U": ("power", "heal", 5, 1),
+    "N": ("power", "damage", 8, 2),
+    "R": ("power", "defense", 14, 2),
+    "S": ("power", "damage", 8, 3),
+    "T": ("power", "damage", 8, 3),
+    "L": ("power", "defense", 7, 2),
+    "D": ("power", "damage", 10, 2),
+    "C": ("power", "damage", 12, 1),
+    "M": ("power", "damage", 12, 1),
+    "P": ("power", "damage", 12, 1),
+    "H": ("power", "defense", 11, 1),
+    "G": ("power", "damage", 14, 1),
+    "B": ("power", "damage", 20, 1),
+    "F": ("power", "damage", 16, 1),
+    "K": ("power", "damage", 18, 1),
+    "W": ("power", "defense", 16, 1),
+    "Y": ("power", "heal", 13, 1),
+    "V": ("skill", "vulnerable", 2, 1),
 }
 
 
 def build_deck() -> list[Glyph]:
     deck = []
-    for letter, (damage, copies) in LETTERS.items():
-        deck += [Glyph(letter, damage) for _ in range(copies)]
+    for letter, (kind, effect, value, copies) in LETTERS.items():
+        deck += [Glyph(letter, value, kind, effect) for _ in range(copies)]
     return deck
 
 
@@ -46,7 +48,9 @@ def new_match(seed: int | None, time_control_seconds: int = 300) -> Match:
         players.append(
             Player(hp=STARTING_HP, draw_pile=deck, time_left=time_control_seconds)
         )
-    return Match(players=players, rng=rng, active_player_index=rng.randrange(2))
+    first = rng.randrange(2)
+    players[1 - first].defense = SECOND_PLAYER_SHIELD
+    return Match(players=players, rng=rng, active_player_index=first)
 
 
 def load_words(path: str) -> set[str]:

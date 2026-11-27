@@ -25,7 +25,6 @@ async def players(make_user, session_maker, alice):  # type: ignore[no-untyped-d
         "elo": await make_user(username="eloise"),
         "damage": await make_user(username="damon"),
         "streak": await make_user(username="stella"),
-        "heal": await make_user(username="hector"),
     }
     await give_stats(
         session_maker, leader["elo"], rating_elo=1500, total_damage_dealt=10
@@ -36,7 +35,6 @@ async def players(make_user, session_maker, alice):  # type: ignore[no-untyped-d
     await give_stats(
         session_maker, leader["streak"], best_win_streak=7, win_streak=3, wins=7
     )
-    await give_stats(session_maker, leader["heal"], highest_heal=40, wins=1)
     return leader
 
 
@@ -47,7 +45,6 @@ class TestPlayerBoards:
             ("elo", "eloise", 1500),
             ("damage", "damon", 900),
             ("win_streak", "stella", 7),
-            ("heal", "hector", 40),
         ],
     )
     async def test_each_board_ranks_on_its_stat(
@@ -58,7 +55,7 @@ class TestPlayerBoards:
         assert response.status_code == 200
         body = response.json()
         assert body["filter_by"] == filter_by
-        assert body["total"] == 5  # every player, alice included
+        assert body["total"] == 4  # every player, alice included
         assert body["items"][0]["username"] == first
         assert body["items"][0]["value"] == value
         assert body["items"][0]["rank"] == 1
@@ -78,7 +75,7 @@ class TestPlayerBoards:
         assert (alice["value"], alice["matches_played"]) == (1200, 0)
 
     async def test_entries_have_the_player_fields(self, alice_client, players) -> None:
-        body = (await alice_client.get("/leaderboards?filter_by=heal")).json()
+        body = (await alice_client.get("/leaderboards?filter_by=damage")).json()
 
         assert set(body["items"][0]) == {
             "rank",
@@ -107,7 +104,22 @@ class TestPlayerBoards:
         ).json()
 
         assert [i["rank"] for i in body["items"]] == [3, 4]
-        assert (body["limit"], body["offset"], body["total"]) == (2, 2, 5)
+        assert (body["limit"], body["offset"], body["total"]) == (2, 2, 4)
+
+    async def test_heal_ranks_on_the_highest_heal(
+        self, alice_client, make_user, session_maker
+    ) -> None:
+        # comes with the glyph effects (PR #36): heal only exists there
+        hector = await make_user(username="hector")
+        await give_stats(session_maker, hector, highest_heal=40, wins=1)
+
+        body = (await alice_client.get("/leaderboards?filter_by=heal")).json()
+
+        assert body["filter_by"] == "heal"
+        assert (body["items"][0]["username"], body["items"][0]["value"]) == (
+            "hector",
+            40,
+        )
 
 
 class TestWordsBoard:

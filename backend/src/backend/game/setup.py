@@ -1,6 +1,7 @@
 import random
 
 from backend.game.models import Glyph, Match, Player
+from backend.game.perks import play as perks
 from backend.game.rules import SECOND_PLAYER_SHIELD, STARTING_HP
 
 # letter: (type, effect, value, copies). Effects follow the demo/full-game table;
@@ -38,8 +39,13 @@ def build_deck() -> list[Glyph]:
     return deck
 
 
-def new_match(seed: int | None, time_control_seconds: int = 300) -> Match:
-    """Each player's clock starts with the whole time control."""
+def new_match(
+    seed: int | None,
+    time_control_seconds: int = 300,
+    loadouts: tuple[list[str], list[str]] = ([], []),
+) -> Match:
+    """Each player's clock starts with the whole time control, and their
+    equipped loadout perks start in hand."""
     rng = random.Random(seed)
     players = []
     for _ in range(2):
@@ -50,7 +56,12 @@ def new_match(seed: int | None, time_control_seconds: int = 300) -> Match:
         )
     first = rng.randrange(2)
     players[1 - first].defense = SECOND_PLAYER_SHIELD
-    return Match(players=players, rng=rng, active_player_index=first)
+    match = Match(players=players, rng=rng, active_player_index=first)
+    for seat, perk_ids in enumerate(loadouts):
+        match.players[seat].rerolls_left = perks.REROLLS_PER_MATCH
+        for perk_id in perk_ids:
+            perks.grant(match, seat, perk_id)
+    return match
 
 
 def load_words(path: str) -> set[str]:

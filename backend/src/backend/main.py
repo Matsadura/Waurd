@@ -14,7 +14,11 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.v1.router import api_v1_router
-from backend.ws.records import abandon_unfinished_matches, sync_achievements
+from backend.ws.records import (
+    abandon_unfinished_matches,
+    sync_achievements,
+    sync_perks,
+)
 from backend.ws.chat_ws import reset_online_status
 from backend.ws.chat_ws import router as chat_ws_router
 from backend.ws.match_ws import router as match_ws_router
@@ -44,6 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Games live in memory, so any match still active was lost by a restart
     await abandon_unfinished_matches(app)
     await reset_online_status()
+    await sync_perks()  # before achievements, which may reward a perk
     await sync_achievements()
 
     # 2. Launch background matchmaker worker task

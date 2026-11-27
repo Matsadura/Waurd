@@ -12,13 +12,16 @@ if TYPE_CHECKING:
 
 
 class TargetGlyphType(str, enum.Enum):
-    POWER = "POWER"
-    SKILL = "SKILL"
+    """Which glyphs a perk goes on (catalog.csv's target_type)."""
+
+    DAMAGE = "DAMAGE"
+    HEAL_DEFENSE = "HEAL_DEFENSE"  # heal or defense glyphs
     ANY = "ANY"
 
 
 class ModificationType(str, enum.Enum):
-    """What a perk changes. Groups perks in the UI; the exact rule is in effect_payload."""
+    """What a perk changes, to group perks in the UI. The rule itself is the
+    perk's function in game/perks/effects.py."""
 
     EFFECT = "EFFECT"  # e.g. Damage -> Heal
     TYPE = "TYPE"  # e.g. Power -> Skill
@@ -57,7 +60,8 @@ class Perk(Base):
     )
     # NULL means unlimited (achievement perks may never break).
     durability: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # The exact rule. Validated by a Pydantic schema before it is saved.
+    # {"mechanics": ...}: the catalog's plain-text rule, for reference; the
+    # behaviour is the perk's function in game/perks/effects.py
     effect_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     # Only enabled perks are offered in drafts ("ready" in the perk sheet).

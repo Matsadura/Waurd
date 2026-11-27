@@ -11,6 +11,18 @@ class Glyph:
     # effect_value is how many of the target's turns the status lasts
     type: str = "power"
     effect_type: str = "damage"
+    # a conditional perk's id: its check runs when the word is cast
+    bonus: str | None = None
+
+
+@dataclass
+class PerkInstance:
+    """A perk a player holds during a match."""
+
+    id: int  # unique in the match; APPLY_PERK names it
+    perk_id: str  # the catalog row
+    durability: int | None  # uses left; None never breaks
+    uses: int = 0
 
 
 @dataclass
@@ -22,6 +34,10 @@ class Player:
     time_left: float = 0.0
     defense: int = 0  # soaks up damage; gone when this player's next turn starts
     statuses: dict[str, int] = field(default_factory=dict)  # effect -> turns left
+    perks: list[PerkInstance] = field(default_factory=list)
+    # the perk ids offered after this turn's cast; picking one ends the turn
+    draft: list[str] = field(default_factory=list)
+    rerolls_left: int = 0
 
 
 @dataclass
@@ -52,3 +68,4 @@ class Match:
     casts: list[Cast] = field(default_factory=list)
     names: tuple[str, str] = ("Player 1", "Player 2")
     log: list[str] = field(default_factory=list)  # what happened, ready to show
+    next_perk_id: int = 1

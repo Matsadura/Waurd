@@ -4,6 +4,7 @@
 	import Frame from '#lib/components/ui/Frame.svelte';
 	import Meter from '#lib/components/ui/Meter.svelte';
 	import Stat from '#lib/components/ui/Stat.svelte';
+	import MatchRow from '#lib/components/profile/MatchRow.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -20,7 +21,7 @@
 			<span class="text-lg text-ash">({data.stats.games})</span>
 		</h2>
 
-		{#if data.stats.games === 0}
+		{#if data.recentMatches.length === 0}
 			<div class="mt-6 border-l-2 border-bronze/40 py-4 pl-5">
 				<p class="font-display text-xl text-bone">Your chronicle is empty</p>
 				<p class="mt-2 text-lg text-ash italic">
@@ -29,7 +30,15 @@
 				</p>
 			</div>
 		{:else}
-			<p class="mt-6 text-lg text-ash italic">Duel records will be available here soon.</p>
+			<ol class="mt-3 divide-y divide-bronze/20">
+				{#each data.recentMatches as match (match.id)}
+					<li><MatchRow {match} /></li>
+				{/each}
+			</ol>
+
+			<Button href="/profile/history" outline variant="secondary" size="sm" class="mt-4">
+				Show more duels
+			</Button>
 		{/if}
 	</section>
 
@@ -55,6 +64,11 @@
 			<Stat label="Elo">{data.stats.elo}</Stat>
 			<Stat label="Duels">{data.stats.games}</Stat>
 			<Stat label="Victories">{data.stats.wins}</Stat>
+
+			<Divider class="my-3" />
+
+			<Stat label="Win Streak">{data.stats.winStreak}</Stat>
+			<Stat label="Best Streak">{data.stats.bestWinStreak}</Stat>
 
 			<Divider class="my-3" />
 

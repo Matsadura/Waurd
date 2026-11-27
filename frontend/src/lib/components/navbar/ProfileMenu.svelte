@@ -28,7 +28,7 @@
 		}
 	}
 	async function logout() {
-		await APIFetch('POST', 'auth/logout');
+		await APIFetch('POST', '/auth/logout');
 		await refreshAll();
 		await goto('/login');
 	}

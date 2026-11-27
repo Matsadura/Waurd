@@ -16,7 +16,7 @@
 
 		async function poll() {
 			try {
-				const res = await APIFetch('GET', `matchmaking/matches/${data.match.id}`);
+				const res = await APIFetch('GET', `/matchmaking/matches/${data.match.id}`);
 
 				if (!cancelled) {
 					if (!res.ok) {

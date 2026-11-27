@@ -15,6 +15,17 @@ class FriendUserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PendingRequestResponse(FriendUserResponse):
+    """The other player in a pending request, plus the request to act on."""
+
+    request_id: int = Field(
+        ...,
+        description="Use with PATCH (accept/decline, incoming) or "
+        "DELETE (withdraw, outgoing) /friends/requests/{request_id}",
+    )
+    requested_at: datetime
+
+
 class FriendshipResponse(BaseModel):
     id: int
     requester_id: str

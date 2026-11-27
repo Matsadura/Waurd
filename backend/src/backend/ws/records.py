@@ -11,7 +11,6 @@ from backend.db.session import async_session_maker
 from backend.game.achievements import ACHIEVEMENTS
 from backend.game.calculations import XP_PER_LOSS, XP_PER_WIN, add_xp, new_elo_ratings
 from backend.game.models import Match
-from backend.game.rules import STARTING_HP
 from backend.models.match import Match as MatchRecord
 from backend.models.achievements import Achievement
 from backend.models.match import MatchCast, MatchStatus
@@ -67,8 +66,8 @@ async def final_result(match_id: str, user_id: str) -> dict | None:
 
 
 async def update_stats(db: AsyncSession, record: MatchRecord, match: Match) -> None:
-    """Wins, losses, damage, best word, Elo and XP for both players, plus the
-    Elo history."""
+    """Wins, losses, streaks, damage, best word, Elo and XP for both players,
+    plus the Elo history."""
     stats = UserStatsRepository(db)
     p1 = await stats.get_by_id(record.player1_id)
     p2 = await stats.get_by_id(record.player2_id)
@@ -79,6 +78,11 @@ async def update_stats(db: AsyncSession, record: MatchRecord, match: Match) -> N
 
     record.player1_elo_before = p1.rating_elo
     record.player2_elo_before = p2.rating_elo
+
+    winner, loser = (p1, p2) if record.winner_id == record.player1_id else (p2, p1)
+    winner.win_streak += 1
+    winner.best_win_streak = max(winner.best_win_streak, winner.win_streak)
+    loser.win_streak = 0
 
     if record.winner_id == record.player1_id:
         p1.rating_elo, p2.rating_elo = new_elo_ratings(p1.rating_elo, p2.rating_elo)
@@ -95,12 +99,12 @@ async def update_stats(db: AsyncSession, record: MatchRecord, match: Match) -> N
 
     p1.matches_played += 1
     p2.matches_played += 1
-    p1.total_damage_dealt += STARTING_HP - record.player2_final_hp
-    p2.total_damage_dealt += STARTING_HP - record.player1_final_hp
 
-    # A word's score is its full glyph value, even past the opponent's last HP.
+    # Damage is the HP each cast took, added up. A word's score is its full
+    # glyph value, even past the opponent's last HP.
     for cast in match.casts:
         player = (p1, p2)[cast.player_index]
+        player.total_damage_dealt += cast.damage
         score = sum(glyph.damage for glyph in cast.glyphs)
         if score > player.highest_word_score:
             player.highest_word_score = score

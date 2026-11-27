@@ -6,12 +6,12 @@ The backend container applies the migrations every time it starts (`alembic upgr
 docker compose exec backend python scripts/seed_db.py --reset
 ```
 
-The script inserts four users, three achievements, one `user_stats` row per user, and seven `user_achievements` rows. It verifies the one-to-one and many-to-many relationships after committing.
+(or `make seed`). The script inserts four users with a `user_stats` row each. Their achievements are worked out from those stats with the same code real matches use, and their XP includes the rewards. `--reset` replaces the seed users and removes achievements no longer defined in `game/achievements.py`. Without it, the script stops if the seed users already exist.
 
 Use these credentials to create a session for the authenticated endpoints:
 
 ```text
-email: alice@example.test
+email: alice@email.com
 password: SecureP@ssw0rd!123
 user id: 00000000-0000-4000-8000-000000000001
 ```

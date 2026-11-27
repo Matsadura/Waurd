@@ -5,12 +5,10 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from backend.core.matchmaking_store import MatchmakingQueueStore
+from backend.game.balance import MAX_ALLOWED_ELO_DIFF, TIME_CONTROLS
 from backend.repositories.match import MatchRepository
 
 logger = logging.getLogger(__name__)
-
-MAX_ALLOWED_ELO_DIFF = 200
-TIME_CONTROL_DEFAULT = [180, 300, 600]
 
 
 class MatchmakerWorker:
@@ -22,7 +20,7 @@ class MatchmakerWorker:
     ):
         self.queue_store = queue_store
         self.session_factory = session_factory
-        self.time_controls = time_controls or list(TIME_CONTROL_DEFAULT)
+        self.time_controls = time_controls or list(TIME_CONTROLS)
 
     async def process_queue_for_time_control(self, time_control: int) -> None:
         queue_key = self.queue_store._queue_key(time_control)

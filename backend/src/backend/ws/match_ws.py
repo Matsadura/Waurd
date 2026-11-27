@@ -6,8 +6,11 @@ import time
 import uuid
 from pathlib import Path
 
+from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+
 from backend.core.config import settings
 from backend.core.session_store import RedisSessionStore
+from backend.game.balance import GRACE_SECONDS
 from backend.game.models import Glyph, Match
 from backend.game.perks.catalog import CATALOG
 from backend.game.rules import (
@@ -25,11 +28,10 @@ from backend.game.setup import load_words, new_match
 from backend.ws.records import (
     abandon,
     final_result,
+    match_setup,
     save_result,
     seat_in_match,
-    match_setup,
 )
-from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -40,7 +42,6 @@ matches: dict[str, Match] = {}
 sockets: dict[str, dict[int, WebSocket]] = {}
 clocks: dict[str, asyncio.Task] = {}
 
-GRACE_SECONDS = 30
 timers: dict[tuple[str, int], asyncio.Task] = {}
 
 

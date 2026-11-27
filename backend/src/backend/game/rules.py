@@ -1,18 +1,16 @@
 from dataclasses import replace
 
+from backend.game.balance import (  # noqa: F401  (others import these from here)
+    HAND_SIZE,
+    SECOND_PLAYER_SHIELD,
+    STARTING_HP,
+    VULNERABLE_PERCENT,
+    WEAK_PERCENT,
+)
 from backend.game.deck import draw
 from backend.game.models import Cast, Glyph, Match
 from backend.game.perks import play as perks
 from backend.game.perks.effects import BONUS, WordContext
-
-HAND_SIZE = 12
-STARTING_HP = 100  # also the most HP healing can reach
-VULNERABLE_PERCENT = 50  # extra damage a vulnerable player takes
-WEAK_PERCENT = 25  # how much a weak player's power glyphs lose
-# Defense the second player starts with, soaking up the opening word (gone when
-# their first turn starts). Simulated: without it the first player wins about
-# 82% of matches; with 35 about 53-55%, matches lasting a median 15-18 turns.
-SECOND_PLAYER_SHIELD = 35
 
 
 def start_turn(match: Match) -> None:

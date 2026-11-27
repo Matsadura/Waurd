@@ -5,13 +5,11 @@ pick one of the offered perks (or skip). Picking ends the turn, and the clock
 keeps running while you choose. Passing skips the draft too.
 """
 
+from backend.game.balance import DRAFT_SIZE, RARITY_WEIGHTS, REROLLS_PER_MATCH  # noqa: F401
 from backend.game.models import Glyph, Match, PerkInstance
 from backend.game.perks.catalog import CATALOG, PerkSpec
 from backend.game.perks.effects import BONUS, DIRECT, PerkContext, is_status
 
-DRAFT_SIZE = 3  # perks offered after each cast
-REROLLS_PER_MATCH = 3
-RARITY_WEIGHTS = {"common": 60, "uncommon": 25, "rare": 12, "legendary": 3}
 TARGET_EFFECTS = {
     "damage": {"damage"},
     "heal_defense": {"heal", "defense"},

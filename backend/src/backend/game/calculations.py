@@ -1,7 +1,9 @@
-K_FACTOR = 32
-XP_PER_WIN = 50
-XP_PER_LOSS = 20
-LEVEL_STEP = 100
+from backend.game.balance import (  # noqa: F401  (records imports the XP values)
+    ELO_K_FACTOR,
+    LEVEL_STEP,
+    XP_PER_LOSS,
+    XP_PER_WIN,
+)
 
 
 def xp_to_next(level: int) -> int:
@@ -32,5 +34,5 @@ def add_xp(user, amount: int) -> None:
 def new_elo_ratings(winner: int, loser: int) -> tuple[int, int]:
     """Ratings after a win. Beating a stronger player moves both further."""
     expected = 1 / (1 + 10 ** ((loser - winner) / 400))
-    change = round(K_FACTOR * (1 - expected))
+    change = round(ELO_K_FACTOR * (1 - expected))
     return winner + change, loser - change

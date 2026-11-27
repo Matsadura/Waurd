@@ -4,6 +4,8 @@
 	import ProfileMenu from './ProfileMenu.svelte';
 	import MobileNav from './MobileNav.svelte';
 	import Button from '../ui/Button.svelte';
+	import { goto, refreshAll } from '$app/navigation';
+	import { APIFetch } from '#lib/utils/APIFetch.ts';
 
 	const navLinks = [
 		{ href: '/play', label: 'PLAY', icon: 'gamepad-2' },
@@ -13,7 +15,7 @@
 
 	let mobileMenuOpen = $state(false);
 	let profileMenuOpen = $state(false);
-	const username = 'kirito_19'; // TODO: Replace with authenticated user data.
+	const username = page.data.user.username; // TODO: Replace with authenticated user data.
 
 	function openMobileMenu() {
 		profileMenuOpen = false;

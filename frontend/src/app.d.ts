@@ -7,6 +7,15 @@ declare global {
 		// interface PageData {}
 		// interface PageState {}
 		// interface Platform {}
+		interface User {
+			id: string;
+			username: string;
+			// add other public fields returned by /api/v1/users/me
+		}
+
+		interface Locals {
+			user: User | null;
+		}
 	}
 }
 

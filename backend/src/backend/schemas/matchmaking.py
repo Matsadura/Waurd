@@ -4,15 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-# The game engine's time controls, in seconds per player.
-TIME_CONTROLS = [180, 300, 600]
-DEFAULT_TIME_CONTROL = 300
-
-
-class TimeControl(int, enum.Enum):
-    BLITZ = 180
-    STANDARD = 300
-    RELAXED = 600
+from backend.game.balance import DEFAULT_TIME_CONTROL, TIME_CONTROLS
 
 
 def _spoken(values: tuple[int, ...]) -> str:
@@ -44,7 +36,8 @@ class QueueStatusEnum(str, enum.Enum):
 
 class QueueJoinRequest(BaseModel):
     time_control_seconds: int = Field(
-        ..., description="Time control per player in seconds (180, 300 or 600)"
+        ...,
+        description=f"Time control per player in seconds ({_spoken(TIME_CONTROLS)})",
     )
 
     @field_validator("time_control_seconds")
@@ -55,7 +48,8 @@ class QueueJoinRequest(BaseModel):
 
 class QueueLeaveRequest(BaseModel):
     time_control_seconds: int = Field(
-        ..., description="Time control per player in seconds (180, 300 or 600)"
+        ...,
+        description=f"Time control per player in seconds ({_spoken(TIME_CONTROLS)})",
     )
 
     @field_validator("time_control_seconds")
@@ -78,7 +72,7 @@ class QueueTicketResponse(BaseModel):
 
 class CustomMatchCreateRequest(BaseModel):
     time_control_seconds: int = Field(
-        DEFAULT_TIME_CONTROL, description="180, 300 or 600 seconds"
+        DEFAULT_TIME_CONTROL, description=f"{_spoken(TIME_CONTROLS)} seconds"
     )
 
     @field_validator("time_control_seconds")

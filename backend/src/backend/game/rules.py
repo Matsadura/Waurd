@@ -1,15 +1,16 @@
 from dataclasses import replace
 
+from backend.game.balance import (  # noqa: F401  (others import these from here)
+    HAND_SIZE,
+    SECOND_PLAYER_SHIELD,
+    STARTING_HP,
+    VULNERABLE_PERCENT,
+    WEAK_PERCENT,
+)
+from backend.game.deck import draw
 from backend.game.models import Cast, Glyph, Match
-
-HAND_SIZE = 12
-STARTING_HP = 100  # also the most HP healing can reach
-VULNERABLE_PERCENT = 50  # extra damage a vulnerable player takes
-WEAK_PERCENT = 25  # how much a weak player's power glyphs lose
-# Defense the second player starts with, soaking up the opening word (gone when
-# their first turn starts). Simulated: without it the first player wins about
-# 82% of matches; with 35 about 53-55%, matches lasting a median 15-18 turns.
-SECOND_PLAYER_SHIELD = 35
+from backend.game.perks import play as perks
+from backend.game.perks.effects import BONUS, WordContext
 
 
 def start_turn(match: Match) -> None:
@@ -19,14 +20,14 @@ def start_turn(match: Match) -> None:
         match.log.append(f"{match.names[match.active_player_index]} goes first")
     player = match.players[match.active_player_index]
     player.defense = 0
-    while len(player.hand) < HAND_SIZE:
-        if not player.draw_pile:
-            if not player.discard_pile:
-                break
-            player.draw_pile = player.discard_pile
-            player.discard_pile = []
-            match.rng.shuffle(player.draw_pile)
-        player.hand.append(player.draw_pile.pop())
+    draw(match, player, HAND_SIZE - len(player.hand))
+
+
+def _check_turn(match: Match, player_index: int) -> None:
+    if match.winner is not None:
+        raise ValueError("Match is already over.")
+    if player_index != match.active_player_index:
+        raise ValueError("It's not your turn.")
 
 
 def attack_of(glyphs: list[Glyph]) -> int:
@@ -37,13 +38,13 @@ def attack_of(glyphs: list[Glyph]) -> int:
 def cast_word(
     match: Match, player_index: int, positions: list[int], words: set[str]
 ) -> None:
-    """Cast a word for the given player."""
-    if match.winner is not None:
-        raise ValueError("Match is already over.")
-    if player_index != match.active_player_index:
-        raise ValueError("It's not your turn.")
+    """Cast a word for the given player. Unless it wins, a perk draft follows,
+    and picking (or skipping) ends the turn."""
+    _check_turn(match, player_index)
 
     caster = match.players[player_index]
+    if caster.draft:
+        raise ValueError("You already cast this turn: pick a perk or skip.")
     if any(type(i) is not int for i in positions):
         raise ValueError("Positions must be whole numbers.")
     if not positions:
@@ -61,12 +62,17 @@ def cast_word(
     target = match.players[1 - player_index]
     totals = {"damage": 0, "heal": 0, "defense": 0}
     statuses: dict[str, int] = {}
-    for glyph in glyphs_to_cast:
+    for index, glyph in enumerate(glyphs_to_cast):
         if glyph.type == "skill":
             turns = statuses.get(glyph.effect_type, 0)
             statuses[glyph.effect_type] = max(turns, glyph.effect_value)
             continue
         value = glyph.effect_value
+        if glyph.bonus is not None:  # a bonus perk's check, before statuses
+            where = WordContext(
+                word, glyphs_to_cast, index, caster.hp, target.hp, STARTING_HP
+            )
+            value = BONUS[glyph.bonus](glyph, where, value)
         # percentages round down glyph by glyph: weak first, then vulnerable
         if "weak" in caster.statuses:
             value = value * (100 - WEAK_PERCENT) // 100
@@ -118,7 +124,29 @@ def cast_word(
         match.end_reason = "HEALTH_DEPLETED"
         win(match, f"{match.names[1 - player_index]} has no HP left")
         return
+    caster.draft = perks.offer(match)
+    if not caster.draft:  # no perk is ready to offer
+        end_turn(match, player_index)
+
+
+def reroll_perks(match: Match, player_index: int) -> None:
+    """Swap the offered perks for new ones; a few rerolls per match."""
+    _check_turn(match, player_index)
+    perks.reroll(match, player_index)
+
+
+def select_perks(match: Match, player_index: int, perk_ids: list[str]) -> None:
+    """Take one offered perk (or none, to skip). Ends the turn."""
+    _check_turn(match, player_index)
+    perks.take(match, player_index, perk_ids)
     end_turn(match, player_index)
+
+
+def apply_perk(
+    match: Match, player_index: int, instance_id: int, position: int
+) -> None:
+    """Use one of your perks on a glyph in your hand, before casting."""
+    perks.apply(match, player_index, instance_id, position)
 
 
 def end_turn(match: Match, player_index: int) -> None:
@@ -126,17 +154,15 @@ def end_turn(match: Match, player_index: int) -> None:
     player = match.players[player_index]
     player.discard_pile += player.hand
     player.hand = []
+    player.draft = []
     player.statuses = {e: t - 1 for e, t in player.statuses.items() if t > 1}
     match.active_player_index = 1 - player_index
     start_turn(match)
 
 
 def pass_turn(match: Match, player_index: int) -> None:
-    """Pass the turn for the given player."""
-    if match.winner is not None:
-        raise ValueError("Match is already over.")
-    if player_index != match.active_player_index:
-        raise ValueError("It's not your turn.")
+    """Pass the turn for the given player (after a cast, this skips the draft)."""
+    _check_turn(match, player_index)
 
     match.log.append(f"{match.names[player_index]} passed")
     end_turn(match, player_index)

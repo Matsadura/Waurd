@@ -1,10 +1,10 @@
 from datetime import datetime
 from typing import Any
 
-from backend.models.perk import ModificationType, Rarity, TargetGlyphType
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-MAX_LOADOUT_SLOTS: int = 3
+from backend.game.balance import MAX_LOADOUT_SLOTS
+from backend.models.perk import ModificationType, Rarity, TargetGlyphType
 
 
 class PerkResponse(BaseModel):

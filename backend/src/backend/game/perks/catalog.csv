@@ -1,0 +1,42 @@
+id,name,rarity,description,mechanics,image,durability,quote,target_type,status
+sharpen,Sharpen,common,Add 4 to this Power glyph's value.,value += 4,,4,A keen edge never asks permission.,damage,ready
+fortify,Fortify,common,Add 6 to this Defense or Heal glyph's value.,value += 6; does nothing on Weak or Vulnerable glyphs,,4,Stone remembers every storm.,heal_defense,ready
+round_up,Round Up,common,Raise this glyph's value to the next multiple of 5.,value = next multiple of 5 above it (+1 to +5),,4,Close enough is never enough.,damage,ready
+double_or_halve,Double or Halve,common,60% chance to double this glyph's value; 40% chance to halve it.,"60% value x2, 40% value // 2; seeded by the match",,4,Fortune favours the bold. Usually.,damage,ready
+snowball,Snowball,common,"Add 3 to this glyph's value, and 3 more for every earlier use of this perk.","value += 3 * (uses so far + 1): +3, +6, +9, +12",,4,Every avalanche starts with a single flake.,damage,ready
+blood,Blood,uncommon,"Add 15 to this glyph's value, but you lose 8 HP (never below 1).","value += 15; caster HP -= 8, minimum 1",,3,Power is always paid for in red.,damage,ready
+amplify,Amplify,rare,Raise this glyph's value by half.,"value x1.5, rounded down",,3,Louder. LOUDER.,damage,ready
+overcharge,Overcharge,legendary,Multiply this glyph's value by 2.5. One use.,"value x2.5, rounded down",,1,"The circuit sings once, then never again.",damage,ready
+ing,-ING-,uncommon,Turn this glyph into ING and raise its value by 7.,"letters = ING, value += 7; does nothing if it already reads ING",,4,Action is a verb with a suffix.,damage,ready
+er,-ER-,common,Turn this glyph into ER and raise its value by 5.,"letters = ER, value += 5; does nothing if it already reads ER",,4,Every doer needs an -er.,damage,ready
+re,-RE-,common,Turn this glyph into RE and raise its value by 5.,"letters = RE, value += 5; does nothing if it already reads RE",,4,"Again, but better.",damage,ready
+ed,-ED-,common,Turn this glyph into ED and raise its value by 5.,"letters = ED, value += 5; does nothing if it already reads ED",,4,What's done is done.,damage,ready
+pluralize,Pluralize,common,Turn this glyph into S and raise its value by 3.,"letters = S, value += 3; does nothing if it already reads S",,4,One is never enough.,damage,ready
+qu,-QU-,rare,Turn this glyph into QU and raise its value by 18.,"letters = QU, value += 18; does nothing if it already reads QU",,3,"Quietly, quickly, quite deadly.",damage,ready
+vowel_shift,Vowel Shift,common,Turn this glyph into a random vowel and raise its value by 2.,letters = random vowel (A E I O U) other than the current one (seeded); value += 2,,4,"When words fail, try an A.",any,ready
+consonant_shift,Consonant Shift,common,Turn this glyph into a random common consonant and raise its value by 4.,letters = random of S T N R L D other than the current one (seeded); value += 4,,4,"Swap the bones, keep the muscle.",any,ready
+wild_power,Wild Power,uncommon,"Turn this Defense or Heal glyph into a Power glyph that deals damage, +4 value.","type = POWER, effect = DAMAGE, value += 4; not on Weak/Vulnerable glyphs",,3,The best defence is a good offence.,heal_defense,ready
+wild_skill,Wild Skill,common,"Turn this Power glyph into a random Defense or Heal glyph, +6 value.","type = SKILL, effect = DEFENSE or HEAL (seeded), value += 6",,3,Sometimes winning means surviving.,damage,ready
+hex,Hex,uncommon,Your opponent becomes Weak for 3 turns: their Power glyphs lose 25%.,opponent gets WEAK for 3 turns (their next two casts); the glyph is unchanged,,3,Your strength is mine to borrow.,any,ready
+expose,Expose,uncommon,"Your opponent becomes Vulnerable for 3 turns, starting with this word.",opponent gets VULNERABLE for 3 turns (this cast and your next); the glyph is unchanged,,3,Every armour has a seam.,any,ready
+linger,Linger,rare,Your opponent's statuses last 2 more turns. No statuses? They become Weak for 2 turns.,"each opponent status turns_left += 2; with none, opponent gets WEAK for 2 turns; the glyph is unchanged",,3,Some curses outstay their welcome.,any,ready
+erase,Erase,uncommon,Remove this glyph from your deck for good and draw a replacement.,glyph leaves the match (hand and every pile); draw 1,,3,Less is more. Much more.,any,ready
+redraw,Redraw,common,Discard this glyph and draw a new one with +5 value.,glyph goes to the discard pile; draw 1; the drawn glyph's value += 5 (not on Weak/Vulnerable),,4,The next letter could be the one.,any,ready
+fresh_start,Fresh Start,rare,Discard your whole hand and draw a new one; the new glyphs get +3 value.,discard the hand; draw up to hand size; drawn glyphs' value += 3 (not on Weak/Vulnerable),,2,"Burn the page, write a better one.",any,ready
+last_bonus,Last Letter +9,common,Gains 9 if this glyph ends the word.,bonus slot: +9 when last in the word,,3,Save the best for last.,damage,ready
+first_bonus,First Letter +9,common,Gains 9 if this glyph starts the word.,bonus slot: +9 when first in the word,,3,First impressions matter.,damage,ready
+last_double,Last Letter x2,rare,Double this glyph's value if it ends the word.,bonus slot: x2 when last in the word,,2,The final word is the heaviest.,any,ready
+first_double,First Letter x2,rare,Double this glyph's value if it starts the word.,bonus slot: x2 when first in the word,,2,"Strike first, strike twice.",any,ready
+vowel_start,Vowel Start +12,common,Gains 12 if the word starts with a vowel.,bonus slot: +12 when the word's first letter is A E I O U,,3,Open with an open mouth.,damage,ready
+five_letters,Five Letters +8,common,Gains 8 if the word has exactly 5 letters.,bonus slot: +8 when the word is 5 letters long,,3,Five fingers make a fist.,damage,ready
+matching_ends,Matching Ends x3,common,Triple this glyph's value if the word's first and last letters match.,bonus slot: x3 when first letter == last letter (2+ letters),,3,What goes around comes around.,any,ready
+quick_jab,Quick Jab,common,Gains 14 if the word has 3 letters or fewer.,bonus slot: +14 when the word is at most 3 letters,,3,"Short words, sharp points.",damage,ready
+twin_letters,Twin Letters,common,Gains 14 if the word has the same letter twice in a row.,"bonus slot: +14 when the word contains a double letter (LL, EE...)",,3,Double trouble.,any,ready
+late_bloomer,Late Bloomer,common,Gains 50% if this is the 3rd glyph of the word or later.,bonus slot: value x1.5 (rounded down) at position 3 or later,,3,Good things come to those who wait.,damage,ready
+long_word,Long Word,uncommon,Double this glyph's value if the word has 6 or more letters.,bonus slot: x2 when the word is 6+ letters,,3,Eloquence is a weapon.,any,ready
+onslaught,Onslaught,uncommon,Gains 3 for every Power glyph in the word.,bonus slot: + 3 x number of POWER glyphs in the word,,3,No shields. No mercy.,damage,ready
+lexicon,Lexicon,uncommon,Gains 2 for every letter in the word after the second.,bonus slot: + 2 x (word length - 2),,3,Every letter counts.,any,ready
+climber,Climber,rare,"Gains 3 for every glyph before this one in the word, up to 15.","bonus slot: + 3 x (position - 1), at most +15",,3,"Each step higher, each blow harder.",any,ready
+desperation,Desperation,rare,Double this glyph's value while you have 30% HP or less.,bonus slot: x2 when the caster's HP <= 30% of max,,3,Cornered beasts bite hardest.,any,ready
+executioner,Executioner,legendary,Triple this glyph's value while your opponent has 40% HP or less.,bonus slot: x3 when the target's HP <= 40% of max,,2,Finish what you started.,damage,ready
+grand_finale,Grand Finale,legendary,Triple this glyph's value if it ends a word of 5 or more letters.,bonus slot: x3 when last in a word of 5+ letters,,2,Leave them speechless.,any,ready

@@ -14,6 +14,7 @@ import random
 from backend.game.models import Glyph, Match
 from backend.game.rules import (
     cast_word,
+    select_perks,
     pass_turn,
     start_turn,
 )
@@ -111,6 +112,8 @@ def main() -> None:
         target_hp = match.players[1 - me].hp
         try:
             cast_word(match, me, positions, words)
+            if match.winner is None:
+                select_perks(match, me, [])  # no perk drafting in this script
         except ValueError as error:
             print(error)
             continue

@@ -29,6 +29,7 @@ from backend.game.rules import (
     WEAK_PERCENT,
     cast_word,
     pass_turn,
+    select_perks,
     start_turn,
 )
 
@@ -108,6 +109,8 @@ def take_turn(match: Match, words: list[tuple[str, int, Counter]]) -> None:
             )
         )
     cast_word(match, me, positions, {best})
+    if match.winner is None:
+        select_perks(match, me, [])  # the bots don't use perks yet: skip the draft
 
 
 def main() -> None:

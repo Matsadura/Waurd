@@ -72,9 +72,26 @@ services:
     restart: always
     ports:
       - '8080:8080'
+      
+  vault:
+    image: hashicorp/vault:2.2.2
+    restart: unless-stopped
+    entrypoint: ["vault"]
+    command: ["server", "-config=/vault/config/config.hcl"]
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "127.0.0.1:18201:18200"
+    environment:
+      VAULT_ADDR: http://127.0.0.1:18200
+    volumes:
+      - vault_data:/vault/data
+      - ./vault/config:/vault/config:ro
 
 volumes:
   redis_data:
     driver: local
   mysql_data:
   media_data:
+  vault_data:
+    driver: local

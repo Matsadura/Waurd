@@ -207,3 +207,8 @@ node_modules/
 vault/secrets.env
 vault/init-output.txt
 vault/keys/
+vault/approle.env
+
+# Editor swap files
+*.swp
+*.swo

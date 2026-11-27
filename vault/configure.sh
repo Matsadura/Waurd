@@ -44,6 +44,3 @@ docker compose exec vault vault write auth/approle/role/waurd-backend \
 
 echo ""
 echo "Vault configuration completed successfully!"
-EOF
-
-chmod +x vault/configure.sh

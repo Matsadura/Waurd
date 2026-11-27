@@ -42,6 +42,20 @@ Persistent milestones (e.g., casting specific thematic word lists like animal na
 
 ---
 
+## Running locally
+
+Needs Docker. From the repo root:
+
+```bash
+make up      # start everything; the backend applies migrations on start
+make seed    # fill the database with test users
+make help    # every other command
+```
+
+Frontend: http://localhost:5173 · API docs: http://localhost:8000/docs · Adminer: http://localhost:8080 (server `db`). MySQL and Redis are only reachable inside Docker.
+
+---
+
 ## Team
 
 - **aljbari**: Product Owner, Game Designer, UI Designer, Front-End Developer

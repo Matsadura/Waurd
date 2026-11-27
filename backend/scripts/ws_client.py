@@ -44,6 +44,14 @@ LIVE_ROWS = (2, 3, 5)  # the rows with running clocks, redrawn every half second
 COLOR = sys.stdout.isatty() and "NO_COLOR" not in os.environ
 BOLD, DIM, INVERT = "1", "2", "7"
 RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN = "31", "32", "33", "34", "35", "36"
+# how a glyph's effect looks on its card: (mark before the value, color)
+EFFECTS = {
+    "damage": ("*", RED),
+    "heal": ("+", GREEN),
+    "defense": ("#", BLUE),
+    "vulnerable": ("v", MAGENTA),
+    "weak": ("w", YELLOW),
+}
 
 REASONS = {  # end_reason: (said to the winner, said to the loser)
     "HEALTH_DEPLETED": ("{opponent} ran out of HP", "you ran out of HP"),
@@ -172,20 +180,18 @@ async def wait_until_matched(http, lines, text: str, cancel) -> str | None:
         return None
 
 
-async def find_match(
-    http: httpx.Client, lines: asyncio.Queue
-) -> tuple[str | None, bool]:
-    """Get the player into a match: its id (None to quit), and if it's a rejoin."""
+async def find_match(http: httpx.Client, lines: asyncio.Queue) -> str | None:
+    """Get the player into a match and return its id, or None to quit."""
     response = http.get(f"{API}/matchmaking/status")
     if response.status_code == 200:  # already queued, hosting, or playing
         ticket = response.json()
         if ticket["status"] == "MATCHED":
             print(paint("You're already in a match: rejoining.", YELLOW))
-            return ticket["matched_match_id"], True
+            return ticket["matched_match_id"]
         if ticket["status"] == "WAITING":
-            return await host(http, lines, ticket["matched_match_id"]), False
+            return await host(http, lines, ticket["matched_match_id"])
         seconds = ticket["time_control_seconds"]
-        return await queue(http, lines, seconds, joined=True), False
+        return await queue(http, lines, seconds, joined=True)
 
     while True:
         print(f"\n  {paint('1', BOLD, CYAN)}  Quick match")
@@ -194,7 +200,7 @@ async def find_match(
         print(f"  {paint('q', BOLD, CYAN)}  Quit")
         choice = (await ask(lines, "> ")).lower()
         if choice == "q":
-            return None, False
+            return None
         if choice == "3":
             code = await ask(lines, "Invite code: ")
             joined = http.post(
@@ -203,7 +209,7 @@ async def find_match(
                 headers=csrf(http),
             )
             if joined.status_code == 200:
-                return joined.json()["id"], False
+                return joined.json()["id"]
             print(paint(detail(joined), RED))
             continue
         if choice not in ("1", "2"):
@@ -217,7 +223,7 @@ async def find_match(
             else await host(http, lines, None, seconds)
         )
         if match_id:
-            return match_id, False
+            return match_id
 
 
 async def queue(http, lines, seconds: int, joined: bool = False) -> str | None:
@@ -274,7 +280,7 @@ def opponent_of(http: httpx.Client, match_id: str, my_id: str) -> str:
 
 def positions_for(word: str, hand: list[dict]) -> list[int] | None:
     """Hand positions spelling the word, strongest glyph first for repeated letters."""
-    strongest_first = sorted(hand, key=lambda glyph: -glyph["damage"])
+    strongest_first = sorted(hand, key=lambda glyph: -glyph["effect_value"])
     picked: list[int] = []
     for letter in word.upper():
         glyph = next(
@@ -300,10 +306,9 @@ class Game:
     log: list[str] = field(default_factory=list)
     note: str = ""
     banner: str = ""
-    pending: str | None = None  # the word just cast, until the server answers
+    seen: int = 0  # how many of the server's log lines are shown
     away_until: float | None = None  # when the disconnected opponent forfeits
     confirm_resign: bool = False
-    rejoining: bool = False  # back into a match that was already being played
     over: bool = False
     quit: bool = False
 
@@ -314,13 +319,11 @@ class Game:
         if kind == "STATE":
             self.on_state(message)
         elif kind == "ACTION_REJECTED":
-            self.note, self.pending = message["reason"], None
+            self.note = message["reason"]
         elif kind == "OPPONENT_DISCONNECTED":
             self.away_until = time.monotonic() + message["grace_seconds"]
-            self.say(f"{self.opponent} disconnected", YELLOW)
         elif kind == "OPPONENT_RECONNECTED":
             self.away_until = None
-            self.say(f"{self.opponent} is back", YELLOW)
         elif kind == "MATCH_ABORTED":
             self.over = True
             self.banner = paint(" ABORTED ", BOLD, INVERT, YELLOW) + (
@@ -328,18 +331,12 @@ class Game:
             )
 
     def on_state(self, state: dict) -> None:
-        before, self.state, self.received_at = self.state, state, time.monotonic()
-        started = state["turn"] > 0 and (before is None or before["turn"] == 0)
-        if started and state["turn"] == 1 and not self.rejoining:
-            first = "You go" if state["your_turn"] else f"{self.opponent} goes"
-            self.say(f"The match has started. {first} first.", BOLD)
-        elif started:
-            self.say("Back in the match.", BOLD)
-        elif before and (
-            state["turn"] != before["turn"] or state["winner"] is not None
-        ):
-            self.describe_turn(before, state)
-            self.note = ""
+        self.state, self.received_at = state, time.monotonic()
+        log = state.get("log", [])  # the saved result after the end has none
+        if len(log) > self.seen:
+            for line in log[self.seen :]:
+                self.say(line)
+            self.seen, self.note = len(log), ""
 
         if state["winner"] is not None:
             self.over = True
@@ -352,25 +349,6 @@ class Game:
                 )
             else:
                 self.banner = paint(" DEFEAT ", BOLD, INVERT, RED) + "  " + lose
-
-    def describe_turn(self, before: dict, after: dict) -> None:
-        if before["your_turn"]:
-            dealt = before["opponent"]["hp"] - after["opponent"]["hp"]
-            if dealt > 0:
-                self.say(
-                    f"You cast {self.pending or 'a word'} for {dealt} damage", GREEN
-                )
-            elif self.pending == "/pass":
-                self.say("You passed")
-            elif after["winner"] is None:
-                self.say("Your turn ran out", YELLOW)
-        else:
-            taken = before["you"]["hp"] - after["you"]["hp"]
-            if taken > 0:
-                self.say(f"{self.opponent} hit you for {taken}", RED)
-            elif after["winner"] is None:
-                self.say(f"{self.opponent} passed")
-        self.pending = None
 
     def say(self, text: str, style: str = "") -> None:
         self.log = [*self.log, paint(" · ", DIM) + paint(text, style)][-LOG_LINES:]
@@ -391,7 +369,6 @@ class Game:
             if name in ("q", "quit"):
                 self.quit = True
             elif name in ("p", "pass"):
-                self.pending = "/pass"
                 return {"type": "PASS_TURN"}
             elif name in ("r", "resign"):
                 if resigning:
@@ -401,6 +378,7 @@ class Game:
             elif name in ("h", "help"):
                 self.say("Type a word to cast it with your glyphs, like: cat")
                 self.say("Or type hand positions in spelling order, like: 0 4 2")
+                self.say("Glyphs: * damage, + heal, # defense, v vulnerable, w weak")
                 self.say("/pass ends your turn, /resign gives up the match")
                 self.say("/quit leaves; run the client again within 30s to come back")
             else:
@@ -414,9 +392,6 @@ class Game:
         parts = line.split()
         if all(part.isdigit() for part in parts):
             positions = [int(part) for part in parts]
-            self.pending = "".join(
-                hand[p]["letter"] for p in positions if p < len(hand)
-            )
             return {"type": "CAST_WORD", "positions": positions}
         if not line.isalpha():
             self.note = "Type a word (letters only), or positions like 0 4 2."
@@ -425,7 +400,6 @@ class Game:
         if positions is None:
             self.note = f"You don't have the letters for {line.upper()}."
             return None
-        self.pending = line.upper()
         return {"type": "CAST_WORD", "positions": positions}
 
     # Drawing
@@ -478,7 +452,10 @@ class Game:
         return left + " " * max(1, WIDTH - used - len(turn)) + paint(turn, DIM)
 
     def player_row(self, mine: bool) -> str:
-        hp = self.state["you" if mine else "opponent"]["hp"]
+        side = self.state["you" if mine else "opponent"]
+        hp = side["hp"]
+        extras = [f"# {side['defense']} defense"] if side.get("defense") else []
+        extras += [f"{e} {t}" for e, t in side.get("statuses", {}).items()]
         active = self.running() and self.state["your_turn"] == mine
         seconds = self.time_left(mine)
         name = (self.me if mine else self.opponent)[:14]
@@ -490,6 +467,7 @@ class Game:
             f"{paint(f'{name:<14}', BOLD if mine else '')}  "
             f"{bar(hp, STARTING_HP, 20, hp_color)} {hp:>3} HP   "
             f"{paint('⏱ ' + clock(seconds), *clock_style)}"
+            + (paint("   " + ", ".join(extras), CYAN) if extras else "")
         )
 
     def status(self) -> str:
@@ -516,9 +494,7 @@ class Game:
             return ["", paint(f"   {text}", DIM), "", "", ""]
         rows = ["  "] * 5
         for g in glyphs:
-            color = (
-                MAGENTA if g["damage"] >= 15 else YELLOW if g["damage"] >= 10 else CYAN
-            )
+            mark, color = EFFECTS.get(g["effect_type"], ("?", CYAN))
             rows[0] += paint("┌───┐", color) + " "
             rows[1] += (
                 paint("│", color)
@@ -526,7 +502,7 @@ class Game:
                 + paint("│", color)
                 + " "
             )
-            rows[2] += paint(f"│{g['damage']:>3}│", color) + " "
+            rows[2] += paint(f"│{mark}{g['effect_value']:>2}│", color) + " "
             rows[3] += paint("└───┘", color) + " "
             rows[4] += paint(f"{g['position']:^5}", DIM) + " "
         return rows
@@ -581,9 +557,9 @@ async def connected(ws, game: Game, lines: asyncio.Queue) -> None:
         task.result()  # raise what ended it, if it was an error
 
 
-async def play(args, http, user: dict, match_id: str, lines, rejoining: bool) -> Game:
+async def play(args, http, user: dict, match_id: str, lines) -> Game:
     opponent = opponent_of(http, match_id, user["id"])
-    game = Game(me=user["username"], opponent=opponent, rejoining=rejoining)
+    game = Game(me=user["username"], opponent=opponent)
     url = f"{args.server.replace('http', 'ws', 1)}/ws/matches/{match_id}"
     headers = {"Cookie": f"session_id={http.cookies.get('session_id', '')}"}
     failures = 0
@@ -629,10 +605,10 @@ async def run(args, http: httpx.Client, user: dict) -> None:
     print(f"Hi {paint(user['username'], BOLD)}!")
     try:
         while True:
-            match_id, rejoining = await find_match(http, lines)
+            match_id = await find_match(http, lines)
             if match_id is None:
                 return
-            game = await play(args, http, user, match_id, lines, rejoining)
+            game = await play(args, http, user, match_id, lines)
             if game.quit and not game.over:
                 print(
                     "\nYou left the match. Run the client again within 30 seconds"

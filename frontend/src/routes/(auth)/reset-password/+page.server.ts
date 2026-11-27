@@ -1,21 +1,8 @@
-import { BACKEND_URL } from '$app/env/private';
 import { fail, redirect } from '@sveltejs/kit';
 import * as v from 'valibot';
 import { forgotPasswordSchema, resetPasswordSchema } from '#lib/schemas/password-reset.ts';
+import { api, jsonPost, errorMessage } from '#lib/server/api.ts';
 import type { Actions } from './$types';
-
-function extractError(json: unknown): string {
-	if (
-		typeof json === 'object' &&
-		json !== null &&
-		'detail' in json &&
-		typeof json.detail === 'string'
-	) {
-		return json.detail;
-	}
-
-	return 'Could not request password reset. Please try again.';
-}
 
 export const actions = {
 	request: async ({ request, fetch }) => {
@@ -36,11 +23,7 @@ export const actions = {
 		let response: Response;
 
 		try {
-			response = await fetch(`${BACKEND_URL}/api/v1/auth/password/forgot`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(result.output)
-			});
+			response = await fetch(api('/auth/password/forgot'), jsonPost(result.output));
 		} catch {
 			return fail(502, {
 				sent: false,
@@ -50,11 +33,9 @@ export const actions = {
 		}
 
 		if (!response.ok) {
-			const json = await response.json().catch(() => null);
-
 			return fail(response.status, {
 				sent: false,
-				error: extractError(json),
+				error: await errorMessage(response, 'Could not request password reset. Please try again.'),
 				values
 			});
 		}
@@ -98,14 +79,13 @@ export const actions = {
 		let response: Response;
 
 		try {
-			response = await fetch(`${BACKEND_URL}/api/v1/auth/password/reset`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
+			response = await fetch(
+				api('/auth/password/reset'),
+				jsonPost({
 					token,
 					new_password: result.output.newPassword
 				})
-			});
+			);
 		} catch {
 			return fail(502, {
 				sent: false,
@@ -115,11 +95,9 @@ export const actions = {
 		}
 
 		if (!response.ok) {
-			const json = await response.json().catch(() => null);
-
 			return fail(response.status, {
 				sent: false,
-				error: extractError(json),
+				error: await errorMessage(response, 'Could not reset password. Please try again.'),
 				values: { email: '' }
 			});
 		}

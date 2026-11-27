@@ -19,9 +19,10 @@ from backend.core.exceptions import (
     UserAlreadyExistsException,
 )
 from backend.core.identifiers import user_id_to_bytes, user_id_to_string
-from backend.core.security import hash_password
+from backend.core.security import hash_password, verify_password
 from backend.core.session_store import RedisSessionStore
 from backend.db.uow import UnitOfWork
+from backend.models.match import MatchStatus
 from backend.models.user import User, UserRole
 from backend.schemas.match import MatchResponse
 from backend.schemas.pagination import PaginatedResponse
@@ -72,6 +73,14 @@ async def update_me(
     """Update the currently authenticated user's information."""
     attributes = {}
     if user_update.password:
+        # Google-only accounts have no password yet, so they can set one directly.
+        if current_user.password_hash and not (
+            user_update.current_password
+            and verify_password(
+                user_update.current_password, current_user.password_hash
+            )
+        ):
+            raise BadRequestException("Current password is incorrect.")
         attributes["password_hash"] = hash_password(user_update.password)
 
     # Update other fields if provided
@@ -81,6 +90,10 @@ async def update_me(
         attributes["email"] = user_update.email
     if user_update.avatar_url:
         attributes["avatar_url"] = user_update.avatar_url
+    # Read before the update; an unchanged email in a resent form keeps the session.
+    signs_out = "password_hash" in attributes or (
+        user_update.email is not None and user_update.email != current_user.email
+    )
 
     async with uow:
         user = await uow.users.get_by_id(current_user.id)
@@ -103,8 +116,8 @@ async def update_me(
         await uow.users.session.refresh(user)
         response = UserResponse.model_validate(user)
 
-    # Invalidate the user's session to force re-authentication
-    if attributes:
+    # A new password or email signs out every session; a new username does not.
+    if signs_out:
         await session_store.invalidate_session(current_user.id)
 
     return response
@@ -226,10 +239,14 @@ async def get_user_matches(
     user_id: UUID,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     size: int = Query(20, ge=1, le=100, description="Items per page"),
+    match_status: MatchStatus | None = Query(
+        None, alias="status", description="Only matches in this status, e.g. FINISHED"
+    ),
     current_user: User = Depends(get_current_user),
     uow: UnitOfWork = Depends(),
 ) -> PaginatedResponse[MatchResponse]:
-    """Retrieve a paginated list of matches for a specific user."""
+    """Retrieve a paginated list of matches for a specific user, with both
+    players' usernames. ?status=FINISHED keeps only completed matches."""
     async with uow:
         if not _can_view(current_user, user_id):
             raise ForbiddenException(
@@ -237,7 +254,7 @@ async def get_user_matches(
             )
         skip = (page - 1) * size
         matches, total = await uow.matches.get_matches_for_user(
-            user_id.bytes, skip=skip, limit=size
+            user_id.bytes, skip=skip, limit=size, status=match_status
         )
         items = [MatchResponse.model_validate(match) for match in matches]
         return PaginatedResponse.create(items=items, total=total, page=page, size=size)

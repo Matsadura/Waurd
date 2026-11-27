@@ -43,6 +43,17 @@ class UserStats(Base):
     total_damage_dealt: Mapped[int] = mapped_column(
         BigInteger, default=0, nullable=False
     )
+    # wins in a row up to now (a loss resets it), and the longest run ever
+    win_streak: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    best_win_streak: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False, index=True
+    )
+    # the most HP one cast has given back
+    highest_heal: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False, index=True
+    )
 
     # relationship back to User
     user: Mapped["User"] = relationship("User", back_populates="stats")

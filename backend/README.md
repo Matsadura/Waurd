@@ -1,18 +1,17 @@
 ## Database seed data
 
-Apply the migrations, then run the deterministic local seed script from this directory:
+The backend container applies the migrations every time it starts (`alembic upgrade head`). MySQL and Redis are only reachable inside the compose network, so run scripts through the backend container:
 
 ```bash
-uv run alembic upgrade head
-uv run python scripts/seed_db.py --reset
+docker compose exec backend python scripts/seed_db.py --reset
 ```
 
-The script inserts four users, three achievements, one `user_stats` row per user, and seven `user_achievements` rows. It verifies the one-to-one and many-to-many relationships after committing.
+(or `make seed`). The script inserts four users with a `user_stats` row each. Their achievements are worked out from those stats with the same code real matches use, and their XP includes the rewards. `--reset` replaces the seed users and removes achievements no longer defined in `game/achievements.py`. Without it, the script stops if the seed users already exist.
 
 Use these credentials to create a session for the authenticated endpoints:
 
 ```text
-email: alice@example.test
+email: alice@email.com
 password: SecureP@ssw0rd!123
 user id: 00000000-0000-4000-8000-000000000001
 ```
@@ -37,12 +36,6 @@ GOOGLE_FRONTEND_REDIRECT_URI=http://localhost:3000
 ```
 
 Start the flow from the frontend by navigating the browser to `GET /api/v1/auth/google`. The callback creates or finds the Google user, sets the existing session and CSRF cookies, and redirects to `GOOGLE_FRONTEND_REDIRECT_URI`.
-
-Apply the OAuth identity constraint before using the flow:
-
-```bash
-uv run alembic upgrade head
-```
 
 Additional stats test user:
 
@@ -100,11 +93,10 @@ A link works once and expires after 30 minutes. Asking again invalidates the pre
 
 Every user is either `USER` (the default) or `GAME_MASTER`. The role is in every user response (`GET /users/me` and others), so the frontend can show game master tools.
 
-Apply the migration that adds the column, then promote the first game master from the command line:
+Promote the first game master from the command line:
 
 ```bash
-uv run alembic upgrade head
-uv run python scripts/set_role.py someone@example.com GAME_MASTER
+docker compose exec backend python scripts/set_role.py someone@example.com GAME_MASTER
 ```
 
 Game masters can also view any user's profile, stats and matches, and manage users under `/api/v1/admin/users`. Everyone else gets `403`.

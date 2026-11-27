@@ -1,9 +1,17 @@
 from datetime import datetime
 
 from backend.core.identifiers import user_id_to_string
+from backend.game.calculations import level_progress, xp_to_next
 from backend.models.user import UserRole
 from backend.schemas.match import MatchResponse
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    computed_field,
+    field_validator,
+)
 
 
 class UserBase(BaseModel):
@@ -57,7 +65,12 @@ class UserUpdateRequest(BaseModel):
         None,
         min_length=8,
         max_length=128,
-        description="New password (8-128 characters)",
+        description="New password (8-128 characters); needs current_password",
+    )
+    current_password: str | None = Field(
+        None,
+        max_length=128,
+        description="Required with password when the account already has one",
     )
     avatar_url: str | None = Field(None, description="New avatar image URL")
 
@@ -87,6 +100,30 @@ class UserResponse(UserBase):
     role: UserRole = Field(
         ..., description="USER or GAME_MASTER; the frontend shows admin tools to GMs"
     )
+    xp: int = Field(..., description="Total XP from matches and achievements")
+    level: int = Field(..., description="The level that XP has reached")
+    # read from password_hash, which never leaves the server; only whether it is set
+    has_password: bool = Field(
+        ...,
+        validation_alias="password_hash",
+        description="False for Google-only accounts, which can set a password "
+        "without current_password",
+    )
+
+    @field_validator("has_password", mode="before")
+    @classmethod
+    def password_is_set(cls, password_hash: str | None) -> bool:
+        return password_hash is not None
+
+    @computed_field(description="XP earned since reaching the current level")
+    @property
+    def xp_into_level(self) -> int:
+        return level_progress(self.xp)[1]
+
+    @computed_field(description="XP the current level takes to reach the next")
+    @property
+    def xp_for_next_level(self) -> int:
+        return xp_to_next(level_progress(self.xp)[0])
 
     @field_validator("id", mode="before")
     @classmethod
@@ -118,6 +155,13 @@ class UserStatsResponse(BaseModel):
         ...,
         description="Total damage dealt by the user across all matches",
         example=5000,
+    )
+    win_streak: int = Field(
+        ..., description="Wins in a row up to now; a loss resets it"
+    )
+    best_win_streak: int = Field(..., description="The longest run of wins ever")
+    highest_heal: int = Field(
+        ..., description="The most HP one cast has given back to the user"
     )
 
     @field_validator("user_id", mode="before")

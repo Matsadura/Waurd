@@ -94,6 +94,9 @@ def cast_word(
                 replace(glyph) for glyph in glyphs_to_cast
             ],  # copies: perks may change the originals later
             damage=damage,
+            healed=healed,
+            defense=totals["defense"],
+            statuses=dict(statuses),
         )
     )
     line = f"{match.names[player_index]} cast {word} for {damage} damage"

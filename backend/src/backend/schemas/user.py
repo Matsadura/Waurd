@@ -160,6 +160,9 @@ class UserStatsResponse(BaseModel):
         ..., description="Wins in a row up to now; a loss resets it"
     )
     best_win_streak: int = Field(..., description="The longest run of wins ever")
+    highest_heal: int = Field(
+        ..., description="The most HP one cast has given back to the user"
+    )
 
     @field_validator("user_id", mode="before")
     @classmethod

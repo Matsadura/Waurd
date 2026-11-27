@@ -31,6 +31,9 @@ class Cast:
     word: str
     glyphs: list[Glyph]
     damage: int  # the HP the opponent actually lost
+    healed: int = 0  # the HP the caster actually got back
+    defense: int = 0  # the defense the caster gained
+    statuses: dict[str, int] = field(default_factory=dict)  # put on the target
     # naive UTC, like the database's DateTime columns
     cast_at: datetime = field(
         default_factory=lambda: datetime.now(UTC).replace(tzinfo=None)

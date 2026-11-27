@@ -18,8 +18,8 @@ router = APIRouter(prefix="/leaderboards", tags=["Leaderboards"])
 async def get_leaderboard(
     filter_by: LeaderboardFilter = Query(
         LeaderboardFilter.ELO,
-        description="elo, damage (lifetime), win_streak (best ever) or words "
-        "(highest-scoring casts)",
+        description="elo, damage (lifetime), win_streak (best ever), heal (most "
+        "HP one cast gave back) or words (highest-scoring casts)",
     ),
     limit: int = Query(20, ge=1, le=100, description="Number of entries to return"),
     offset: int = Query(0, ge=0, description="Number of entries to skip"),

@@ -64,12 +64,9 @@ def take(match: Match, player_index: int, perk_ids: list[str]) -> None:
     if perk_ids and perk_ids[0] not in player.draft:
         raise ValueError("That perk wasn't offered.")
     player.draft = []
-    name = match.names[player_index]
-    if perk_ids:
+    if perk_ids:  # skipping isn't logged: the next turn starting says enough
         grant(match, player_index, perk_ids[0])
-        match.log.append(f"{name} took {spec(perk_ids[0]).name}")
-    else:
-        match.log.append(f"{name} skipped the perk draft")
+        match.log.append(f"{match.names[player_index]} took {spec(perk_ids[0]).name}")
 
 
 def fits(perk_id: str, glyph: Glyph) -> bool:

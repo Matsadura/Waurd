@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from backend.core.identifiers import user_id_to_string
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasPath, BaseModel, ConfigDict, Field, field_validator
 
 
 class MatchResponse(BaseModel):
@@ -12,6 +12,17 @@ class MatchResponse(BaseModel):
     player1_id: str = Field(..., description="Unique identifier for player 1")
     player2_id: str | None = Field(
         None, description="Unique identifier for player 2 (empty while waiting)"
+    )
+    # read from the loaded player relationships, so history shows names in one call
+    player1_username: str = Field(
+        ...,
+        validation_alias=AliasPath("player1", "username"),
+        description="Player 1's username",
+    )
+    player2_username: str | None = Field(
+        None,
+        validation_alias=AliasPath("player2", "username"),
+        description="Player 2's username (empty while waiting)",
     )
     time_control_seconds: int = Field(
         ..., description="Time control for the match in seconds"

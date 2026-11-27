@@ -22,6 +22,7 @@ from backend.core.identifiers import user_id_to_bytes, user_id_to_string
 from backend.core.security import hash_password, verify_password
 from backend.core.session_store import RedisSessionStore
 from backend.db.uow import UnitOfWork
+from backend.models.match import MatchStatus
 from backend.models.user import User, UserRole
 from backend.schemas.match import MatchResponse
 from backend.schemas.pagination import PaginatedResponse
@@ -238,10 +239,14 @@ async def get_user_matches(
     user_id: UUID,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     size: int = Query(20, ge=1, le=100, description="Items per page"),
+    match_status: MatchStatus | None = Query(
+        None, alias="status", description="Only matches in this status, e.g. FINISHED"
+    ),
     current_user: User = Depends(get_current_user),
     uow: UnitOfWork = Depends(),
 ) -> PaginatedResponse[MatchResponse]:
-    """Retrieve a paginated list of matches for a specific user."""
+    """Retrieve a paginated list of matches for a specific user, with both
+    players' usernames. ?status=FINISHED keeps only completed matches."""
     async with uow:
         if not _can_view(current_user, user_id):
             raise ForbiddenException(
@@ -249,7 +254,7 @@ async def get_user_matches(
             )
         skip = (page - 1) * size
         matches, total = await uow.matches.get_matches_for_user(
-            user_id.bytes, skip=skip, limit=size
+            user_id.bytes, skip=skip, limit=size, status=match_status
         )
         items = [MatchResponse.model_validate(match) for match in matches]
         return PaginatedResponse.create(items=items, total=total, page=page, size=size)

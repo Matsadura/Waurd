@@ -96,6 +96,7 @@ def apply(match: Match, player_index: int, instance_id: int, position: int) -> b
     if not fits(perk.id, glyph):
         raise ValueError(f"{perk.name} can't go on a {glyph.effect_type} glyph.")
 
+    letter = glyph.letter  # before a letter perk changes it, for the log
     if perk.id in BONUS:
         # weak and vulnerable values are turns, so a bonus would do nothing
         applied = not is_status(glyph) and glyph.bonus != perk.id
@@ -113,7 +114,7 @@ def apply(match: Match, player_index: int, instance_id: int, position: int) -> b
     instance.uses += 1
     if instance.durability is not None:
         instance.durability -= 1
-    match.log.append(f"{name} used {perk.name} on {glyph.letter}")
+    match.log.append(f"{name} used {perk.name} on {letter}")
     if instance.durability == 0:
         player.perks.remove(instance)
         match.log.append(f"{name}'s {perk.name} broke")

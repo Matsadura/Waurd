@@ -18,6 +18,7 @@ records = pytest.importorskip(
 )
 
 from backend.game.rules import (
+    select_perks,
     SECOND_PLAYER_SHIELD,
     cast_word,
     lose_by_disconnect,
@@ -90,6 +91,13 @@ async def active_match(session_maker, alice, bob, stats=True) -> str:  # type: i
         )
         await db.commit()
     return str(match_id)
+
+
+def cast_turn(game, player, positions, words):  # type: ignore[no-untyped-def]
+    """Cast, then skip the perk draft: the turn ends as it did before perks."""
+    cast_word(game, player, positions, words)
+    if game.winner is None:
+        select_perks(game, player, [])
 
 
 def finished_game():  # type: ignore[no-untyped-def]
@@ -355,6 +363,7 @@ class TestRules:
             "type": "power",
             "effect_type": "damage",
             "effect_value": game.players[me].hand[0].effect_value,
+            "bonus": None,
         }
 
     def test_the_state_shows_my_piles_and_only_counts_for_the_opponent(self) -> None:
@@ -381,6 +390,7 @@ class TestRules:
             "discard_pile_size": 0,
             "defense": 0,
             "statuses": {},
+            "perk_count": 0,
         }
         assert "draw_pile" not in state["opponent"]
 
@@ -393,7 +403,7 @@ class TestRules:
             Glyph("T", 30, type="power", effect_type="heal"),
         ]
 
-        cast_word(game, 0, [0, 1], {"AT"})
+        cast_turn(game, 0, [0, 1], {"AT"})
 
         assert game.players[1].hp == 94
 
@@ -484,11 +494,11 @@ def game_with_casts():  # type: ignore[no-untyped-def]
     game.active_player_index = 0
     start_turn(game)
     game.players[0].hand = [Glyph("C", 12), Glyph("A", 6), Glyph("T", 8)]
-    cast_word(game, 0, [0, 1, 2], words)
+    cast_turn(game, 0, [0, 1, 2], words)
     game.players[1].hand = [Glyph("A", 6), Glyph("T", 8)]
-    cast_word(game, 1, [0, 1], words)
+    cast_turn(game, 1, [0, 1], words)
     game.players[0].hand = [Glyph("C", 40), Glyph("A", 40), Glyph("T", 40)]
-    cast_word(game, 0, [0, 1, 2], words)  # 120 damage against 74 HP left
+    cast_turn(game, 0, [0, 1, 2], words)  # 120 damage against 74 HP left
     for minute, cast in enumerate(game.casts):
         cast.cast_at = datetime(2026, 1, 1, 12, minute)
     return game
@@ -524,12 +534,14 @@ class TestCastHistory:
                     "effect_value": 6,
                     "type": "power",
                     "effect_type": "damage",
+                    "bonus": None,
                 },
                 {
                     "letter": "T",
                     "effect_value": 8,
                     "type": "power",
                     "effect_type": "damage",
+                    "bonus": None,
                 },
             ]
         }
@@ -637,7 +649,7 @@ class TestEffects:
         game.players[0].hp = 95
         game.players[0].hand = [Glyph("A", 9, "power", "heal"), hit(4)]
 
-        cast_word(game, 0, [0, 1], {"AT"})
+        cast_turn(game, 0, [0, 1], {"AT"})
 
         assert game.players[0].hp == 100
         assert game.players[1].hp == 96
@@ -646,11 +658,11 @@ class TestEffects:
     def test_defense_blocks_damage_before_hp(self) -> None:
         game = effects_game()
         game.players[0].hand = [Glyph("O", 9, "power", "defense"), Glyph("N", 1)]
-        cast_word(game, 0, [0, 1], {"ON"})
+        cast_turn(game, 0, [0, 1], {"ON"})
         assert game.players[0].defense == 9
 
         game.players[1].hand = [hit(12)]
-        cast_word(game, 1, [0], {"T"})
+        cast_turn(game, 1, [0], {"T"})
 
         assert game.players[0].defense == 0
         assert game.players[0].hp == 97
@@ -659,7 +671,7 @@ class TestEffects:
     def test_defense_lasts_until_the_owners_next_turn(self) -> None:
         game = effects_game()
         game.players[0].hand = [Glyph("O", 9, "power", "defense")]
-        cast_word(game, 0, [0], {"O"})
+        cast_turn(game, 0, [0], {"O"})
 
         pass_turn(game, 1)
 
@@ -668,7 +680,7 @@ class TestEffects:
     def test_vulnerable_adds_half_to_later_damage(self) -> None:
         game = effects_game()
         game.players[0].hand = [Glyph("V", 2, "skill", "vulnerable"), hit(10)]
-        cast_word(game, 0, [0, 1], {"VT"})
+        cast_turn(game, 0, [0, 1], {"VT"})
         # the status starts after the word that put it on
         assert game.players[1].hp == 90
         assert (
@@ -677,7 +689,7 @@ class TestEffects:
 
         pass_turn(game, 1)
         game.players[0].hand = [hit(10), hit(5)]
-        cast_word(game, 0, [0, 1], {"TT"})
+        cast_turn(game, 0, [0, 1], {"TT"})
 
         assert game.players[1].hp == 90 - 15 - 7  # 5 * 1.5 rounds down
 
@@ -692,7 +704,7 @@ class TestEffects:
             Glyph("V", 2, "skill", "vulnerable"),
         ]
 
-        cast_word(game, 0, [0, 1, 2, 3], {"TAOV"})
+        cast_turn(game, 0, [0, 1, 2, 3], {"TAOV"})
 
         assert game.players[1].hp == 93
         assert game.players[0].hp == 57
@@ -702,7 +714,7 @@ class TestEffects:
     def test_a_status_counts_down_at_the_end_of_its_owners_turns(self) -> None:
         game = effects_game()
         game.players[0].hand = [Glyph("E", 2, "skill", "weak")]
-        cast_word(game, 0, [0], {"E"})
+        cast_turn(game, 0, [0], {"E"})
         assert game.players[1].statuses == {"weak": 2}
 
         pass_turn(game, 1)
@@ -717,7 +729,7 @@ class TestEffects:
         game.players[1].statuses = {"weak": 3}
         game.players[0].hand = [Glyph("E", 2, "skill", "weak")]
 
-        cast_word(game, 0, [0], {"E"})
+        cast_turn(game, 0, [0], {"E"})
 
         assert game.players[1].statuses == {"weak": 3}
 
@@ -727,7 +739,7 @@ class TestEffects:
             Glyph("O", 9, "power", "defense"),
             Glyph("E", 2, "skill", "weak"),
         ]
-        cast_word(game, 0, [0, 1], {"OE"})
+        cast_turn(game, 0, [0, 1], {"OE"})
 
         mine, theirs = match_ws.view(game, 0), match_ws.view(game, 1)
 
@@ -755,7 +767,7 @@ class TestEffects:
         game.players[0].hp = 95
         game.players[0].hand = [Glyph("A", 9, "power", "heal"), hit(4)]
 
-        cast_word(game, 0, [0, 1], {"AT"})
+        cast_turn(game, 0, [0, 1], {"AT"})
 
         assert (game.casts[-1].damage, game.casts[-1].healed) == (4, 5)
 
@@ -766,7 +778,7 @@ class TestEffects:
             Glyph("E", 2, "skill", "weak"),
         ]
 
-        cast_word(game, 0, [0, 1], {"OE"})
+        cast_turn(game, 0, [0, 1], {"OE"})
 
         assert (game.casts[-1].defense, game.casts[-1].statuses) == (9, {"weak": 2})
 
@@ -787,7 +799,7 @@ class TestMatchLog:
         game = named_game()
         pass_turn(game, 0)
         game.players[1].hand = [Glyph("C", 50), Glyph("A", 30), Glyph("T", 40)]
-        cast_word(game, 1, [0, 1, 2], {"CAT"})
+        cast_turn(game, 1, [0, 1, 2], {"CAT"})
 
         assert game.log == [
             "alice goes first",
@@ -1089,7 +1101,7 @@ def client(monkeypatch):  # type: ignore[no-untyped-def]
     monkeypatch.setattr(match_ws, "seat_in_match", seat)
 
     async def setup(match_id):  # type: ignore[no-untyped-def]
-        return 300, ("a", "b")  # five minutes each, and the names in the log
+        return 300, ("a", "b"), ([], [])  # five minutes each, names, no loadouts
 
     monkeypatch.setattr(match_ws, "match_setup", setup)
     monkeypatch.setattr(match_ws, "end_match", end)
@@ -1205,7 +1217,7 @@ class TestSocket:
         self, client, monkeypatch
     ) -> None:  # type: ignore[no-untyped-def]
         async def tiny(match_id):  # type: ignore[no-untyped-def]
-            return 0.2, ("a", "b")  # seconds on each clock
+            return 0.2, ("a", "b"), ([], [])  # seconds on each clock
 
         monkeypatch.setattr(match_ws, "match_setup", tiny)
         # No clock task: only the late message can notice the time ran out.

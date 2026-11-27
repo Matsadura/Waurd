@@ -93,6 +93,7 @@ class TestLifespan:
             main_module, "reset_online_status", lambda: no_database(None)
         )
         monkeypatch.setattr(main_module, "sync_achievements", lambda: no_database(None))
+        monkeypatch.setattr(main_module, "sync_perks", lambda: no_database(None))
         return client
 
     async def test_connects_to_redis_on_startup(self, startup_redis):

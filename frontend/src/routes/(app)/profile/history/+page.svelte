@@ -8,6 +8,16 @@
 	const winRate = $derived(
 		data.stats.games ? Math.round((data.stats.wins / data.stats.games) * 100) : 0
 	);
+
+	const pageNumbers = $derived.by(() => {
+		const current = data.pagination.page;
+		const total = data.pagination.pages;
+
+		const start = Math.max(1, Math.min(current - 2, total - 4));
+		const end = Math.min(total, start + 4);
+
+		return Array.from({ length: Math.max(0, end - start + 1) }, (_, i) => start + i);
+	});
 </script>
 
 <svelte:head>
@@ -50,38 +60,72 @@
 		</ol>
 
 		<!-- maybe we do scrolling! -->
+
 		{#if data.pagination.pages > 1}
-			<div class="mt-5 flex flex-wrap items-center justify-between gap-3">
-				<div>
-					{#if data.pagination.page > 1}
+			<nav
+				aria-label="Duel history pages"
+				class="mt-5 flex flex-wrap items-center justify-center gap-2"
+			>
+				{#if data.pagination.page > 1}
+					<Button href="/profile/history?page=1" outline variant="secondary" size="sm">
+						First
+					</Button>
+
+					<Button
+						href={`/profile/history?page=${data.pagination.page - 1}`}
+						outline
+						variant="secondary"
+						size="sm"
+					>
+						Previous
+					</Button>
+				{/if}
+
+				{#if pageNumbers[0] > 1}
+					<span class="text-ash">…</span>
+				{/if}
+
+				{#each pageNumbers as pageNumber}
+					{#if pageNumber === data.pagination.page}
+						<span aria-current="page" class="rounded border border-bronze px-3 py-1 text-bone">
+							{pageNumber}
+						</span>
+					{:else}
 						<Button
-							href={`/profile/history?page=${data.pagination.page - 1}`}
+							href={`/profile/history?page=${pageNumber}`}
 							outline
 							variant="secondary"
 							size="sm"
 						>
-							Previous
+							{pageNumber}
 						</Button>
 					{/if}
-				</div>
+				{/each}
 
-				<p class="text-base text-ash">
-					Page {data.pagination.page} of {data.pagination.pages}
-				</p>
+				{#if pageNumbers[pageNumbers.length - 1] < data.pagination.pages}
+					<span class="text-ash">…</span>
+				{/if}
 
-				<div>
-					{#if data.pagination.page < data.pagination.pages}
-						<Button
-							href={`/profile/history?page=${data.pagination.page + 1}`}
-							outline
-							variant="secondary"
-							size="sm"
-						>
-							Next
-						</Button>
-					{/if}
-				</div>
-			</div>
+				{#if data.pagination.page < data.pagination.pages}
+					<Button
+						href={`/profile/history?page=${data.pagination.page + 1}`}
+						outline
+						variant="secondary"
+						size="sm"
+					>
+						Next
+					</Button>
+
+					<Button
+						href={`/profile/history?page=${data.pagination.pages}`}
+						outline
+						variant="secondary"
+						size="sm"
+					>
+						Last
+					</Button>
+				{/if}
+			</nav>
 		{/if}
 	{/if}
 </section>

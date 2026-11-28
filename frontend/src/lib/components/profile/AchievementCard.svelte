@@ -6,7 +6,7 @@
 
 	let { achievement }: { achievement: Achievement } = $props();
 
-	const done = $derived(achievement.progress >= achievement.target);
+	const done = $derived(achievement.completed);
 </script>
 
 <Frame variant="double-border" as="article" class="flex h-full min-h-40 gap-4 px-4 py-4">

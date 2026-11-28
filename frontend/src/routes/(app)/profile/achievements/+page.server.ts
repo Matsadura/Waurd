@@ -57,6 +57,7 @@ export const load: PageServerLoad = async ({ fetch }) => {
 			xpReward: achievement.xp_reward,
 			target: achievement.target_value,
 			progress: userProgress?.current_progress ?? 0,
+			completed: userProgress?.is_completed ?? false,
 			unlockedAt:
 				userProgress?.is_completed && userProgress.unlocked_at
 					? new Date(userProgress.unlocked_at).toLocaleDateString('en-US', {

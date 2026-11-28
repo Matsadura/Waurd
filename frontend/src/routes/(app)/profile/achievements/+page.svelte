@@ -13,7 +13,7 @@
 
 	let status = $state('all');
 
-	const isDone = (a: PageData['achievements'][number]) => a.progress >= a.target;
+	const isDone = (a: PageData['achievements'][number]) => a.completed;
 
 	const doneCount = $derived(data.achievements.filter(isDone).length);
 

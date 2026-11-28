@@ -30,6 +30,7 @@ export type Achievement = {
 	xpReward: number;
 	progress: number;
 	target: number;
+	completed: boolean;
 	unlockedAt?: string; // set once completed
 	rewardPerk?: string; // name of the perk it unlocks
 };

@@ -38,7 +38,7 @@
 				</div>
 			</div>
 
-			<Tabs items={tabs} label="Profile sections" class="text-lg" />
+			<Tabs items={tabs} match="prefix" label="Profile sections" class="text-lg" />
 		</header>
 
 		<Divider class="my-6" />

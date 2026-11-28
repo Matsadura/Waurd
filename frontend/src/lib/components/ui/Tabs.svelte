@@ -10,15 +10,25 @@
 
 	let { items, label = 'Sections', match = 'exact', class: className = '' }: Props = $props();
 
-	const isActive = (href: string) =>
-		match === 'prefix'
-			? page.url.pathname === href || page.url.pathname.startsWith(href + '/')
-			: page.url.pathname === href;
+	const activeHref = $derived.by(() => {
+		const pathname = page.url.pathname;
+
+		if (match === 'exact') return pathname;
+
+		return items.reduce(
+			(best, item) =>
+				(pathname === item.href || pathname.startsWith(item.href + '/')) &&
+				item.href.length > best.length
+					? item.href
+					: best,
+			''
+		);
+	});
 </script>
 
 <nav aria-label={label} class={['flex flex-wrap gap-x-6 gap-y-1', className]}>
 	{#each items as item}
-		<a href={item.href} class="tab" aria-current={isActive(item.href) ? 'page' : undefined}>
+		<a href={item.href} class="tab" aria-current={activeHref === item.href ? 'page' : undefined}>
 			{item.label}
 		</a>
 	{/each}

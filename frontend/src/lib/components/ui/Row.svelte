@@ -2,19 +2,23 @@
 	import type { Snippet } from 'svelte';
 
 	type Props = {
-		href: string;
+		href?: string; // with href the whole row is a link and gets the copper hover bar
 		title: string;
 		note?: string; // small text in brackets after the title
-		subtitle?: string;
+		subtitle?: string | Snippet; // plain text, or a snippet when it needs markup
 		class?: string;
+		lead?: Snippet; // left-hand side content, like an Avatar
 		children?: Snippet; // right-hand side content
 	};
 
-	let { href, title, note, subtitle, class: className = '', children }: Props = $props();
+	let { href, title, note, subtitle, class: className = '', lead, children }: Props = $props();
 </script>
 
-<a {href} class={['row group', className]}>
-	<span class="min-w-0">
+<svelte:element this={href ? 'a' : 'div'} {href} class={['row group', className]}>
+	{#if lead}
+		{@render lead()}
+	{/if}
+	<span class="min-w-0 flex-1">
 		<span class="block truncate text-xl sm:text-2xl">
 			{title}
 			{#if note}
@@ -22,10 +26,16 @@
 			{/if}
 		</span>
 		{#if subtitle}
-			<span class="row-sub block text-base italic">{subtitle}</span>
+			<span class="row-sub block text-base italic">
+				{#if typeof subtitle === 'string'}
+					{subtitle}
+				{:else}
+					{@render subtitle()}
+				{/if}
+			</span>
 		{/if}
 	</span>
 	{#if children}
-		<span class="shrink-0 text-right">{@render children()}</span>
+		<div class="shrink-0 text-right">{@render children()}</div>
 	{/if}
-</a>
+</svelte:element>

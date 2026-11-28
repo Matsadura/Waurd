@@ -63,10 +63,12 @@
 @layer components {
 	.stage {
 		@apply fixed inset-0 -z-10;
-		background: radial-gradient(ellipse at 50% 30%,
-				#3a2416 0%,
-				#1a1009 55%,
-				var(--color-ink-950) 100%);
+		background: radial-gradient(
+			ellipse at 50% 30%,
+			#3a2416 0%,
+			#1a1009 55%,
+			var(--color-ink-950) 100%
+		);
 	}
 
 	/* ---- Button ---- */
@@ -145,7 +147,7 @@
 	.btn:disabled,
 	.btn[aria-disabled='true'] {
 		@apply cursor-not-allowed opacity-45;
-		transform: translate(0, 0)
+		transform: translate(0, 0);
 	}
 
 	/* ---- Frame ---- */
@@ -191,18 +193,20 @@
 
 	.rule {
 		@apply h-px border-0;
-		background: linear-gradient(90deg,
-				transparent,
-				color-mix(in srgb, var(--color-bronze) 60%, transparent),
-				transparent);
+		background: linear-gradient(
+			90deg,
+			transparent,
+			color-mix(in srgb, var(--color-bronze) 60%, transparent),
+			transparent
+		);
 	}
 
 	/* ---- Tabs ---- */
 	.tab {
 		@apply border-b border-transparent pb-0.5 text-ash transition-colors hover:text-bone;
 	}
-
-	.tab[aria-current='page'] {
+	.tab[aria-current='page'],
+	.tab[aria-pressed='true'] {
 		@apply border-bronze text-bone;
 	}
 
@@ -215,17 +219,16 @@
 	.row-note {
 		@apply text-ash;
 	}
-
-	.row:hover,
-	.row:focus-visible {
+	a.row:hover,
+	a.row:focus-visible {
 		background: var(--grain), var(--color-primary);
 		outline: none;
 	}
 
-	.row:hover .row-sub,
-	.row:focus-visible .row-sub,
-	.row:hover .row-note,
-	.row:focus-visible .row-note {
+	a.row:hover .row-sub,
+	a.row:focus-visible .row-sub,
+	a.row:hover .row-note,
+	a.row:focus-visible .row-note {
 		@apply text-bone;
 	}
 
@@ -251,7 +254,7 @@
 		@apply h-0.5 bg-bone/10;
 	}
 
-	.meter>i {
+	.meter > i {
 		@apply block h-full bg-primary-light;
 	}
 
@@ -328,7 +331,7 @@
 		animation: fade-in 0.8s ease-out backwards;
 	}
 
-	.meter>i {
+	.meter > i {
 		animation: meter-fill 1s ease-out 0.4s backwards;
 	}
 }

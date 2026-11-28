@@ -10,7 +10,11 @@ declare global {
 		interface User {
 			id: string;
 			username: string;
-			// add other public fields returned by /api/v1/users/me
+			avatar_url: string | null;
+			created_at: string;
+			level: number;
+			xp_into_level: number;
+			xp_for_next_level: number;
 		}
 
 		interface Locals {

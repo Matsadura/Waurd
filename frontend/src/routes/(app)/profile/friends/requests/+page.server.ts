@@ -27,6 +27,7 @@ type PendingRequestResponse = FriendResponse & {
 type PaginatedResponse<T> = {
 	items: T[];
 	total: number;
+	pages: number;
 };
 
 function toFriend(user: FriendResponse): Friend {
@@ -48,38 +49,50 @@ function toFriend(user: FriendResponse): Friend {
 	};
 }
 
-export const load: PageServerLoad = async ({ fetch, parent }) => {
+const PAGE_SIZE = 8;
+
+export const load: PageServerLoad = async ({ fetch, parent, url }) => {
 	await parent();
 
-	let incomingResponse: Response;
-	let outgoingResponse: Response;
+	const tab = url.searchParams.get('tab') === 'sent' ? 'sent' : 'received';
+
+	const requestedPage = Number(url.searchParams.get('page') ?? 1);
+	const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+
+	const direction = tab === 'received' ? 'incoming' : 'outgoing';
+
+	let response: Response;
 
 	try {
-		[incomingResponse, outgoingResponse] = await Promise.all([
-			fetch(api('/friends/requests?direction=incoming&page=1&size=100')),
-			fetch(api('/friends/requests?direction=outgoing&page=1&size=100'))
-		]);
+		response = await fetch(
+			api(`/friends/requests?direction=${direction}&page=${page}&size=${PAGE_SIZE}`)
+		);
 	} catch {
 		error(502, 'Cannot connect to the backend.');
 	}
 
-	if (incomingResponse.status === 401 || outgoingResponse.status === 401) {
+	if (response.status === 401) {
 		redirect(303, '/login');
 	}
 
-	if (!incomingResponse.ok || !outgoingResponse.ok) {
+	if (!response.ok) {
 		error(502, 'Could not retrieve your friend requests.');
 	}
 
-	const incoming: PaginatedResponse<PendingRequestResponse> = await incomingResponse.json();
-	const outgoing: PaginatedResponse<PendingRequestResponse> = await outgoingResponse.json();
+	const result: PaginatedResponse<PendingRequestResponse> = await response.json();
+
+	const lastPage = Math.max(1, result.pages);
+
+	if (page > lastPage) {
+		redirect(302, `/profile/friends/requests?tab=${tab}&page=${lastPage}`);
+	}
 
 	return {
-		incoming: incoming.items.map((request) => ({
-			...toFriend(request),
-			requestId: request.request_id
-		})),
-		outgoing: outgoing.items.map((request) => ({
+		tab,
+		page,
+		pages: result.pages,
+		total: result.total,
+		requests: result.items.map((request) => ({
 			...toFriend(request),
 			requestId: request.request_id
 		}))

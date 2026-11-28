@@ -9,71 +9,99 @@
 	let { data, form }: { data: PageData; form: ActionData | null } = $props();
 
 	let username = $derived(form?.values?.username ?? '');
+
+	const pageNumbers = $derived.by(() => {
+		const count = Math.min(5, data.pages);
+		const start = Math.max(1, Math.min(data.page - 2, data.pages - count + 1));
+
+		return Array.from({ length: count }, (_, i) => start + i);
+	});
+
+	function pageHref(page: number): string {
+		return `/profile/friends/requests?tab=${data.tab}&page=${page}`;
+	}
+
+	function actionHref(action: string): string {
+		return `?/${action}&tab=${data.tab}&page=${data.page}`;
+	}
 </script>
 
 <svelte:head>
 	<title>Requests · Profile</title>
 </svelte:head>
 
-{#if form?.section === 'withdrawRequest'}
-	{#if form.error}
-		<Notice class="mb-4">{form.error}</Notice>
-	{:else if form.message}
-		<Notice variant="success" class="mb-4">
-			{form.message}
-		</Notice>
-	{/if}
+<h2 class="font-display text-2xl">Friend requests</h2>
+
+<nav aria-label="Request type" class="mt-4 flex gap-6 border-b border-bronze/20">
+	<a
+		href="/profile/friends/requests?tab=received"
+		class="tab"
+		aria-current={data.tab === 'received' ? 'page' : undefined}
+	>
+		Received
+	</a>
+
+	<a
+		href="/profile/friends/requests?tab=sent"
+		class="tab"
+		aria-current={data.tab === 'sent' ? 'page' : undefined}
+	>
+		Sent
+	</a>
+</nav>
+
+{#if form?.error}
+	<Notice class="mt-4">{form.error}</Notice>
+{:else if form?.message}
+	<Notice variant="success" class="mt-4">
+		{form.message}
+	</Notice>
 {/if}
 
-<section aria-labelledby="send-request">
-	<h2 id="send-request" class="font-display text-2xl">Send a friend request</h2>
+{#if data.tab === 'sent'}
+	<section aria-labelledby="send-request" class="mt-6">
+		<h3 id="send-request" class="font-display text-xl">Send a friend request</h3>
 
-	<form method="POST" action="?/sendRequest" class="mt-3 flex flex-wrap items-end gap-3">
-		<div class="w-full max-w-sm">
-			<input
-				id="friend-username"
-				name="username"
-				aria-label="Username to send a friend request to"
-				bind:value={username}
-				class="field mt-1"
-				placeholder="Username"
-				autocomplete="off"
-			/>
-		</div>
-		<Button type="submit" outline>Send</Button>
-	</form>
+		<form
+			method="POST"
+			action={actionHref('sendRequest')}
+			class="mt-3 flex flex-wrap items-end gap-3"
+		>
+			<div class="w-full max-w-sm">
+				<input
+					id="friend-username"
+					name="username"
+					aria-label="Username to send a friend request to"
+					bind:value={username}
+					class="field mt-1"
+					placeholder="Username"
+					autocomplete="off"
+				/>
+			</div>
 
-	{#if form?.section === 'sendRequest'}
-		{#if form.error}
-			<Notice class="mt-2">{form.error}</Notice>
-		{:else if form.message}
-			<Notice variant="success" class="mt-2">
-				{form.message}
-			</Notice>
-		{/if}
-	{/if}
-</section>
+			<Button type="submit" outline>Send</Button>
+		</form>
+	</section>
 
-{#if form?.section === 'respondRequest'}
-	{#if form.error}
-		<Notice class="mt-4">{form.error}</Notice>
-	{:else if form.message}
-		<Notice variant="success" class="mt-4">
-			{form.message}
-		</Notice>
-	{/if}
+	<Divider class="my-6" />
 {/if}
 
-<Divider class="my-6" />
+<section aria-labelledby="requests-list" class="mt-5">
+	<h3 id="requests-list" class="font-display text-xl">
+		{data.tab === 'received' ? 'Incoming' : 'Outgoing'}
+		<span class="text-base text-ash">({data.total})</span>
+	</h3>
 
-<section aria-labelledby="pending">
-	<h2 id="pending" class="font-display text-2xl">Pending requests</h2>
-
-	{#if data.incoming.length || data.outgoing.length}
+	{#if data.requests.length}
 		<ul class="mt-3 divide-y divide-bronze/20">
-			{#each data.incoming as friend (friend.requestId)}
+			{#each data.requests as friend (friend.requestId)}
 				<li>
-					<Row title={friend.username} subtitle="Wants to join your fellowship">
+					<Row
+						title={friend.username}
+						subtitle={data.tab === 'received'
+							? 'Wants to join your fellowship'
+							: 'Awaiting their answer'}
+					>
 						{#snippet lead()}
 							<Avatar
 								name={friend.username}
@@ -83,43 +111,74 @@
 							/>
 						{/snippet}
 
-						<div class="flex flex-col gap-2 sm:flex-row">
-							<form method="POST" action="?/respondRequest">
-								<input type="hidden" name="requestId" value={friend.requestId} />
-								<input type="hidden" name="action" value="ACCEPTED" />
-								<Button type="submit" size="sm" variant="success" outline>Accept</Button>
-							</form>
+						{#if data.tab === 'received'}
+							<div class="flex flex-col gap-2 sm:flex-row">
+								<form method="POST" action={actionHref('respondRequest')}>
+									<input type="hidden" name="requestId" value={friend.requestId} />
+									<input type="hidden" name="action" value="ACCEPTED" />
 
-							<form method="POST" action="?/respondRequest">
-								<input type="hidden" name="requestId" value={friend.requestId} />
-								<input type="hidden" name="action" value="DECLINED" />
-								<Button type="submit" size="sm" variant="danger" outline>Decline</Button>
-							</form>
-						</div>
-					</Row>
-				</li>
-			{/each}
+									<Button type="submit" size="sm" variant="success" outline>Accept</Button>
+								</form>
 
-			{#each data.outgoing as friend (friend.requestId)}
-				<li>
-					<Row title={friend.username} subtitle="Awaiting their answer">
-						{#snippet lead()}
-							<Avatar
-								name={friend.username}
-								src={friend.avatarUrl}
-								alt=""
-								class="size-12 text-xl"
-							/>
-						{/snippet}
-						<form method="POST" action="?/withdrawRequest">
-							<input type="hidden" name="requestId" value={friend.requestId} />
-							<Button type="submit" size="sm" variant="secondary" outline>Withdraw</Button>
-						</form>
+								<form method="POST" action={actionHref('respondRequest')}>
+									<input type="hidden" name="requestId" value={friend.requestId} />
+									<input type="hidden" name="action" value="DECLINED" />
+
+									<Button type="submit" size="sm" variant="danger" outline>Decline</Button>
+								</form>
+							</div>
+						{:else}
+							<form method="POST" action={actionHref('withdrawRequest')}>
+								<input type="hidden" name="requestId" value={friend.requestId} />
+
+								<Button type="submit" size="sm" variant="secondary" outline>Withdraw</Button>
+							</form>
+						{/if}
 					</Row>
 				</li>
 			{/each}
 		</ul>
 	{:else}
-		<p class="mt-6 text-ash italic">No pending friend requests.</p>
+		<p class="mt-4 text-ash italic">
+			{data.tab === 'received' ? 'No incoming friend requests.' : 'No outgoing friend requests.'}
+		</p>
+	{/if}
+
+	{#if data.pages > 1}
+		<nav
+			aria-label="Requests pagination"
+			class="mt-6 flex flex-wrap items-center justify-center gap-2 text-sm"
+		>
+			{#if data.page > 1}
+				<a href={pageHref(1)} class="text-ash hover:text-bone">First</a>
+				<a href={pageHref(data.page - 1)} class="text-ash hover:text-bone"> Previous </a>
+			{:else}
+				<span class="text-ash/40">First</span>
+				<span class="text-ash/40">Previous</span>
+			{/if}
+
+			{#each pageNumbers as number (number)}
+				<a
+					href={pageHref(number)}
+					aria-current={number === data.page ? 'page' : undefined}
+					class={[
+						'rounded border px-3 py-1',
+						number === data.page
+							? 'border-bronze text-bone'
+							: 'border-bronze/20 text-ash hover:border-bronze hover:text-bone'
+					]}
+				>
+					{number}
+				</a>
+			{/each}
+
+			{#if data.page < data.pages}
+				<a href={pageHref(data.page + 1)} class="text-ash hover:text-bone"> Next </a>
+				<a href={pageHref(data.pages)} class="text-ash hover:text-bone">Last</a>
+			{:else}
+				<span class="text-ash/40">Next</span>
+				<span class="text-ash/40">Last</span>
+			{/if}
+		</nav>
 	{/if}
 </section>

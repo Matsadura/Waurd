@@ -15,6 +15,7 @@ type FriendResponse = {
 type PaginatedResponse<T> = {
 	items: T[];
 	total: number;
+	pages: number;
 };
 
 function toFriend(user: FriendResponse): Friend {
@@ -36,13 +37,33 @@ function toFriend(user: FriendResponse): Friend {
 	};
 }
 
-export const load: PageServerLoad = async ({ fetch, parent }) => {
+const PAGE_SIZE = 8;
+
+export const load: PageServerLoad = async ({ fetch, parent, url }) => {
 	await parent();
+
+	const query = (url.searchParams.get('q') ?? '').trim();
+
+	if (query.length > 32) {
+		error(400, 'Search must be at most 32 characters.');
+	}
+
+	const requestedPage = Number(url.searchParams.get('page') ?? 1);
+	const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+
+	const params = new URLSearchParams({
+		page: String(page),
+		size: String(PAGE_SIZE)
+	});
+
+	if (query) {
+		params.set('q', query);
+	}
 
 	let response: Response;
 
 	try {
-		response = await fetch(api('/friends?page=1&size=100'));
+		response = await fetch(api(`/friends?${params.toString()}`));
 	} catch {
 		error(502, 'Cannot connect to the backend.');
 	}
@@ -57,9 +78,24 @@ export const load: PageServerLoad = async ({ fetch, parent }) => {
 
 	const friends: PaginatedResponse<FriendResponse> = await response.json();
 
+	// redirects to the last valid page
+	if (page > Math.max(1, friends.pages)) {
+		const lastPage = Math.max(1, friends.pages);
+		const redirectParams = new URLSearchParams({ page: String(lastPage) });
+
+		if (query) {
+			redirectParams.set('q', query);
+		}
+
+		redirect(302, `/profile/friends?${redirectParams.toString()}`);
+	}
+
 	return {
 		friendCount: friends.total,
-		friends: friends.items.map(toFriend)
+		friends: friends.items.map(toFriend),
+		page,
+		pages: friends.pages,
+		query
 	};
 };
 

@@ -1,7 +1,7 @@
 // Shapes of the data shown on the profile pages. They follow the backend schemas
 // (MatchResponse, FriendUserResponse, UserAchievementResponse, PerkResponse), in camelCase.
 
-export type MatchResult = 'win' | 'loss' | 'draw'; // remove this later because there is no draw in this game !!!!
+export type MatchResult = 'win' | 'loss' | 'draw'; // // TODO: Confirm whether draws will be supported by the game.
 
 export type Match = {
 	id: string | number;

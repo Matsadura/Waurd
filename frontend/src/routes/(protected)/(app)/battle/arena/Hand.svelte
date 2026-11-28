@@ -3,17 +3,35 @@
 	import draggable from '#lib/utils/draggable.ts';
 	import GlyphFace from '#lib/components/arena/GlyphFace.svelte';
 	import Notice from '#lib/components/ui/Notice.svelte';
+
 	const arena = getArena();
+
+	let inspected = $state<number | null>(null);
+	let inspectTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function inspect(event: MouseEvent, position: number) {
+		event.preventDefault();
+		clearTimeout(inspectTimer);
+		inspected = position;
+		inspectTimer = setTimeout(() => {
+			inspected = null;
+		}, 2000);
+	}
+
+	$effect(() => {
+		return () => {
+			clearTimeout(inspectTimer);
+		};
+	});
 </script>
 
 <div class="hand fixed inset-x-0 bottom-0 z-40 flex" style:--n={arena.hand.length}>
 	{#each arena.hand as glyph, i (glyph.position)}
 		<button
-			class={[
-				'card absolute bottom-0 left-1/2 ml-[-6%] cursor-pointer touch-none hover:shadow-2xl hover:shadow-amber-200/20',
-				FEEL.CardWidth
-			]}
+			class={['card absolute bottom-0 left-1/2 ml-[-6%] cursor-pointer touch-none', FEEL.CardWidth]}
 			style:--i={i}
+			data-inspected={inspected === glyph.position ? '' : undefined}
+			oncontextmenu={(event) => inspect(event, glyph.position)}
 			{@attach draggable(
 				(x, y) => arena.dragOver(x, y),
 				() => arena.drop(glyph.position),
@@ -39,9 +57,8 @@
 		--step: min(2deg, calc(var(--max-spread) / max(var(--n) - 1, 1)));
 
 		--easing: cubic-bezier(0.2, 0.8, 0.2, 1);
-		--animation-duration: 900ms;
-		--animation-delay: 50ms;
-		--z-index-delay: 300ms;
+		--animation-duration: 350ms;
+		--animation-delay: 0ms;
 	}
 
 	.card {
@@ -65,23 +82,19 @@
 			scale var(--animation-duration) var(--easing) var(--animation-delay);
 	}
 
-	.card:hover {
+	.card[data-inspected] {
 		--lift: calc(1.1rem * abs(var(--offset)));
 
 		z-index: 50;
 		scale: 1.2;
-
-		transition:
-			z-index 0s var(--z-index-delay),
-			translate var(--animation-duration) var(--easing) var(--animation-delay),
-			scale var(--animation-duration) var(--easing) var(--animation-delay);
+		box-shadow: 0 25px 50px -12px rgb(253 230 138 / 20%);
 	}
 
-	.card:hover ~ .card {
+	.card[data-inspected] ~ .card {
 		--push: 60%;
 	}
 
-	.card:has(~ .card:hover) {
+	.card:has(~ .card[data-inspected]) {
 		--push: -10%;
 	}
 

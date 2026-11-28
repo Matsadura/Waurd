@@ -20,7 +20,7 @@ type MatchesResponse = {
 };
 
 export const load: PageServerLoad = async ({ fetch, parent, url }) => {
-	const { user } = await parent();
+	const { profile: user } = await parent();
 
 	const requestedPage = Number(url.searchParams.get('page') ?? '1');
 	const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;

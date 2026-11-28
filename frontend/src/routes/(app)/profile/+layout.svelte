@@ -22,18 +22,18 @@
 		<header class="flex flex-wrap items-center justify-between gap-x-8 gap-y-5">
 			<div class="flex min-w-0 items-center gap-5">
 				<Avatar
-					name={data.user.username}
-					src={data.user.avatarUrl ?? undefined}
+					name={data.profile.username}
+					src={data.profile.avatarUrl ?? undefined}
 					alt=""
 					class="size-16 shrink-0 sm:size-20 sm:text-4xl"
 				/>
 
 				<div class="min-w-0">
 					<h1 class="text-2xl wrap-break-word sm:text-3xl">
-						{data.user.username}
+						{data.profile.username}
 					</h1>
 					<p class="text-lg text-ash">
-						Level {data.user.level}
+						Level {data.profile.level}
 					</p>
 				</div>
 			</div>

@@ -43,18 +43,18 @@
 	</section>
 
 	<Frame variant="double-border" as="aside" aria-label="Player status" class="order-1 lg:order-0">
-		<Frame variant="border" class="text-lg">{data.user.username}</Frame>
+		<Frame variant="border" class="text-lg">{data.profile.username}</Frame>
 
 		<dl class="mt-4 text-lg">
-			<Stat label="Level">{data.user.level}</Stat>
+			<Stat label="Level">{data.profile.level}</Stat>
 
 			<Stat label="Experience">
-				{data.user.xpIntoLevel} / {data.user.xpForNextLevel}
+				{data.profile.xpIntoLevel} / {data.profile.xpForNextLevel}
 			</Stat>
 
 			<Meter
-				value={data.user.xpIntoLevel}
-				max={data.user.xpForNextLevel}
+				value={data.profile.xpIntoLevel}
+				max={data.profile.xpForNextLevel}
 				label="Experience"
 				class="mt-1"
 			/>
@@ -73,7 +73,7 @@
 			<Divider class="my-3" />
 
 			<Stat label="Friends">{data.friendCount}</Stat>
-			<Stat label="Joined">{data.user.joined}</Stat>
+			<Stat label="Joined">{data.profile.joined}</Stat>
 		</dl>
 	</Frame>
 </div>

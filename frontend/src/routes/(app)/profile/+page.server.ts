@@ -20,7 +20,7 @@ type MatchesResponse = {
 
 export const load: PageServerLoad = async ({ fetch, parent }) => {
 	// Get the user already fetched in +layout.server.ts instead of requesting /users/me again
-	const { user } = await parent();
+	const { profile: user } = await parent();
 
 	let statsResponse: Response;
 	let friendsResponse: Response;

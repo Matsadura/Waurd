@@ -134,6 +134,84 @@ class TestListFriends:
 
         assert response.json()["items"] == []
 
+    async def friends_named(self, alice, make_user, make_friendship, *names, online=()):  # type: ignore[no-untyped-def]
+        for name in names:
+            friend = await make_user(username=name, is_online=name in online)
+            await make_friendship(alice, friend, FriendshipStatus.ACCEPTED)
+
+    async def test_online_friends_come_first_then_by_username(
+        self, alice_client, alice, make_user, make_friendship
+    ):
+        await self.friends_named(
+            alice,
+            make_user,
+            make_friendship,
+            "zed",
+            "amy",
+            "kai",
+            "bea",
+            online=("zed", "kai"),
+        )
+
+        first = (await alice_client.get("/friends?size=2")).json()["items"]
+        second = (await alice_client.get("/friends?size=2&page=2")).json()["items"]
+
+        assert [f["username"] for f in first] == ["kai", "zed"]  # online, on page 1
+        assert [f["username"] for f in second] == ["amy", "bea"]
+
+    async def test_search_matches_part_of_the_username_in_any_case(
+        self, alice_client, alice, make_user, make_friendship
+    ):
+        await self.friends_named(
+            alice, make_user, make_friendship, "Rogue", "drogon", "amy"
+        )
+
+        response = await alice_client.get("/friends?q=ROG")
+
+        assert usernames(response.json()["items"]) == {"Rogue", "drogon"}
+
+    async def test_search_runs_before_paging(
+        self, alice_client, alice, make_user, make_friendship
+    ):
+        await self.friends_named(
+            alice, make_user, make_friendship, "ana", "anna", "hannah", "bob2", "carl"
+        )
+
+        first = (await alice_client.get("/friends?q=an&size=2")).json()
+        second = (await alice_client.get("/friends?q=an&size=2&page=2")).json()
+
+        assert (first["total"], first["pages"]) == (3, 2)
+        assert usernames(first["items"] + second["items"]) == {"ana", "anna", "hannah"}
+
+    async def test_search_finds_only_friends(
+        self, alice_client, alice, make_user, make_friendship
+    ):
+        await self.friends_named(alice, make_user, make_friendship, "anya")
+        await make_user(username="anton")  # not a friend
+
+        response = await alice_client.get("/friends?q=an")
+
+        assert usernames(response.json()["items"]) == {"anya"}
+
+    async def test_percent_and_underscore_are_searched_literally(
+        self, alice_client, alice, make_user, make_friendship
+    ):
+        await self.friends_named(
+            alice, make_user, make_friendship, "a_b", "axb", "c%d", "cd"
+        )
+
+        underscore = (await alice_client.get("/friends?q=a_b")).json()["items"]
+        percent = (await alice_client.get("/friends?q=c%25d")).json()["items"]
+
+        assert usernames(underscore) == {"a_b"}
+        assert usernames(percent) == {"c%d"}
+
+    @pytest.mark.parametrize("q", ["", "x" * 33])
+    async def test_an_empty_or_too_long_search_is_rejected(self, alice_client, q):
+        response = await alice_client.get("/friends", params={"q": q})
+
+        assert response.status_code == 422
+
 
 class TestListPendingRequests:
     async def test_empty_by_default(self, alice_client):

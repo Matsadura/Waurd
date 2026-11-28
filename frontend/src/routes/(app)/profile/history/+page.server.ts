@@ -52,6 +52,12 @@ export const load: PageServerLoad = async ({ fetch, parent, url }) => {
 	const stats: StatsResponse = await statsResponse.json();
 	const history: MatchesResponse = await matchesResponse.json();
 
+	const lastPage = Math.max(1, history.pages);
+
+	if (page > lastPage) {
+		redirect(302, `/profile/history?page=${lastPage}`);
+	}
+
 	return {
 		stats: {
 			games: stats.matches_played,

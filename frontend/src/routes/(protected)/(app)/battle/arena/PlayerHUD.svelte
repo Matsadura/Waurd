@@ -1,17 +1,57 @@
 <script lang="ts">
-	import type { Player } from '#lib/utils/Player.svelte.ts';
+	type EffectName = 'defense' | 'weak' | 'vulnerable';
+	type Effect = { name: EffectName; amount: number };
+
+	const EFFECT_BADGE: Record<EffectName, { icon: string; colorClass: string }> = {
+		defense: { icon: '🛡', colorClass: 'text-sky-400' },
+		vulnerable: { icon: '✦', colorClass: 'text-purple-300' },
+		weak: { icon: '✧', colorClass: 'text-amber-300' }
+	};
+
+	const pad = (n: number) => String(n).padStart(2, '0');
 
 	let {
-		player,
+		name,
+		avatar,
+		label,
+		hp,
+		maxHp = 100,
+		timeLeft,
+		defense = 0,
+		statuses = {},
 		side = 'right',
 		isTurn = false
 	}: {
-		player: Player;
+		name: string;
+		avatar?: string;
+		label: 'You' | 'Opponent';
+		hp: number;
+		maxHp?: number;
+		timeLeft: number;
+		defense?: number;
+		statuses?: Record<string, number>;
 		side?: 'left' | 'right';
 		isTurn?: boolean;
 	} = $props();
 
 	const mirrored = $derived(side === 'left');
+	const seconds = $derived(Math.ceil(Math.max(0, timeLeft)));
+	const timer = $derived(`${pad(Math.floor(seconds / 60))}:${pad(seconds % 60)}`);
+	const healthBarPercentage = $derived(
+		maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 0
+	);
+	const effects = $derived.by(() => {
+		const list: Effect[] = [];
+		if (defense > 0) {
+			list.push({ name: 'defense', amount: defense });
+		}
+		for (const [effectName, amount] of Object.entries(statuses)) {
+			if (amount > 0 && (effectName === 'weak' || effectName === 'vulnerable')) {
+				list.push({ name: effectName, amount });
+			}
+		}
+		return list;
+	});
 </script>
 
 <section
@@ -26,18 +66,18 @@
 			href="https://www.youtube.com/watch?v=xdovIDv6SHM"
 			target="_blank"
 		>
-			{#if player.avatar}
-				<img src={player.avatar} alt="" class="size-full object-cover" draggable="false" />
+			{#if avatar}
+				<img src={avatar} alt="" class="size-full object-cover" draggable="false" />
 			{:else}
 				<span class="grid size-full place-items-center text-lg md:text-2xl lg:text-3xl">
-					{player.name.charAt(0)}
+					{name.charAt(0)}
 				</span>
 			{/if}
 		</a>
 		<span
 			class="relative -mt-2 rounded-full border border-card-skill bg-arena-yallow-100 px-1.5 py-px text-xs leading-tight font-bold text-card-skill lg:text-sm"
 		>
-			{player.label}
+			{label}
 		</span>
 	</div>
 
@@ -47,14 +87,14 @@
 				class="truncate text-base leading-snug font-bold md:text-xl lg:text-2xl"
 				class:turn-flash={isTurn}
 			>
-				{player.name}
+				{name}
 			</h2>
 
 			<!-- Clock -->
 			<span
 				class={[
 					'flex items-center justify-center gap-1 rounded bg-arena-yallow-100 px-2 py-0.5 text-sm leading-none font-bold text-card-skill tabular-nums motion-reduce:animate-none md:w-28 md:px-2.5 md:py-2.5 md:text-xl lg:w-32 lg:text-2xl',
-					isTurn && (player.timeLeft > 60 ? 'active-clock' : 'active-clock-danger')
+					isTurn && (seconds > 60 ? 'active-clock' : 'active-clock-danger')
 				]}
 			>
 				<svg
@@ -69,7 +109,7 @@
 					<circle cx="12" cy="12" r="9" />
 					<path d="M12 7v5l3 2" />
 				</svg>
-				{player.timer}
+				{timer}
 			</span>
 		</header>
 
@@ -78,8 +118,8 @@
 			role="meter"
 			aria-label="Health"
 			aria-valuemin={0}
-			aria-valuemax={player.maxHp}
-			aria-valuenow={player.hp}
+			aria-valuemax={maxHp}
+			aria-valuenow={hp}
 		>
 			<!-- Lagging damage trail -->
 			<div
@@ -87,7 +127,7 @@
 					'col-start-1 row-start-1 bg-rose-300 transition-all delay-300 duration-700 ease-out motion-reduce:transition-none',
 					mirrored && 'justify-self-end'
 				]}
-				style:width="{player.healthBarPercentage}%"
+				style:width="{healthBarPercentage}%"
 			></div>
 
 			<!-- Current health -->
@@ -96,7 +136,7 @@
 					'col-start-1 row-start-1 border-rose-500/60 bg-rose-700 bg-linear-to-b from-white/25 to-transparent transition-all duration-300 ease-out motion-reduce:transition-none',
 					mirrored ? 'justify-self-end border-l-2' : 'border-r-2'
 				]}
-				style:width="{player.healthBarPercentage}%"
+				style:width="{healthBarPercentage}%"
 			></div>
 			<!-- Ticks -->
 			<div class="col-start-1 row-start-1 grid grid-cols-4 divide-x-2 divide-arena-yallow-100/20">
@@ -109,7 +149,7 @@
 					mirrored && 'justify-self-end'
 				]}
 			>
-				{player.hp} / {player.maxHp}
+				{hp} / {maxHp}
 			</span>
 		</div>
 
@@ -120,7 +160,7 @@
 				mirrored && 'flex-row-reverse'
 			]}
 		>
-			{#each player.effects as effect}
+			{#each effects as effect}
 				<li
 					class={[
 						'flex items-center gap-1 rounded-md border border-arena-yallow-100/30 bg-black/30 px-1.5',
@@ -128,7 +168,9 @@
 					]}
 					aria-label="{effect.name} effect"
 				>
-					<span class="mt-1 text-xl text-rose-500">&#10084;</span>
+					<span class={['text-base leading-none', EFFECT_BADGE[effect.name].colorClass]}>
+						{EFFECT_BADGE[effect.name].icon}
+					</span>
 					{effect.amount}
 					{effect.name[0].toLocaleUpperCase() + effect.name.slice(1).toLocaleLowerCase()}
 				</li>

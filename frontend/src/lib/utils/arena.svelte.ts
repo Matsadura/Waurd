@@ -1,6 +1,5 @@
 import { getContext, setContext } from 'svelte';
 import { BattleSocket, type HandGlyph, type ServerGlyph } from './battleSocket.svelte';
-import { Player } from './Player.svelte';
 
 type ElementList = (HTMLElement | undefined)[];
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -23,15 +22,14 @@ export type activeView = 'slots' | 'perks' | 'draw' | 'discard';
 export type WordSubmitPhase = 'idle' | 'checking' | 'invalid' | 'valid';
 
 export class Arena {
-	#clock: ReturnType<typeof setInterval> | undefined;
 	readonly slotCount = 8;
 
-	battle: BattleSocket | null = null;
+	battle = new BattleSocket();
 
 	/* My glyphs and perks */
-	glyphs = $derived<HandGlyph[]>(this.battle?.state?.you.hand ?? []);
-	drawPile = $derived<ServerGlyph[]>(this.battle?.state?.you.draw_pile ?? []);
-	discardPile = $derived<ServerGlyph[]>(this.battle?.state?.you.discard_pile ?? []);
+	glyphs = $derived<HandGlyph[]>(this.battle.state?.you.hand ?? []);
+	drawPile = $derived<ServerGlyph[]>(this.battle.state?.you.draw_pile ?? []);
+	discardPile = $derived<ServerGlyph[]>(this.battle.state?.you.discard_pile ?? []);
 	slots = $state<(number | null)[]>(Array(this.slotCount).fill(null));
 	hand = $derived<HandGlyph[]>(this.glyphs.filter((g) => !this.slots.includes(g.position)));
 
@@ -45,56 +43,45 @@ export class Arena {
 	currentView: activeView = $state('slots');
 	phase: WordSubmitPhase = $state('idle');
 
-	/* Players states */
-	me = new Player({
-		name: '13s1ing_1s_3v3r37hing',
-		avatar: 'https://avatars.githubusercontent.com/u/104344010',
-		maxHp: 100,
-		hp: 98,
-		timeLeft: 65,
-		effects: [
-			{ name: 'attack', amount: 5 },
-			{ name: 'defense', amount: 5 }
-		],
-		label: 'You'
-	});
-	opponent = new Player({ name: 'World', maxHp: 100, timeLeft: 650, label: 'Opponent' });
+	/* Turn & clocks */
+	turnNumber = $derived(this.battle.state?.turn ?? 0);
+	turn = $derived.by<'me' | 'opponent' | null>(() => {
+		if (this.battle.state === null ||
+			this.battle.state.turn === 0 ||
+			this.battle.state.winner !== null ||
+			this.battle.aborted) {
+			return null;
+		} else {
+			return this.battle.state.your_turn ? 'me' : 'opponent';
+		}
+	}
+	);
+	myTime = $derived(this.battle.state?.time_left?.you ?? 0);
+	opponentTime = $derived(this.battle.state?.time_left?.opponent ?? 0);
 
-	/* Game engine */
-	turn = $state<'me' | 'opponent'>('opponent');
-	constructor(getBattleId: () => string) {
-		this.battle = new BattleSocket(getBattleId);
-
+	constructor() {
+		// NOTE(Ali): This effects responsible for the countdown timer
 		$effect(() => {
-			this.continuePlayerClock();
-			this.showTurnBanner();
-			return () => this.clearClock();
-		});
-	}
-	turnBanner = $state(false);
-	#bannerTimer: ReturnType<typeof setTimeout> | undefined;
+			if (this.turn !== null) {
+				const interval = setInterval(() => {
+					if (this.turn === 'me' && this.myTime > 0) {
+						this.myTime = Math.max(0, this.myTime - 1);
+					} else if (this.turn === 'opponent' && this.opponentTime > 0) {
+						this.opponentTime = Math.max(0, this.opponentTime - 1);
+					}
+				}, 1000);
 
-	showTurnBanner(ms = 800) {
-		clearTimeout(this.#bannerTimer);
-		this.turnBanner = true;
-		this.#bannerTimer = setTimeout(() => (this.turnBanner = false), ms);
-	}
-
-	clearClock() {
-		clearInterval(this.#clock);
-		this.#clock = undefined;
-	}
-
-	continuePlayerClock() {
-		this.clearClock();
-		console.log('Hello world');
-		this.#clock = setInterval(() => {
-			const activePlayer = this[this.turn];
-			activePlayer.timeLeft--;
-			if (activePlayer.timeLeft < 0) {
-				activePlayer.timeLeft = 69;
+				return () => {
+					clearInterval(interval);
+				};
 			}
-		}, 1000);
+		});
+
+		// Reset placed slots whenever a new turn starts
+		$effect(() => {
+			this.turnNumber;
+			this.slots = Array(this.slotCount).fill(null);
+		});
 	}
 
 	async playWrongErrorAnimatino() { }
@@ -131,7 +118,9 @@ export class Arena {
 		return (el: HTMLElement) => {
 			list[i] = el;
 			return () => {
-				if (list[i] === el) list[i] = undefined;
+				if (list[i] === el) {
+					list[i] = undefined;
+				}
 			};
 		};
 	}
@@ -235,18 +224,13 @@ export class Arena {
 		this.slots.fill(null);
 	}
 
-	changeToNextPlayerTurn() {
-		this.turn = this.turn === 'me' ? 'opponent' : 'me';
-		this.showTurnBanner();
-	}
-
 	setCurrentView(view: activeView) {
 		this.currentView = view;
 	}
 }
 
 const KEY = Symbol('arena');
-export const setArena = (getBattleId: () => string) => setContext(KEY, new Arena(getBattleId));
+export const setArena = () => setContext(KEY, new Arena());
 export function getArena() {
 	const arena = getContext<Arena | undefined>(KEY);
 	if (!arena) {

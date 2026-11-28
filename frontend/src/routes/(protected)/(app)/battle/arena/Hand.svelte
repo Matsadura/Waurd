@@ -2,6 +2,7 @@
 	import { FEEL, getArena } from '#lib/utils/arena.svelte.ts';
 	import draggable from '#lib/utils/draggable.ts';
 	import GlyphFace from '#lib/components/arena/GlyphFace.svelte';
+	import Notice from '#lib/components/ui/Notice.svelte';
 	const arena = getArena();
 </script>
 
@@ -24,6 +25,11 @@
 			</div>
 		</button>
 	{/each}
+	{#if arena.turn === 'opponent'}
+		<Notice variant="info" class="absolute bottom-10 left-1/2 -translate-x-1/2 text-center"
+			>Patience, my lord. Your glyphs will arrive when your turn comes.</Notice
+		>
+	{/if}
 </div>
 
 <style>

@@ -14,8 +14,13 @@
 
 	let { data } = $props();
 
-	setArena(() => data.ticket.matched_match_id);
-	let arena = getArena();
+	setArena();
+	const arena = getArena();
+
+	$effect(() => {
+		return arena.battle.connect(data.ticket.matched_match_id);
+	});
+	let showDebugInfo = $state(false);
 </script>
 
 <div
@@ -26,8 +31,28 @@
 		<div
 			class="mt-4 mb-auto flex flex-col items-stretch gap-2 px-3 md:flex-row md:items-start md:justify-between md:px-10"
 		>
-			<PlayerHUD player={arena.me} side="right" isTurn={arena.turn === 'me'} />
-			<PlayerHUD player={arena.opponent} side="left" isTurn={arena.turn === 'opponent'} />
+			<PlayerHUD
+				name={data.players.me.name}
+				avatar={data.players.me.avatar}
+				label="You"
+				side="right"
+				hp={arena.battle.state?.you.hp ?? 100}
+				defense={arena.battle.state?.you.defense ?? 0}
+				statuses={arena.battle.state?.you.statuses ?? {}}
+				timeLeft={arena.battle.state === null ? data.timeControlSeconds : arena.myTime}
+				isTurn={arena.turn === 'me'}
+			/>
+			<PlayerHUD
+				name={data.players.opponent.name}
+				avatar={data.players.opponent.avatar}
+				label="Opponent"
+				side="left"
+				hp={arena.battle.state?.opponent.hp ?? 100}
+				defense={arena.battle.state?.opponent.defense ?? 0}
+				statuses={arena.battle.state?.opponent.statuses ?? {}}
+				timeLeft={arena.battle.state === null ? data.timeControlSeconds : arena.opponentTime}
+				isTurn={arena.turn === 'opponent'}
+			/>
 		</div>
 		<Slots />
 		<div class="mt-4 mr-10 flex w-fit gap-4 self-end lg:mr-32">
@@ -64,30 +89,26 @@
 		<GlyphsList title="Discard pile" glyphs={arena.discardPile} />
 	{/if}
 
-	<!-- debugging buttons -->
-	<!-- <div class="absolute top-10 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
-		<div class="flex gap-2 bg-red-200/20 p-2">
-			<button
-				onclick={() => arena.changeToNextPlayerTurn()}
-				class="cursor-pointer rounded bg-green-950 px-2 py-1 text-arena-yallow-100"
-				>Change turn</button
-			>
-		</div>
-	</div> -->
-	<TurnBanner />
-	<pre
-		class="absolute inset-0 max-h-[60%] w-full overflow-auto rounded border border-white/20 bg-black/80 p-3 text-left text-xs text-green-200 select-text">{JSON.stringify(
-			{
-				battleId: data.ticket.matched_match_id,
-				status: arena.battle?.status,
-				error: arena.battle?.error,
-				aborted: arena.battle?.aborted,
-				opponentGraceSeconds: arena.battle?.opponentGraceSeconds,
-				state: arena.battle?.state
-			},
-			null,
-			2
-		)}</pre>
+	<TurnBanner myName={data.players.me.name} opponentName={data.players.opponent.name} />
+	<button
+		class="absolute bottom-10 left-5 rounded-md border border-white/20 bg-black/80 p-3 text-xs text-white"
+		onclick={() => (showDebugInfo = !showDebugInfo)}>Toggle debug info</button
+	>
+	{#if showDebugInfo}
+		<pre
+			class="absolute inset-0 max-h-[60%] w-full overflow-auto rounded border border-white/20 bg-black/80 p-3 text-left text-xs text-green-200 select-text">{JSON.stringify(
+				{
+					battleId: data.ticket.matched_match_id,
+					status: arena.battle.status,
+					error: arena.battle.error,
+					aborted: arena.battle.aborted,
+					opponentGraceSeconds: arena.battle.opponentGraceSeconds,
+					state: arena.battle.state
+				},
+				null,
+				2
+			)}</pre>
+	{/if}
 </div>
 
 <style>

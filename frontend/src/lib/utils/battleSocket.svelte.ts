@@ -68,77 +68,75 @@ export class BattleSocket {
 
 	#socket: WebSocket | null = null;
 
-	constructor(getBattleId: () => string) {
-		$effect(() => {
-			const battleId = getBattleId();
-			const wsBase = PUBLIC_BACKEND_URL.replace(/^http/, 'ws');
-			const socket = new WebSocket(`${wsBase}/ws/matches/${battleId}`);
+	connect(battleId: string) {
+		// NOTE(Ali): this function runs inside $effect, so make sure no state is readed.
+		const wsBase = PUBLIC_BACKEND_URL.replace(/^http/, 'ws');
+		const socket = new WebSocket(`${wsBase}/ws/matches/${battleId}`);
 
-			this.#socket = socket;
-			this.status = 'connecting';
-			this.state = null;
+		this.#socket = socket;
+		this.status = 'connecting';
+		this.state = null;
+		this.error = null;
+		this.aborted = false;
+		this.opponentGraceSeconds = null;
+
+		socket.onopen = () => {
+			this.status = 'connected';
 			this.error = null;
-			this.aborted = false;
-			this.opponentGraceSeconds = null;
+		};
 
-			socket.onopen = () => {
-				this.status = 'connected';
-				this.error = null;
-			};
+		socket.onmessage = (event) => {
+			let message: ServerMessage | null = null;
 
-			socket.onmessage = (event) => {
-				let message: ServerMessage | null = null;
+			try {
+				message = JSON.parse(event.data) as ServerMessage;
+			} catch {
+				this.error = 'Received unreadable message from server.';
+			}
 
-				try {
-					message = JSON.parse(event.data) as ServerMessage;
-				} catch {
-					this.error = 'Received unreadable message from server.';
+			if (message !== null) {
+				if (message.type === 'STATE') {
+					this.state = message;
+					this.error = null;
+				} else if (message.type === 'ACTION_REJECTED') {
+					this.error = message.reason;
+				} else if (message.type === 'OPPONENT_DISCONNECTED') {
+					this.opponentGraceSeconds = message.grace_seconds;
+				} else if (message.type === 'OPPONENT_RECONNECTED') {
+					this.opponentGraceSeconds = null;
+				} else if (message.type === 'MATCH_ABORTED') {
+					this.aborted = true;
+				} else {
+					this.error = 'Received unknown message from server.';
 				}
+			}
+		};
 
-				if (message !== null) {
-					if (message.type === 'STATE') {
-						this.state = message;
-						this.error = null;
-					} else if (message.type === 'ACTION_REJECTED') {
-						this.error = message.reason;
-					} else if (message.type === 'OPPONENT_DISCONNECTED') {
-						this.opponentGraceSeconds = message.grace_seconds;
-					} else if (message.type === 'OPPONENT_RECONNECTED') {
-						this.opponentGraceSeconds = null;
-					} else if (message.type === 'MATCH_ABORTED') {
-						this.aborted = true;
-					} else {
-						this.error = 'Received unknown message from server.';
-					}
+		socket.onerror = () => {
+			this.error = 'WebSocket connection error.';
+		};
+
+		socket.onclose = (event) => {
+			this.status = 'closed';
+			this.#socket = null;
+
+			if (event.code !== 1000 && !this.aborted) {
+				if (this.state === null) {
+					this.error = `Could not connect to battle (code ${event.code}).`;
+				} else if (this.state.winner === null) {
+					this.error = `Connection closed (code ${event.code}).`;
 				}
-			};
+			}
+		};
 
-			socket.onerror = () => {
-				this.error = 'WebSocket connection error.';
-			};
-
-			socket.onclose = (event) => {
-				this.status = 'closed';
-				this.#socket = null;
-
-				if (event.code !== 1000 && !this.aborted) {
-					if (this.state === null) {
-						this.error = `Could not connect to battle (code ${event.code}).`;
-					} else if (this.state.winner === null) {
-						this.error = `Connection closed (code ${event.code}).`;
-					}
-				}
-			};
-
-			return () => {
-				socket.onopen = null;
-				socket.onmessage = null;
-				socket.onerror = null;
-				socket.onclose = null;
-				socket.close(1000);
-				this.#socket = null;
-			};
-		});
+		return () => {
+			socket.onopen = null;
+			socket.onmessage = null;
+			socket.onerror = null;
+			socket.onclose = null;
+			socket.close(1000);
+			this.#socket = null;
+		};
 	}
 
 	send(message: ClientMessage) {

@@ -8,6 +8,7 @@ from backend.api.v1.endpoints import (
     matchmaking,
     password,
     perks,
+    players,
     two_factor,
     users,
 )
@@ -40,6 +41,11 @@ api_v1_router.include_router(
 
 api_v1_router.include_router(
     perks.router,
+    dependencies=[Depends(verify_csrf)],
+)
+
+api_v1_router.include_router(
+    players.router,
     dependencies=[Depends(verify_csrf)],
 )
 

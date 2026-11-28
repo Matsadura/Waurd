@@ -1,5 +1,13 @@
-<script>
+<script lang="ts">
 	import GlyphFace from '#lib/components/arena/GlyphFace.svelte';
+	import type { ServerGlyph } from '#lib/utils/battleSocket.svelte.ts';
+
+	const previewGlyph: ServerGlyph = {
+		letter: 'V',
+		type: 'skill',
+		effect_type: 'vulnerable',
+		effect_value: 2
+	};
 </script>
 
 <div
@@ -7,7 +15,7 @@
 >
 	<div class="flex flex-col gap-8 md:flex-row">
 		<div class="w-80 shrink-0 shadow-lg shadow-yellow-200/10">
-			<GlyphFace letter="%" />
+			<GlyphFace glyph={previewGlyph} />
 		</div>
 		<div class="mt-8 flex flex-col">
 			{#each Array(3) as _}

@@ -20,7 +20,7 @@
 			)}
 		>
 			<div class="pulse">
-				<GlyphFace letter={glyph.letter} />
+				<GlyphFace {glyph} />
 			</div>
 		</button>
 	{/each}

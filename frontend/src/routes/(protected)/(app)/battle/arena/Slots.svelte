@@ -32,7 +32,7 @@
 							() => arena.toggle(glyph.position)
 						)}
 					>
-						<GlyphFace letter={glyph.letter} />
+						<GlyphFace {glyph} />
 					</button>
 				{/if}
 			{/key}

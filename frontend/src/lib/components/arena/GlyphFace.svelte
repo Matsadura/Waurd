@@ -1,34 +1,66 @@
 <script lang="ts">
 	import { FEEL } from '#lib/utils/arena.svelte.ts';
-	import horse from '#lib/assets/horse.png';
+	import type { GlyphEffectType, ServerGlyph } from '#lib/utils/battleSocket.svelte.ts';
 
-	let {
-		letter = 'F*'
-	}: {
-		letter: string;
-	} = $props();
+	type EffectConfig = {
+		before: string;
+		after: string;
+		icon: string;
+	};
+
+	const EFFECT_CONFIG: Record<GlyphEffectType, EffectConfig> = {
+		damage: {
+			before: 'Deal ',
+			after: ' damage.',
+			icon: '⚔'
+		},
+		heal: {
+			before: 'Heal ',
+			after: ' HP.',
+			icon: '✚'
+		},
+		defense: {
+			before: 'Gain ',
+			after: ' defense.',
+			icon: '🛡'
+		},
+		vulnerable: {
+			before: 'Apply ',
+			after: ' Vulnerable.',
+			icon: '✦'
+		},
+		weak: {
+			before: 'Apply ',
+			after: ' Weak.',
+			icon: '✧'
+		}
+	};
+
+	let { glyph }: { glyph: ServerGlyph } = $props();
+
+	const effect = $derived(EFFECT_CONFIG[glyph.effect_type]);
 </script>
 
 <!-- Doesn't make any sense to use the tailwind crap here, 
      cause all the units are ralative to the container size 
 	 something apperntly tailwnid never planed to support? 
 	 look up maybe I am wrong? -->
-<article class="card rounded" style:aspect-ratio={FEEL.glyphAspectRatio}>
+<article class="card rounded" data-type={glyph.type} style:aspect-ratio={FEEL.glyphAspectRatio}>
 	<div class="card__frame rounded">
 		<header class="card__header">
 			<div class="card__header-top">
-				<span class="card__rank">{letter}</span>
-				<span class="card__type">SKILL</span>
+				<span class="card__rank">{glyph.letter}</span>
+				<span class="card__type">{glyph.type.toUpperCase()}</span>
 			</div>
-			<!-- <img src={horse} alt="knight icon" class="card__icon" /> -->
-			<p class="card__icon">⚔</p>
+			<p class="card__icon">{effect.icon}</p>
 		</header>
 
-		<main class="card__body">{letter}</main>
+		<main class="card__body">{glyph.letter}</main>
 
 		<footer class="card__footer">
-			<p class="card__description">Heal <b class="text-red-300">90</b> HP.</p>
-			<p class="card__modifier"><b class="font-bold text-green-400">x5</b> if at end of word.</p>
+			<p class="card__description">
+				{effect.before}<b class="text-yellow-400">{glyph.effect_value}</b>{effect.after}
+			</p>
 		</footer>
 	</div>
 </article>
@@ -36,10 +68,10 @@
 <style>
 	.card {
 		--card-bg: #063528;
+		--card-outer-border: var(--color-green-800);
 		--card-text: #fff1c3;
 		--card-subtext: #fee2e2;
 		--card-border: #fff1c3;
-		--card-bg: #063528;
 
 		container-type: inline-size;
 		width: 100%;
@@ -47,8 +79,18 @@
 		background-color: var(--card-bg);
 		color: var(--card-text);
 		font-family: 'Kreon', serif;
-		border: 1px solid var(--color-green-800);
+		border: 1px solid var(--card-outer-border);
 		user-select: none;
+	}
+
+	.card[data-type='power'] {
+		--card-bg: #36070a;
+		--card-outer-border: #8a2c21;
+	}
+
+	.card[data-type='skill'] {
+		--card-bg: #063528;
+		--card-outer-border: var(--color-green-800);
 	}
 
 	.card__frame {
@@ -84,12 +126,9 @@
 	}
 
 	.card__icon {
-		/* margin-top: 1cqi; */
-		/* width: 16cqi; */
 		font-size: 20cqi;
 		line-height: 0.9;
 		text-align: start;
-		/* margin-left: 1cqi; */
 	}
 
 	.card__body {
@@ -110,14 +149,7 @@
 	}
 
 	.card__description {
-		font-size: 9cqi;
+		font-size: 10cqi;
 		margin-bottom: 8cqi;
-	}
-
-	.card__modifier {
-		margin-top: 2cqi;
-		font-size: 8cqi;
-		color: var(--card-subtext);
-		margin-bottom: 6cqi;
 	}
 </style>

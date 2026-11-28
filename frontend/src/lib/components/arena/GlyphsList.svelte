@@ -33,7 +33,7 @@
 					class="pop-in drop-shadow-xl transition duration-200 ease-in-out hover:scale-120 hover:brightness-110 hover:drop-shadow-2xl active:scale-95"
 					style="--i: {i}"
 				>
-					<GlyphFace letter={glyph.letter} />
+					<GlyphFace {glyph} />
 				</div>
 			{/each}
 		</div>

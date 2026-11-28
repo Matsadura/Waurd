@@ -29,29 +29,36 @@ class FriendshipRepository(BaseRepository[Friendship]):
         return result.scalar_one_or_none()
 
     async def get_accepted_friends(
-        self, user_id: bytes, skip: int = 0, limit: int = 20
+        self, user_id: bytes, skip: int = 0, limit: int = 20, query: str | None = None
     ) -> tuple[list[User], int]:
-        condition = or_(
-            Friendship.requester_id == user_id,
-            Friendship.addressee_id == user_id,
-        ) & (Friendship.status == FriendshipStatus.ACCEPTED)
+        """A page of friends, online ones first, then by username. `query` keeps
+        friends whose username contains it (any case), before paging, so the
+        total counts only the matches."""
+        friend = or_(
+            (Friendship.requester_id == user_id) & (User.id == Friendship.addressee_id),
+            (Friendship.addressee_id == user_id) & (User.id == Friendship.requester_id),
+        )
+        conditions = [Friendship.status == FriendshipStatus.ACCEPTED]
+        if query:
+            # % and _ in a username are letters to find, not wildcards
+            escaped = (
+                query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            )
+            conditions.append(User.username.ilike(f"%{escaped}%", escape="\\"))
 
-        count_stmt = select(func.count()).select_from(Friendship).where(condition)
+        count_stmt = (
+            select(func.count())
+            .select_from(User)
+            .join(Friendship, friend)
+            .where(*conditions)
+        )
         total = (await self.session.execute(count_stmt)).scalar_one()
 
         stmt = (
             select(User)
-            .join(
-                Friendship,
-                or_(
-                    (Friendship.requester_id == user_id)
-                    & (User.id == Friendship.addressee_id),
-                    (Friendship.addressee_id == user_id)
-                    & (User.id == Friendship.requester_id),
-                ),
-            )
-            .where(Friendship.status == FriendshipStatus.ACCEPTED)
-            .order_by(User.username.asc())
+            .join(Friendship, friend)
+            .where(*conditions)
+            .order_by(User.is_online.desc(), User.username.asc())
             .offset(skip)
             .limit(limit)
         )

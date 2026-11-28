@@ -47,13 +47,21 @@ def _to_friend_user_response(user: User) -> FriendUserResponse:
 async def get_friends(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     size: int = Query(20, ge=1, le=100, description="Friends per page"),
+    q: str | None = Query(
+        None,
+        min_length=1,
+        max_length=32,
+        description="Only friends whose username contains this (any case)",
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
+    """Friends, online ones first, then by username. ?q= searches usernames
+    across every page; total and pages count only the matches."""
     repo = FriendshipRepository(db)
     skip = (page - 1) * size
     friends, total = await repo.get_accepted_friends(
-        current_user.id, skip=skip, limit=size
+        current_user.id, skip=skip, limit=size, query=q
     )
 
     items = [_to_friend_user_response(friend) for friend in friends]

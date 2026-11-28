@@ -21,7 +21,8 @@ from backend.schemas.friendship import (
     RequestAction,
 )
 from backend.schemas.pagination import PaginatedResponse
-from fastapi import APIRouter, Depends, Query, status
+from backend.ws.chat_ws import notify_friend_accepted, notify_friend_request, player
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,6 +109,7 @@ async def get_pending_requests(
 )
 async def send_friend_request(
     payload: FriendRequestCreate,
+    background: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
@@ -139,6 +141,10 @@ async def send_friend_request(
         status=FriendshipStatus.PENDING,
     )
     friendship = await friend_repo.create(friendship_instance)
+    # runs after the response, so after the commit: the request is in the lists
+    background.add_task(
+        notify_friend_request, friendship.id, player(current_user), target_user.id
+    )
 
     return FriendshipResponse(
         id=friendship.id,
@@ -159,6 +165,7 @@ async def send_friend_request(
 async def handle_friend_request(
     request_id: int,
     payload: FriendRequestUpdate,
+    background: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
@@ -184,6 +191,9 @@ async def handle_friend_request(
 
     updated = await friend_repo.update(
         friendship, {"status": FriendshipStatus.ACCEPTED}
+    )
+    background.add_task(
+        notify_friend_accepted, updated.id, player(current_user), updated.requester_id
     )
 
     return FriendshipResponse(

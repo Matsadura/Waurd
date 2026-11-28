@@ -28,6 +28,19 @@ class FriendshipRepository(BaseRepository[Friendship]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def accepted_friend_ids(self, user_id: bytes) -> list[bytes]:
+        """Every accepted friend's id, in either direction."""
+        rows = await self.session.execute(
+            select(Friendship.requester_id, Friendship.addressee_id).where(
+                or_(
+                    Friendship.requester_id == user_id,
+                    Friendship.addressee_id == user_id,
+                ),
+                Friendship.status == FriendshipStatus.ACCEPTED,
+            )
+        )
+        return [a if b == user_id else b for a, b in rows]
+
     async def get_accepted_friends(
         self, user_id: bytes, skip: int = 0, limit: int = 20, query: str | None = None
     ) -> tuple[list[User], int]:

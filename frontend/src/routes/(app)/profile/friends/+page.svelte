@@ -5,50 +5,41 @@
 	import Notice from '#lib/components/ui/Notice.svelte';
 	import Presence from '#lib/components/ui/Presence.svelte';
 	import Row from '#lib/components/ui/Row.svelte';
-	import type { Friend } from '#lib/types/profile.ts';
-	import { friends, incomingRequests, outgoingRequests } from '../mock';
+	import type { ActionData, PageData } from './$types';
 
-	// TODO: every action below only changes this page's local state, call the friendship API.
-	let list = $state<Friend[]>(friends);
-	let incoming = $state<Friend[]>(incomingRequests);
-	let outgoing = $state<Friend[]>(outgoingRequests);
+	let { data, form }: { data: PageData; form: ActionData | null } = $props();
 
-	let username = $state('');
-	let sent = $state('');
+	let username = $derived(form?.values?.username ?? '');
 
 	// Friends who are online come first
-	const sorted = $derived([...list].sort((a, b) => Number(b.online) - Number(a.online)));
-	const without = (people: Friend[], friend: Friend) => people.filter((p) => p.id !== friend.id);
-
-	function accept(friend: Friend) {
-		incoming = without(incoming, friend);
-		list = [...list, friend];
-	}
-
-	function sendRequest(event: SubmitEvent) {
-		event.preventDefault();
-		const name = username.trim();
-		if (!name) return;
-		outgoing = [...outgoing, { id: name, username: name, online: false }];
-		sent = name;
-		username = '';
-	}
+	const sorted = $derived([...data.friends].sort((a, b) => Number(b.online) - Number(a.online)));
 </script>
 
 <svelte:head>
 	<title>Friends · Profile</title>
 </svelte:head>
 
+{#if form?.section === 'withdrawRequest' || form?.section === 'removeFriend'}
+	{#if form.error}
+		<Notice class="mb-4">{form.error}</Notice>
+	{:else if form.message}
+		<Notice variant="success" class="mb-4">
+			{form.message}
+		</Notice>
+	{/if}
+{/if}
+
 <section aria-labelledby="fellowship">
 	<h2 id="fellowship" class="font-display text-2xl">
-		Fellowship <span class="text-lg text-ash">({list.length})</span>
+		Fellowship <span class="text-lg text-ash">({data.friendCount})</span>
 	</h2>
 
-	<form onsubmit={sendRequest} class="mt-3 flex flex-wrap items-end gap-3">
+	<form method="POST" action="?/sendRequest" class="mt-3 flex flex-wrap items-end gap-3">
 		<div class="w-full max-w-sm">
 			<label for="friend-username" class="field-label">Send a friend request</label>
 			<input
 				id="friend-username"
+				name="username"
 				bind:value={username}
 				class="field mt-1"
 				placeholder="Username"
@@ -57,8 +48,14 @@
 		</div>
 		<Button type="submit" outline>Send</Button>
 	</form>
-	{#if sent}
-		<Notice variant="success" class="mt-2">Request sent to {sent}.</Notice>
+	{#if form?.section === 'sendRequest'}
+		{#if form.error}
+			<Notice class="mt-2">{form.error}</Notice>
+		{:else if form.message}
+			<Notice variant="success" class="mt-2">
+				{form.message}
+			</Notice>
+		{/if}
 	{/if}
 
 	{#if sorted.length}
@@ -67,19 +64,26 @@
 				<li>
 					<Row title={friend.username}>
 						{#snippet lead()}
-							<Avatar name={friend.username} class="size-12 text-xl" />
+							<Avatar
+								name={friend.username}
+								src={friend.avatarUrl}
+								alt=""
+								class="size-12 text-xl"
+							/>
 						{/snippet}
 						{#snippet subtitle()}
 							<Presence online={friend.online} lastSeen={friend.lastSeen} />
 						{/snippet}
 						<span class="flex flex-col gap-2 sm:flex-row">
-							<Button size="sm" outline>Challenge</Button>
-							<Button
-								size="sm"
-								outline
-								variant="secondary"
-								onclick={() => (list = without(list, friend))}>Remove</Button
-							>
+							<div class="flex flex-col gap-2 sm:flex-row">
+								<Button size="sm" outline disabled>Challenge</Button>
+								<!-- TODO (when arena is ready) -->
+
+								<form method="POST" action="?/removeFriend">
+									<input type="hidden" name="friendId" value={friend.id} />
+									<Button type="submit" size="sm" variant="secondary" outline>Remove</Button>
+								</form>
+							</div>
 						</span>
 					</Row>
 				</li>
@@ -90,46 +94,67 @@
 	{/if}
 </section>
 
-{#if incoming.length || outgoing.length}
+{#if form?.section === 'respondRequest'}
+	{#if form.error}
+		<Notice class="mt-4">{form.error}</Notice>
+	{:else if form.message}
+		<Notice variant="success" class="mt-4">
+			{form.message}
+		</Notice>
+	{/if}
+{/if}
+
+{#if data.incoming.length || data.outgoing.length}
 	<Divider class="my-6" />
 
 	<section aria-labelledby="pending">
 		<h2 id="pending" class="font-display text-2xl">Pending requests</h2>
 
 		<ul class="mt-3 divide-y divide-bronze/20">
-			{#each incoming as friend (friend.id)}
+			{#each data.incoming as friend (friend.requestId)}
 				<li>
 					<Row title={friend.username} subtitle="Wants to join your fellowship">
 						{#snippet lead()}
-							<Avatar name={friend.username} class="size-12 text-xl" />
+							<Avatar
+								name={friend.username}
+								src={friend.avatarUrl}
+								alt=""
+								class="size-12 text-xl"
+							/>
 						{/snippet}
-						<span class="flex flex-col gap-2 sm:flex-row">
-							<Button size="sm" variant="success" outline onclick={() => accept(friend)}
-								>Accept</Button
-							>
-							<Button
-								size="sm"
-								variant="danger"
-								outline
-								onclick={() => (incoming = without(incoming, friend))}>Decline</Button
-							>
-						</span>
+
+						<div class="flex flex-col gap-2 sm:flex-row">
+							<form method="POST" action="?/respondRequest">
+								<input type="hidden" name="requestId" value={friend.requestId} />
+								<input type="hidden" name="action" value="ACCEPTED" />
+								<Button type="submit" size="sm" variant="success" outline>Accept</Button>
+							</form>
+
+							<form method="POST" action="?/respondRequest">
+								<input type="hidden" name="requestId" value={friend.requestId} />
+								<input type="hidden" name="action" value="DECLINED" />
+								<Button type="submit" size="sm" variant="danger" outline>Decline</Button>
+							</form>
+						</div>
 					</Row>
 				</li>
 			{/each}
 
-			{#each outgoing as friend (friend.id)}
+			{#each data.outgoing as friend (friend.requestId)}
 				<li>
 					<Row title={friend.username} subtitle="Awaiting their answer">
 						{#snippet lead()}
-							<Avatar name={friend.username} class="size-12 text-xl" />
+							<Avatar
+								name={friend.username}
+								src={friend.avatarUrl}
+								alt=""
+								class="size-12 text-xl"
+							/>
 						{/snippet}
-						<Button
-							size="sm"
-							variant="secondary"
-							outline
-							onclick={() => (outgoing = without(outgoing, friend))}>Withdraw</Button
-						>
+						<form method="POST" action="?/withdrawRequest">
+							<input type="hidden" name="requestId" value={friend.requestId} />
+							<Button type="submit" size="sm" variant="secondary" outline>Withdraw</Button>
+						</form>
 					</Row>
 				</li>
 			{/each}

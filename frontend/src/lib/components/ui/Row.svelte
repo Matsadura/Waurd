@@ -36,6 +36,6 @@
 		{/if}
 	</span>
 	{#if children}
-		<span class="shrink-0 text-right">{@render children()}</span>
+		<div class="shrink-0 text-right">{@render children()}</div>
 	{/if}
 </svelte:element>

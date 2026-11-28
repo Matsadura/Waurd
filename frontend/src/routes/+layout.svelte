@@ -2,11 +2,12 @@
 	import './layout.css';
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
+	import type { LayoutProps } from './$types';
 	import { PUBLIC_BACKEND_URL } from '$app/env/public';
 	import favicon from '#lib/assets/favicon.svg';
 	import Frame from '#lib/components/ui/Frame.svelte';
 
-	let { children } = $props();
+	let { data, children }: LayoutProps = $props();
 
 	afterNavigate((nav) => {
 		if (nav.type === 'popstate' && window.location.pathname !== page.url.pathname) {
@@ -14,7 +15,7 @@
 		}
 	});
 
-	const userId = $derived(page.data.user?.id);
+	const userId = $derived(data.user?.id);
 
 	$effect(() => {
 		if (!userId) return;

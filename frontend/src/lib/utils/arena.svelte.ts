@@ -1,7 +1,7 @@
 import { getContext, setContext } from 'svelte';
+import { BattleSocket, type HandGlyph, type ServerGlyph } from './battleSocket.svelte';
 import { Player } from './Player.svelte';
 
-export type Glyph = { id: string; letter: string };
 type ElementList = (HTMLElement | undefined)[];
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -26,20 +26,14 @@ export class Arena {
 	#clock: ReturnType<typeof setInterval> | undefined;
 	readonly slotCount = 8;
 
+	battle: BattleSocket | null = null;
+
 	/* My glyphs and perks */
-	glyphs = $state<Record<string, Glyph>>(
-		Object.fromEntries(
-			[...'ABCDEFYGHIGKL', 'ER'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }])
-		)
-	);
-	drawPile = $state<Record<string, Glyph>>(
-		Object.fromEntries([...'ABCDEFYGHIJ!L'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }]))
-	);
-	discardPile = $state<Record<string, Glyph>>(
-		Object.fromEntries([...'ABCDEFYGHIJ!L'].map((letter, i) => [`g${i}`, { id: `g${i}`, letter }]))
-	);
-	slots = $state<(string | null)[]>(Array(this.slotCount).fill(null));
-	hand = $derived(Object.keys(this.glyphs).filter((g) => !this.slots.includes(g)));
+	glyphs = $derived<HandGlyph[]>(this.battle?.state?.you.hand ?? []);
+	drawPile = $derived<ServerGlyph[]>(this.battle?.state?.you.draw_pile ?? []);
+	discardPile = $derived<ServerGlyph[]>(this.battle?.state?.you.discard_pile ?? []);
+	slots = $state<(number | null)[]>(Array(this.slotCount).fill(null));
+	hand = $derived<HandGlyph[]>(this.glyphs.filter((g) => !this.slots.includes(g.position)));
 
 	overIndex = $state(-1); // index of the thing the glyph is over in current time (For now can be perk or word slot)
 
@@ -68,7 +62,9 @@ export class Arena {
 
 	/* Game engine */
 	turn = $state<'me' | 'opponent'>('opponent');
-	constructor() {
+	constructor(getBattleId: () => string) {
+		this.battle = new BattleSocket(getBattleId);
+
 		$effect(() => {
 			this.continuePlayerClock();
 			this.showTurnBanner();
@@ -101,39 +97,34 @@ export class Arena {
 		}, 1000);
 	}
 
-	async playWrongErrorAnimatino() {}
+	async playWrongErrorAnimatino() { }
 
 	constructSlotWord() {
-		let word: string = '';
-		this.slots.forEach((id) => {
-			if (id) word += this.glyph(id).letter;
+		let word = '';
+		this.slots.forEach((position) => {
+			if (position !== null) {
+				const glyph = this.glyph(position);
+				if (glyph !== undefined) {
+					word += glyph.letter;
+				}
+			}
 		});
 		return word;
 	}
 
 	async playSubmitAnimation() {
-		const count = this.slots.filter(Boolean).length;
-		if (this.phase !== 'idle') return;
-
-		// const r = await fetch(`http://localhost:8001/check?word=${this.constructSlotWord()}`).catch(
-		// 	console.log
-		// );
-		// await new Promise((r) => setTimeout(r, FEEL.bounceDuration + (count - 1) * FEEL.bounceStagger));
-		// this.isBouncing = false;
-
-		// const json = await r?.json();
-
-		// console.log(json);'
-		this.phase = 'checking';
-		await sleep(1000);
-		if (Math.random() > 0.5) {
-			// if (false) {
-			this.phase = 'valid';
-		} else {
-			this.phase = 'invalid';
+		if (this.phase === 'idle') {
+			this.phase = 'checking';
+			await sleep(1000);
+			if (Math.random() > 0.5) {
+				this.phase = 'valid';
+			} else {
+				this.phase = 'invalid';
+			}
+			await sleep(300);
+			this.phase = 'idle';
+			console.log(this.constructSlotWord());
 		}
-		await sleep(300);
-		this.phase = 'idle';
 	}
 
 	#register(list: ElementList, i: number) {
@@ -159,30 +150,27 @@ export class Arena {
 	}
 
 	/**
-	 * Returns the data of a glyph using its id
+	 * Returns the data of a glyph in hand using its position
 	 */
-	glyph(id: string): Glyph {
-		const glyph = this.glyphs[id];
-		if (!glyph) {
-			throw new Error(`Unknown glyph: ${id}`);
-		}
-		return this.glyphs[id];
+	glyph(position: number): HandGlyph | undefined {
+		return this.glyphs.find((g) => g.position === position);
 	}
 
 	/**
 	 * Put glyph at @slot index
 	 */
-	place(id: string, slot: number) {
-		if (slot < 0 || slot >= this.slotCount) return;
-		this.remove(id);
-		this.slots[slot] = id;
+	place(position: number, slot: number) {
+		if (slot >= 0 && slot < this.slotCount) {
+			this.remove(position);
+			this.slots[slot] = position;
+		}
 	}
 
 	/**
 	 * Remove Glyph from slot
 	 */
-	remove(id: string) {
-		const i = this.slots.indexOf(id);
+	remove(position: number) {
+		const i = this.slots.indexOf(position);
 		if (i >= 0) {
 			this.slots[i] = null;
 		}
@@ -191,12 +179,15 @@ export class Arena {
 	/**
 	 * Use when a glyph is clicked on
 	 */
-	toggle(id: string) {
+	toggle(position: number) {
 		if (this.currentView === 'slots') {
-			if (this.slots.includes(id)) {
-				this.remove(id);
+			if (this.slots.includes(position)) {
+				this.remove(position);
 			} else {
-				this.place(id, this.slots.indexOf(null));
+				const emptySlot = this.slots.indexOf(null);
+				if (emptySlot >= 0) {
+					this.place(position, emptySlot);
+				}
 			}
 		}
 	}
@@ -211,23 +202,27 @@ export class Arena {
 		let bestDist = Infinity;
 
 		elements.forEach((el, i) => {
-			if (!el) return;
-			const r = el.getBoundingClientRect();
-			const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
-			if (d < r.height * 0.9 && d < bestDist) [best, bestDist] = [i, d];
+			if (el) {
+				const r = el.getBoundingClientRect();
+				const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
+				if (d < r.height * 0.9 && d < bestDist) {
+					best = i;
+					bestDist = d;
+				}
+			}
 		});
 		this.overIndex = best;
 	}
 
 	/**
-	 * Should be called when the glyph is dropeed, for example canceling while dragging
+	 * Should be called when the glyph is dropped, for example canceling while dragging
 	 */
-	drop(id: string) {
+	drop(position: number) {
 		if (this.currentView === 'slots') {
 			if (this.overIndex >= 0) {
-				this.place(id, this.overIndex);
+				this.place(position, this.overIndex);
 			} else {
-				this.remove(id);
+				this.remove(position);
 			}
 		} else if (this.currentView === 'perks') {
 			console.log('You used perks number', this.overIndex);
@@ -251,7 +246,7 @@ export class Arena {
 }
 
 const KEY = Symbol('arena');
-export const setArena = () => setContext(KEY, new Arena());
+export const setArena = (getBattleId: () => string) => setContext(KEY, new Arena(getBattleId));
 export function getArena() {
 	const arena = getContext<Arena | undefined>(KEY);
 	if (!arena) {

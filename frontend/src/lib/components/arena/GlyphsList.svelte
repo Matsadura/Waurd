@@ -1,8 +1,9 @@
 <script lang="ts">
 	import GlyphFace from '#lib/components/arena/GlyphFace.svelte';
-	import { getArena, type Glyph } from '#lib/utils/arena.svelte.ts';
+	import { getArena } from '#lib/utils/arena.svelte.ts';
+	import type { ServerGlyph } from '#lib/utils/battleSocket.svelte.ts';
 
-	let { title, glyphs = [] }: { title: string; glyphs: Glyph[] } = $props();
+	let { title, glyphs = [] }: { title: string; glyphs: ServerGlyph[] } = $props();
 	const arena = getArena();
 	function onBackdropClick(e: MouseEvent) {
 		if ((e.target as HTMLElement).closest('[data-glyph]')) return;

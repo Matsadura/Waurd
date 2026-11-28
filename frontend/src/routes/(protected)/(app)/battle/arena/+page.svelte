@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { FEEL, getArena, setArena } from '#lib/utils/arena.svelte.ts';
-	import { BattleSocket } from '#lib/utils/battleSocket.svelte.ts';
 	import './layout.css';
 
 	import Slots from './Slots.svelte';
@@ -15,9 +14,8 @@
 
 	let { data } = $props();
 
-	setArena();
+	setArena(() => data.ticket.matched_match_id);
 	let arena = getArena();
-	const battle = new BattleSocket(() => data.ticket.matched_match_id);
 </script>
 
 <div
@@ -40,7 +38,7 @@
 		<div class="flex w-dvw items-end justify-between px-8 md:pb-5">
 			<PileButton
 				onclick={() => arena.setCurrentView('draw')}
-				number={Object.keys(arena.drawPile).length}
+				number={arena.drawPile.length}
 				label="Show draw pile"
 				type="draw"
 			/>
@@ -52,7 +50,7 @@
 
 			<PileButton
 				onclick={() => arena.setCurrentView('discard')}
-				number={Object.keys(arena.discardPile).length}
+				number={arena.discardPile.length}
 				label="Show discard pile"
 				type="discard"
 			/>
@@ -61,9 +59,9 @@
 	{#if arena.currentView === 'perks'}
 		<PerksRack />
 	{:else if arena.currentView === 'draw'}
-		<GlyphsList title="Draw pile" glyphs={Object.values(arena.drawPile)} />
+		<GlyphsList title="Draw pile" glyphs={arena.drawPile} />
 	{:else if arena.currentView === 'discard'}
-		<GlyphsList title="Discard pile" glyphs={Object.values(arena.discardPile)} />
+		<GlyphsList title="Discard pile" glyphs={arena.discardPile} />
 	{/if}
 
 	<!-- debugging buttons -->
@@ -81,11 +79,11 @@
 		class="absolute inset-0 max-h-[60%] w-full overflow-auto rounded border border-white/20 bg-black/80 p-3 text-left text-xs text-green-200 select-text">{JSON.stringify(
 			{
 				battleId: data.ticket.matched_match_id,
-				status: battle.status,
-				error: battle.error,
-				aborted: battle.aborted,
-				opponentGraceSeconds: battle.opponentGraceSeconds,
-				state: battle.state
+				status: arena.battle?.status,
+				error: arena.battle?.error,
+				aborted: arena.battle?.aborted,
+				opponentGraceSeconds: arena.battle?.opponentGraceSeconds,
+				state: arena.battle?.state
 			},
 			null,
 			2

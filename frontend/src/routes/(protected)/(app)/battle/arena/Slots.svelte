@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { FEEL, getArena, setArena, type Glyph } from '#lib/utils/arena.svelte.ts';
+	import { FEEL, getArena } from '#lib/utils/arena.svelte.ts';
 	import draggable from '#lib/utils/draggable.ts';
 	import GlyphFace from '#lib/components/arena/GlyphFace.svelte';
 
@@ -7,7 +7,8 @@
 </script>
 
 <div class="flex items-start justify-center gap-2 px-4">
-	{#each arena.slots as glyphId, i}
+	{#each arena.slots as position, i}
+		{@const glyph = position !== null ? arena.glyph(position) : undefined}
 		<div
 			{@attach arena.slotEl(i)}
 			style:aspect-ratio={FEEL.glyphAspectRatio}
@@ -16,8 +17,8 @@
 				arena.overIndex === i && arena.currentView === 'slots' ? 'suspanse-pulse' : ''
 			]}
 		>
-			{#key glyphId}
-				{#if glyphId}
+			{#key position}
+				{#if glyph !== undefined}
 					<button
 						class="pulse w-full translate-x-(--dx) translate-y-(--dy) cursor-pointer transition-all"
 						class:pointer-events-none={arena.phase === 'checking'}
@@ -27,11 +28,11 @@
 						class:invalid-animation={arena.phase === 'invalid'}
 						{@attach draggable(
 							(x, y) => arena.dragOver(x, y),
-							() => arena.drop(glyphId),
-							() => arena.toggle(glyphId)
+							() => arena.drop(glyph.position),
+							() => arena.toggle(glyph.position)
 						)}
 					>
-						<GlyphFace letter={arena.glyph(glyphId).letter} />
+						<GlyphFace letter={glyph.letter} />
 					</button>
 				{/if}
 			{/key}

@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { FEEL, getArena, setArena, type Glyph } from '#lib/utils/arena.svelte.ts';
+	import { FEEL, getArena } from '#lib/utils/arena.svelte.ts';
 	import draggable from '#lib/utils/draggable.ts';
 	import GlyphFace from '#lib/components/arena/GlyphFace.svelte';
 	const arena = getArena();
 </script>
 
 <div class="hand fixed inset-x-0 bottom-0 z-40 flex" style:--n={arena.hand.length}>
-	{#each arena.hand as glyphId, i (glyphId)}
+	{#each arena.hand as glyph, i (glyph.position)}
 		<button
 			class={[
 				'card absolute bottom-0 left-1/2 ml-[-6%] cursor-pointer touch-none hover:shadow-2xl hover:shadow-amber-200/20',
@@ -15,12 +15,12 @@
 			style:--i={i}
 			{@attach draggable(
 				(x, y) => arena.dragOver(x, y),
-				() => arena.drop(glyphId),
-				() => arena.toggle(glyphId)
+				() => arena.drop(glyph.position),
+				() => arena.toggle(glyph.position)
 			)}
 		>
 			<div class="pulse">
-				<GlyphFace letter={arena.glyph(glyphId)?.letter} />
+				<GlyphFace letter={glyph.letter} />
 			</div>
 		</button>
 	{/each}

@@ -9,8 +9,11 @@
 	const done = $derived(achievement.progress >= achievement.target);
 </script>
 
-<Frame variant="double-border" as="article" class="flex gap-4 px-4 py-4">
-	<!-- No icon yet? The Avatar falls back to the first letter, swap in iconUrl when we have art. -->
+<Frame variant="double-border" as="article" class="flex h-full min-h-40 gap-4 px-4 py-4">
+	{#if done}
+		<span class="absolute inset-y-2 left-1 w-1 bg-warning-light/80" aria-hidden="true"></span>
+	{/if}
+
 	<Avatar
 		name={achievement.name}
 		src={achievement.iconUrl}
@@ -18,28 +21,42 @@
 		class="size-14 text-2xl {done ? '' : 'opacity-50 grayscale'}"
 	/>
 
-	<div class="min-w-0 flex-1">
-		<h3 class="font-display text-xl">{achievement.name}</h3>
+	<div class="flex min-w-0 flex-1 flex-col">
+		<div class="flex flex-wrap items-baseline justify-between gap-x-3">
+			<h3 class="font-display text-xl">{achievement.name}</h3>
+
+			<span
+				class={done
+					? 'text-xs font-bold tracking-wider text-warning-light uppercase'
+					: 'text-xs tracking-wider text-ash/70 uppercase'}
+			>
+				{done ? '✓ Unlocked' : 'Locked'}
+			</span>
+		</div>
+
 		<p class="text-ash">{achievement.description}</p>
 
-		{#if done}
-			<p class="mt-2 text-base text-success-light italic">
-				Achieved {achievement.unlockedAt} · +{achievement.xpReward} XP
-			</p>
-		{:else}
-			<Meter
-				value={achievement.progress}
-				max={achievement.target}
-				label="{achievement.name} progress"
-				class="mt-3"
-			/>
-			<p class="mt-1 text-base text-ash">
-				{achievement.progress} / {achievement.target} · +{achievement.xpReward} XP
-			</p>
-		{/if}
+		<div class="mt-auto pt-3">
+			{#if done}
+				<p class="text-base text-success-light italic">
+					Achieved {achievement.unlockedAt} · +{achievement.xpReward} XP
+				</p>
+			{:else}
+				<Meter
+					value={achievement.progress}
+					max={achievement.target}
+					label="{achievement.name} progress"
+				/>
+				<p class="mt-1 text-base text-ash">
+					{achievement.progress} / {achievement.target} · +{achievement.xpReward} XP
+				</p>
+			{/if}
 
-		{#if achievement.rewardPerk}
-			<p class="mt-1 text-base text-warning-light">Reward: {achievement.rewardPerk}</p>
-		{/if}
+			{#if achievement.rewardPerk}
+				<p class="mt-1 text-base text-warning-light">
+					Reward: {achievement.rewardPerk}
+				</p>
+			{/if}
+		</div>
 	</div>
 </Frame>

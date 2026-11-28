@@ -1,41 +1,11 @@
-import { PUBLIC_BACKEND_URL } from '$app/env/public';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { api, errorMessage, SESSION_COOKIE, CSRF_COOKIE } from '#lib/server/api.ts';
-import type { Friend } from '#lib/types/profile.ts';
 import type { Actions, PageServerLoad } from './$types';
-
-type FriendResponse = {
-	id: string;
-	username: string;
-	avatar_url: string | null;
-	is_online: boolean;
-	last_seen_at: string | null;
-};
-
-type PaginatedResponse<T> = {
-	items: T[];
-	total: number;
-	pages: number;
-};
-
-function toFriend(user: FriendResponse): Friend {
-	return {
-		id: user.id,
-		username: user.username,
-		avatarUrl: user.avatar_url?.startsWith('/')
-			? `${PUBLIC_BACKEND_URL}${user.avatar_url}`
-			: (user.avatar_url ?? undefined),
-		online: user.is_online,
-		lastSeen: user.last_seen_at
-			? new Date(user.last_seen_at).toLocaleString('en-US', {
-					month: 'short',
-					day: 'numeric',
-					hour: 'numeric',
-					minute: '2-digit'
-				})
-			: undefined
-	};
-}
+import {
+	toFriend,
+	type FriendResponse,
+	type PaginatedResponse
+} from '#lib/server/profile-friends.ts';
 
 const PAGE_SIZE = 8;
 

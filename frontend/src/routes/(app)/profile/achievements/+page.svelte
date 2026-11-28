@@ -1,7 +1,9 @@
 <script lang="ts">
 	import AchievementCard from '#lib/components/profile/AchievementCard.svelte';
 	import Filter from '#lib/components/ui/Filter.svelte';
-	import { achievements } from '../mock';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
 
 	const filters = [
 		{ label: 'All', value: 'all' },
@@ -11,12 +13,16 @@
 
 	let status = $state('all');
 
-	const isDone = (a: (typeof achievements)[number]) => a.progress >= a.target;
-	const doneCount = achievements.filter(isDone).length;
-	const xpEarned = achievements.filter(isDone).reduce((sum, a) => sum + a.xpReward, 0);
+	const isDone = (a: PageData['achievements'][number]) => a.progress >= a.target;
+
+	const doneCount = $derived(data.achievements.filter(isDone).length);
+
+	const xpEarned = $derived(
+		data.achievements.filter(isDone).reduce((sum, a) => sum + a.xpReward, 0)
+	);
 
 	const shown = $derived(
-		achievements.filter((a) => status === 'all' || (status === 'done') === isDone(a))
+		data.achievements.filter((a) => status === 'all' || (status === 'done') === isDone(a))
 	);
 </script>
 
@@ -26,7 +32,7 @@
 
 <section aria-labelledby="deeds">
 	<h2 id="deeds" class="font-display text-2xl">
-		Deeds achieved <span class="text-lg text-ash">({doneCount} / {achievements.length})</span>
+		Deeds achieved <span class="text-lg text-ash">({doneCount} / {data.achievements.length})</span>
 	</h2>
 	<p class="text-ash italic">{xpEarned} XP earned from your deeds</p>
 

@@ -11,10 +11,11 @@ class LeaderboardFilter(enum.StrEnum):
     WORDS = "words"
     DAMAGE = "damage"
     WIN_STREAK = "win_streak"
+    HEAL = "heal"
 
 
 class PlayerLeaderboardEntry(BaseModel):
-    """One player on the elo, damage or win_streak board."""
+    """One player on the elo, damage, win_streak or heal board."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -24,8 +25,8 @@ class PlayerLeaderboardEntry(BaseModel):
     avatar_url: str | None = Field(default=None, description="Player avatar URL")
     value: int = Field(
         ...,
-        description="What the board ranks on: Elo rating, lifetime damage or "
-        "best win streak",
+        description="What the board ranks on: Elo rating, lifetime damage, "
+        "best win streak or highest heal",
     )
     matches_played: int = Field(..., description="Total matches played")
 

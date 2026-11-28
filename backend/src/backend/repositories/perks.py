@@ -1,16 +1,16 @@
 from collections.abc import Sequence
 
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from backend.core.exceptions import BadRequestException
+from backend.game.balance import MAX_LOADOUT_SLOTS
 from backend.models.achievements import Achievement
 from backend.models.perk import Perk
 from backend.models.user_achievements import UserAchievement
 from backend.models.user_loadout import UserLoadout
 from backend.repositories.base import BaseRepository
-from sqlalchemy import delete, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
-MAX_LOADOUT_SLOTS: int = 3
 
 
 class PerkRepository(BaseRepository[Perk]):

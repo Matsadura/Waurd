@@ -6,7 +6,23 @@ from datetime import UTC, datetime
 @dataclass
 class Glyph:
     letter: str
-    damage: int
+    effect_value: int
+    # power: damage, heal or defense; skill: vulnerable or weak, and then
+    # effect_value is how many of the target's turns the status lasts
+    type: str = "power"
+    effect_type: str = "damage"
+    # a conditional perk's id: its check runs when the word is cast
+    bonus: str | None = None
+
+
+@dataclass
+class PerkInstance:
+    """A perk a player holds during a match."""
+
+    id: int  # unique in the match; APPLY_PERK names it
+    perk_id: str  # the catalog row
+    durability: int | None  # uses left; None never breaks
+    uses: int = 0
 
 
 @dataclass
@@ -16,6 +32,12 @@ class Player:
     hand: list[Glyph] = field(default_factory=list)
     discard_pile: list[Glyph] = field(default_factory=list)
     time_left: float = 0.0
+    defense: int = 0  # soaks up damage; gone when this player's next turn starts
+    statuses: dict[str, int] = field(default_factory=dict)  # effect -> turns left
+    perks: list[PerkInstance] = field(default_factory=list)
+    # the perk ids offered after this turn's cast; picking one ends the turn
+    draft: list[str] = field(default_factory=list)
+    rerolls_left: int = 0
 
 
 @dataclass
@@ -25,6 +47,9 @@ class Cast:
     word: str
     glyphs: list[Glyph]
     damage: int  # the HP the opponent actually lost
+    healed: int = 0  # the HP the caster actually got back
+    defense: int = 0  # the defense the caster gained
+    statuses: dict[str, int] = field(default_factory=dict)  # put on the target
     # naive UTC, like the database's DateTime columns
     cast_at: datetime = field(
         default_factory=lambda: datetime.now(UTC).replace(tzinfo=None)
@@ -43,3 +68,4 @@ class Match:
     casts: list[Cast] = field(default_factory=list)
     names: tuple[str, str] = ("Player 1", "Player 2")
     log: list[str] = field(default_factory=list)  # what happened, ready to show
+    next_perk_id: int = 1

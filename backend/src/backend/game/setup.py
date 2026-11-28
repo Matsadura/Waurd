@@ -1,43 +1,30 @@
 import random
 
+from backend.game.balance import (
+    DEFAULT_TIME_CONTROL,
+    LETTERS,
+    REROLLS_PER_MATCH,
+    SECOND_PLAYER_SHIELD,
+    STARTING_HP,
+)
 from backend.game.models import Glyph, Match, Player
-from backend.game.rules import STARTING_HP
-
-LETTERS = {
-    "A": (6, 4),
-    "E": (6, 4),
-    "I": (6, 3),
-    "O": (6, 3),
-    "U": (6, 1),
-    "N": (8, 2),
-    "R": (8, 2),
-    "S": (8, 3),
-    "T": (8, 3),
-    "L": (8, 2),
-    "D": (10, 2),
-    "C": (12, 1),
-    "M": (12, 1),
-    "P": (12, 1),
-    "H": (12, 1),
-    "G": (14, 1),
-    "B": (20, 1),
-    "F": (16, 1),
-    "K": (18, 1),
-    "W": (18, 1),
-    "Y": (14, 1),
-    "V": (20, 1),
-}
+from backend.game.perks import play as perks
 
 
 def build_deck() -> list[Glyph]:
     deck = []
-    for letter, (damage, copies) in LETTERS.items():
-        deck += [Glyph(letter, damage) for _ in range(copies)]
+    for letter, (kind, effect, value, copies) in LETTERS.items():
+        deck += [Glyph(letter, value, kind, effect) for _ in range(copies)]
     return deck
 
 
-def new_match(seed: int | None, time_control_seconds: int = 300) -> Match:
-    """Each player's clock starts with the whole time control."""
+def new_match(
+    seed: int | None,
+    time_control_seconds: int = DEFAULT_TIME_CONTROL,
+    loadouts: tuple[list[str], list[str]] = ([], []),
+) -> Match:
+    """Each player's clock starts with the whole time control, and their
+    equipped loadout perks start in hand."""
     rng = random.Random(seed)
     players = []
     for _ in range(2):
@@ -46,7 +33,14 @@ def new_match(seed: int | None, time_control_seconds: int = 300) -> Match:
         players.append(
             Player(hp=STARTING_HP, draw_pile=deck, time_left=time_control_seconds)
         )
-    return Match(players=players, rng=rng, active_player_index=rng.randrange(2))
+    first = rng.randrange(2)
+    players[1 - first].defense = SECOND_PLAYER_SHIELD
+    match = Match(players=players, rng=rng, active_player_index=first)
+    for seat, perk_ids in enumerate(loadouts):
+        match.players[seat].rerolls_left = REROLLS_PER_MATCH
+        for perk_id in perk_ids:
+            perks.grant(match, seat, perk_id)
+    return match
 
 
 def load_words(path: str) -> set[str]:

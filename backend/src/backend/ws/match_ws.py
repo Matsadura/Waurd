@@ -6,14 +6,21 @@ import time
 import uuid
 from pathlib import Path
 
+from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+
 from backend.core.config import settings
 from backend.core.session_store import RedisSessionStore
-from backend.game.models import Match
+from backend.game.balance import GRACE_SECONDS
+from backend.game.models import Glyph, Match
+from backend.game.perks.catalog import CATALOG
 from backend.game.rules import (
+    apply_perk,
     cast_word,
     lose_by_disconnect,
     pass_turn,
+    reroll_perks,
     resign,
+    select_perks,
     start_turn,
     use_time,
 )
@@ -21,11 +28,10 @@ from backend.game.setup import load_words, new_match
 from backend.ws.records import (
     abandon,
     final_result,
+    match_setup,
     save_result,
     seat_in_match,
-    match_setup,
 )
-from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -36,7 +42,6 @@ matches: dict[str, Match] = {}
 sockets: dict[str, dict[int, WebSocket]] = {}
 clocks: dict[str, asyncio.Task] = {}
 
-GRACE_SECONDS = 30
 timers: dict[tuple[str, int], asyncio.Task] = {}
 
 
@@ -145,6 +150,28 @@ async def left(ws: WebSocket, match_id: str, me: int) -> None:
     )
 
 
+def glyph_view(glyph: Glyph) -> dict:
+    return {
+        "letter": glyph.letter,
+        "type": glyph.type,
+        "effect_type": glyph.effect_type,
+        "effect_value": glyph.effect_value,
+        "bonus": glyph.bonus,  # a bonus perk's id, or null
+    }
+
+
+def perk_view(perk_id: str) -> dict:
+    spec = CATALOG[perk_id]
+    return {
+        "perk_id": spec.id,
+        "name": spec.name,
+        "rarity": spec.rarity,
+        "description": spec.description,
+        "target": spec.target,
+        "durability": spec.durability,
+    }
+
+
 def view(match: Match, me: int) -> dict:
     """What one player is allowed to see: their own hand, never the opponent's."""
     player = match.players[me]
@@ -159,11 +186,45 @@ def view(match: Match, me: int) -> dict:
         "you": {
             "hp": player.hp,
             "hand": [
-                {"position": i, "letter": glyph.letter, "damage": glyph.damage}
+                {"position": i, **glyph_view(glyph)}
                 for i, glyph in enumerate(player.hand)
             ],
+            # sorted so the next draws stay secret
+            "draw_pile": [
+                glyph_view(g) for g in sorted(player.draw_pile, key=lambda g: g.letter)
+            ],
+            "discard_pile": [glyph_view(g) for g in player.discard_pile],
+            "defense": player.defense,
+            "statuses": player.statuses,
+            # durability_left is null for perks that never break
+            "perks": [
+                {
+                    "instance_id": p.id,
+                    **perk_view(p.perk_id),
+                    "durability_left": p.durability,
+                }
+                for p in player.perks
+            ],
+            # after your cast: pick one (or skip) to end the turn
+            "draft": (
+                {
+                    "options": [perk_view(p) for p in player.draft],
+                    "rerolls_left": player.rerolls_left,
+                }
+                if player.draft
+                else None
+            ),
         },
-        "opponent": {"hp": opponent.hp, "hand_size": len(opponent.hand)},
+        # the opponent's glyphs stay hidden: only how many
+        "opponent": {
+            "hp": opponent.hp,
+            "hand_size": len(opponent.hand),
+            "draw_pile_size": len(opponent.draw_pile),
+            "discard_pile_size": len(opponent.discard_pile),
+            "defense": opponent.defense,
+            "statuses": opponent.statuses,
+            "perk_count": len(opponent.perks),
+        },
         "time_left": {
             "you": round(player.time_left, 1),
             "opponent": round(opponent.time_left, 1),
@@ -253,10 +314,12 @@ async def play(ws: WebSocket, match_id: str) -> None:
         await ws.close()
         return
 
-    seconds, names = await match_setup(match_id)
+    seconds, names, loadouts = await match_setup(match_id)
     await ws.accept()
     if match_id not in matches:
-        matches[match_id] = new_match(seed=None, time_control_seconds=seconds)
+        matches[match_id] = new_match(
+            seed=None, time_control_seconds=seconds, loadouts=loadouts
+        )
         matches[match_id].names = names
     sockets.setdefault(match_id, {})[me] = ws
     match = matches[match_id]
@@ -295,6 +358,14 @@ async def play(ws: WebSocket, match_id: str) -> None:
                 await apply_clock(ws.app, match_id, match)
                 if message["type"] == "CAST_WORD":
                     cast_word(match, me, message["positions"], WORDS)
+                elif message["type"] == "APPLY_PERK":
+                    apply_perk(
+                        match, me, message["perk_instance_id"], message["position"]
+                    )
+                elif message["type"] == "REROLL_PERKS":
+                    reroll_perks(match, me)
+                elif message["type"] == "SELECT_PERKS":
+                    select_perks(match, me, message["perk_ids"])
                 elif message["type"] == "PASS_TURN":
                     pass_turn(match, me)
                 elif message["type"] == "RESIGN":

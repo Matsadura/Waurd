@@ -11,11 +11,15 @@ from backend.db.session import async_session_maker
 from backend.game.achievements import ACHIEVEMENTS
 from backend.game.calculations import XP_PER_LOSS, XP_PER_WIN, add_xp, new_elo_ratings
 from backend.game.models import Match
+from backend.game.perks.catalog import CATALOG
+from backend.game.perks.effects import KIND
+from backend.game.rules import attack_of
 from backend.models.match import Match as MatchRecord
 from backend.models.achievements import Achievement
 from backend.models.match import MatchCast, MatchStatus
-from backend.models.perk import Perk
+from backend.models.perk import ModificationType, Perk, Rarity, TargetGlyphType
 from backend.models.user_achievements import UserAchievement
+from backend.models.user_loadout import UserLoadout
 from backend.repositories.match import MatchRepository
 from backend.repositories.user import UserRepository
 from backend.repositories.user_stats import UserStatsRepository
@@ -66,8 +70,8 @@ async def final_result(match_id: str, user_id: str) -> dict | None:
 
 
 async def update_stats(db: AsyncSession, record: MatchRecord, match: Match) -> None:
-    """Wins, losses, streaks, damage, best word, Elo and XP for both players,
-    plus the Elo history."""
+    """Wins, losses, streaks, damage, best word and heal, Elo and XP for both
+    players, plus the Elo history."""
     stats = UserStatsRepository(db)
     p1 = await stats.get_by_id(record.player1_id)
     p2 = await stats.get_by_id(record.player2_id)
@@ -100,12 +104,14 @@ async def update_stats(db: AsyncSession, record: MatchRecord, match: Match) -> N
     p1.matches_played += 1
     p2.matches_played += 1
 
-    # Damage is the HP each cast took, added up. A word's score is its full
-    # glyph value, even past the opponent's last HP.
+    # Damage is the HP each cast took (heals can win HP back, so the final HP
+    # alone undercounts). A word's score is its full glyph value, even past
+    # the opponent's last HP.
     for cast in match.casts:
         player = (p1, p2)[cast.player_index]
         player.total_damage_dealt += cast.damage
-        score = sum(glyph.damage for glyph in cast.glyphs)
+        player.highest_heal = max(player.highest_heal, cast.healed)
+        score = attack_of(cast.glyphs)
         if score > player.highest_word_score:
             player.highest_word_score = score
             player.highest_scoring_word = cast.word
@@ -114,14 +120,24 @@ async def update_stats(db: AsyncSession, record: MatchRecord, match: Match) -> N
     record.player2_elo_after = p2.rating_elo
 
 
-async def match_setup(match_id: str) -> tuple[int, tuple[str, str]]:
-    """Seconds on each player's clock, and the players' names for the log."""
+async def match_setup(
+    match_id: str,
+) -> tuple[int, tuple[str, str], tuple[list[str], list[str]]]:
+    """Seconds on each player's clock, the players' names for the log, and the
+    perks each has equipped (they start the match in hand)."""
     async with async_session_maker() as db:
         record = await MatchRepository(db).get_match_by_id(uuid.UUID(match_id).bytes)
         users = UserRepository(db)
         player1 = await users.get_by_id(record.player1_id)
         player2 = await users.get_by_id(record.player2_id)
-    return record.time_control_seconds, (player1.username, player2.username)
+        loadouts = []
+        for player_id in (record.player1_id, record.player2_id):
+            equipped = await db.scalars(
+                select(UserLoadout.perk_id).where(UserLoadout.user_id == player_id)
+            )
+            loadouts.append([p for p in equipped if p in CATALOG])
+    names = (player1.username, player2.username)
+    return record.time_control_seconds, names, (loadouts[0], loadouts[1])
 
 
 def cast_rows(
@@ -135,6 +151,10 @@ def cast_rows(
             player_id=player_ids[cast.player_index],
             word_played=cast.word,
             damage_dealt=cast.damage,
+            heal_amount=cast.healed,
+            defense_gained=cast.defense,
+            # effect -> turns, e.g. {"weak": 2}; None when the word put none on
+            status_effects_applied=cast.statuses or None,
             glyphs_payload={"glyphs": [asdict(glyph) for glyph in cast.glyphs]},
             created_at=cast.cast_at,
         )
@@ -215,6 +235,32 @@ async def record_achievements(db: AsyncSession, user_id: bytes) -> None:
             row.is_completed = True
             row.unlocked_at = datetime.now(UTC).replace(tzinfo=None)
             add_xp(user, achievement.xp_reward)
+
+
+async def sync_perks() -> None:
+    """Write catalog.csv into the perks table: add new rows, update changed ones.
+    A perk no longer in the CSV is disabled, not deleted (loadouts and
+    achievements may point at it)."""
+    async with async_session_maker() as db:
+        rows = {perk.id: perk for perk in await db.scalars(select(Perk))}
+        for spec in CATALOG.values():
+            row = rows.pop(spec.id, None)
+            if row is None:
+                row = Perk(id=spec.id)
+                db.add(row)
+            row.name = spec.name
+            row.description = spec.description
+            row.quote = spec.quote
+            row.image_url = spec.image
+            row.rarity = Rarity(spec.rarity.upper())
+            row.target_glyph_type = TargetGlyphType(spec.target.upper())
+            row.modification_type = ModificationType(KIND[spec.id])
+            row.durability = spec.durability
+            row.effect_payload = {"mechanics": spec.mechanics}
+            row.is_enabled = spec.ready
+        for leftover in rows.values():
+            leftover.is_enabled = False
+        await db.commit()
 
 
 async def sync_achievements() -> None:

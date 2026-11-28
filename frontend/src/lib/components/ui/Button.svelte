@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
+	import Spiner from './Spinner.svelte';
 
 	type Props = {
 		variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'info';
@@ -9,6 +10,7 @@
 		href?: string; // with href it renders a link that looks like a button
 		type?: 'button' | 'submit' | 'reset';
 		disabled?: boolean;
+		loading?: boolean;
 		target?: string;
 		rel?: string;
 		class?: string;
@@ -22,6 +24,7 @@
 		href,
 		type = 'button',
 		disabled = false,
+		loading = false,
 		class: className = '',
 		children,
 		...rest
@@ -35,21 +38,31 @@
 		data-variant={variant}
 		data-size={size}
 		data-outline={outline || undefined}
-		aria-disabled={disabled || undefined}
+		aria-disabled={disabled || loading || undefined}
+		aria-busy={loading || undefined}
 		{...rest}
 	>
-		{@render children()}
+		{#if loading}
+			<Spiner size={size === 'sm' ? 'sm' : 'md'} />
+		{:else}
+			{@render children()}
+		{/if}
 	</a>
 {:else}
 	<button
 		{type}
-		{disabled}
+		disabled={disabled || loading}
 		class={['btn', className]}
 		data-variant={variant}
 		data-size={size}
 		data-outline={outline || undefined}
+		aria-busy={loading || undefined}
 		{...rest}
 	>
-		{@render children()}
+		{#if loading}
+			<Spiner size={size === 'sm' ? 'sm' : 'md'} />
+		{:else}
+			{@render children()}
+		{/if}
 	</button>
 {/if}

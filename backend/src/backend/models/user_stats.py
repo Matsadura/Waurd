@@ -4,12 +4,10 @@ from sqlalchemy import BINARY, BigInteger, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base
+from backend.game.balance import STARTING_ELO as DEFAULT_RATING
 
 if TYPE_CHECKING:
     from backend.models.user import User
-
-
-DEFAULT_RATING = 1200
 
 
 class UserStats(Base):
@@ -48,6 +46,10 @@ class UserStats(Base):
         Integer, default=0, server_default="0", nullable=False
     )
     best_win_streak: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False, index=True
+    )
+    # the most HP one cast has given back
+    highest_heal: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False, index=True
     )
 

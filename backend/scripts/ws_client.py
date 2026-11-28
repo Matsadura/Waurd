@@ -44,6 +44,14 @@ LIVE_ROWS = (2, 3, 5)  # the rows with running clocks, redrawn every half second
 COLOR = sys.stdout.isatty() and "NO_COLOR" not in os.environ
 BOLD, DIM, INVERT = "1", "2", "7"
 RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN = "31", "32", "33", "34", "35", "36"
+# how a glyph's effect looks on its card: (mark before the value, color)
+EFFECTS = {
+    "damage": ("*", RED),
+    "heal": ("+", GREEN),
+    "defense": ("#", BLUE),
+    "vulnerable": ("v", MAGENTA),
+    "weak": ("w", YELLOW),
+}
 
 REASONS = {  # end_reason: (said to the winner, said to the loser)
     "HEALTH_DEPLETED": ("{opponent} ran out of HP", "you ran out of HP"),
@@ -272,7 +280,7 @@ def opponent_of(http: httpx.Client, match_id: str, my_id: str) -> str:
 
 def positions_for(word: str, hand: list[dict]) -> list[int] | None:
     """Hand positions spelling the word, strongest glyph first for repeated letters."""
-    strongest_first = sorted(hand, key=lambda glyph: -glyph["damage"])
+    strongest_first = sorted(hand, key=lambda glyph: -glyph["effect_value"])
     picked: list[int] = []
     for letter in word.upper():
         glyph = next(
@@ -367,9 +375,18 @@ class Game:
                     return {"type": "RESIGN"}
                 self.confirm_resign = True
                 self.note = "Type /resign again to give up the match."
+            elif name == "skip":
+                return {"type": "SELECT_PERKS", "perk_ids": []}
+            elif name == "reroll":
+                return {"type": "REROLL_PERKS"}
+            elif name.startswith(("pick ", "use ")):
+                return self.perk_command(name)
             elif name in ("h", "help"):
                 self.say("Type a word to cast it with your glyphs, like: cat")
                 self.say("Or type hand positions in spelling order, like: 0 4 2")
+                self.say("Glyphs: * damage, + heal, # defense, v vulnerable, w weak")
+                self.say("/use N S puts your perk N on hand slot S, before casting")
+                self.say("After a cast: /pick N takes a perk, /skip, /reroll")
                 self.say("/pass ends your turn, /resign gives up the match")
                 self.say("/quit leaves; run the client again within 30s to come back")
             else:
@@ -392,6 +409,36 @@ class Game:
             self.note = f"You don't have the letters for {line.upper()}."
             return None
         return {"type": "CAST_WORD", "positions": positions}
+
+    def perk_command(self, name: str) -> dict | None:
+        you = self.state["you"] if self.state else {}
+        parts = name.split()
+        if parts[0] == "pick":
+            options = (you.get("draft") or {}).get("options", [])
+            if (
+                len(parts) == 2
+                and parts[1].isdigit()
+                and 1 <= int(parts[1]) <= len(options)
+            ):
+                perk_id = options[int(parts[1]) - 1]["perk_id"]
+                return {"type": "SELECT_PERKS", "perk_ids": [perk_id]}
+            self.note = "Pick an offered perk by its number, like: /pick 2"
+            return None
+        owned = you.get("perks", [])
+        numbers = parts[1:]
+        if (
+            len(numbers) == 2
+            and all(n.isdigit() for n in numbers)
+            and 1 <= int(numbers[0]) <= len(owned)
+        ):
+            instance = owned[int(numbers[0]) - 1]["instance_id"]
+            return {
+                "type": "APPLY_PERK",
+                "perk_instance_id": instance,
+                "position": int(numbers[1]),
+            }
+        self.note = "Use a perk by its number on a hand slot, like: /use 1 4"
+        return None
 
     # Drawing
 
@@ -427,6 +474,7 @@ class Game:
             self.status(),
             "",
             *self.hand(),
+            *self.perks(),
             "",
             *log,
             "",
@@ -443,7 +491,10 @@ class Game:
         return left + " " * max(1, WIDTH - used - len(turn)) + paint(turn, DIM)
 
     def player_row(self, mine: bool) -> str:
-        hp = self.state["you" if mine else "opponent"]["hp"]
+        side = self.state["you" if mine else "opponent"]
+        hp = side["hp"]
+        extras = [f"# {side['defense']} defense"] if side.get("defense") else []
+        extras += [f"{e} {t}" for e, t in side.get("statuses", {}).items()]
         active = self.running() and self.state["your_turn"] == mine
         seconds = self.time_left(mine)
         name = (self.me if mine else self.opponent)[:14]
@@ -455,6 +506,7 @@ class Game:
             f"{paint(f'{name:<14}', BOLD if mine else '')}  "
             f"{bar(hp, STARTING_HP, 20, hp_color)} {hp:>3} HP   "
             f"{paint('⏱ ' + clock(seconds), *clock_style)}"
+            + (paint("   " + ", ".join(extras), CYAN) if extras else "")
         )
 
     def status(self) -> str:
@@ -481,20 +533,46 @@ class Game:
             return ["", paint(f"   {text}", DIM), "", "", ""]
         rows = ["  "] * 5
         for g in glyphs:
-            color = (
-                MAGENTA if g["damage"] >= 15 else YELLOW if g["damage"] >= 10 else CYAN
-            )
+            mark, color = EFFECTS.get(g["effect_type"], ("?", CYAN))
             rows[0] += paint("┌───┐", color) + " "
             rows[1] += (
                 paint("│", color)
-                + paint(f" {g['letter']} ", BOLD)
+                + paint(f"{g['letter'][:3]:^3}", BOLD)  # perks can make ING, QU...
                 + paint("│", color)
                 + " "
             )
-            rows[2] += paint(f"│{g['damage']:>3}│", color) + " "
-            rows[3] += paint("└───┘", color) + " "
+            rows[2] += paint(f"│{mark}{g['effect_value']:>2}│", color) + " "
+            rows[3] += paint("└─★─┘" if g.get("bonus") else "└───┘", color) + " "
             rows[4] += paint(f"{g['position']:^5}", DIM) + " "
         return rows
+
+    def perks(self) -> list[str]:
+        """Your perks (numbered for /use), and the draft after a cast."""
+        you = self.state["you"]
+        owned = you.get("perks", [])
+        if owned:
+            names = [
+                f"{n}) {p['name']}"
+                + ("" if p["durability_left"] is None else f" x{p['durability_left']}")
+                for n, p in enumerate(owned, start=1)
+            ]
+            line = " Perks: " + "  ".join(names)
+        else:
+            line = paint(" Perks: none yet: you pick one after each cast", DIM)
+        draft = you.get("draft")
+        if not draft:
+            return [line, ""]
+        options = "  ".join(
+            f"{n}) {o['name']} ({o['rarity']})"
+            for n, o in enumerate(draft["options"], start=1)
+        )
+        return [
+            line,
+            paint(f" Pick a perk: {options}", BOLD, YELLOW)
+            + paint(
+                f"   /pick N · /skip · /reroll ({draft['rerolls_left']} left)", DIM
+            ),
+        ]
 
 
 def draw(game: Game) -> None:

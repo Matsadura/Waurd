@@ -1,7 +1,9 @@
 """Chat over one WebSocket per user: global, direct and match messages.
 
 The same socket tells whether a user is online: they are while at least one of
-their tabs has it open.
+their tabs has it open. It also carries live notifications (friend requests,
+friends coming online); they aren't saved, so anything missed while offline is
+read from the REST lists instead.
 """
 
 import asyncio
@@ -20,7 +22,7 @@ from backend.repositories.user import UserRepository
 from backend.schemas.chat import chat_message_response
 from backend.ws.match_ws import user_id_from_cookie
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from sqlalchemy import func, update
+from sqlalchemy import func, select, update
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -30,8 +32,29 @@ sockets: dict[str, set[WebSocket]] = {}  # user id -> open chat sockets, one per
 presence_lock = asyncio.Lock()
 
 
+async def push(user_ids: list[str], message: dict) -> None:
+    """Send a message to every open chat tab of these users; offline users get
+    nothing."""
+    for user_id in set(user_ids):
+        for socket in list(sockets.get(user_id, ())):
+            try:
+                await socket.send_json(message)
+            except (WebSocketDisconnect, RuntimeError):
+                pass  # that socket's own loop notices the drop and cleans up
+
+
+def player(user: User) -> dict:
+    """How a notification names a player."""
+    return {
+        "id": user_id_to_string(user.id),
+        "username": user.username,
+        "avatar_url": user.avatar_url,
+    }
+
+
 async def save_presence(user: User) -> None:
-    """Store whether the user has a chat socket open, and when they left.
+    """Store whether the user has a chat socket open, and when they left, then
+    tell their friends who are online.
 
     One write at a time, each reading the sockets just before it writes: when a
     tab reloads, the last write then matches the sockets actually open.
@@ -46,6 +69,51 @@ async def save_presence(user: User) -> None:
         async with async_session_maker() as db:
             await db.execute(update(User).where(User.id == user.id).values(**values))
             await db.commit()
+            last_seen = await db.scalar(
+                select(User.last_seen_at).where(User.id == user.id)
+            )
+            friends = await FriendshipRepository(db).accepted_friend_ids(user.id)
+        await push(
+            [user_id_to_string(f) for f in friends],
+            {
+                "type": "PRESENCE_UPDATE",
+                "user_id": user_id_to_string(user.id),
+                "is_online": online,
+                "last_seen_at": None
+                if online or last_seen is None
+                else last_seen.isoformat(),
+            },
+        )
+
+
+async def notify_friend_request(
+    request_id: int, sender: dict, recipient_id: bytes
+) -> None:
+    """A request just arrived: tell the recipient."""
+    await push(
+        [user_id_to_string(recipient_id)],
+        {
+            "type": "SOCIAL_NOTIFICATION",
+            "kind": "FRIEND_REQUEST",
+            "request_id": request_id,
+            "user": sender,
+        },
+    )
+
+
+async def notify_friend_accepted(
+    request_id: int, accepter: dict, sender_id: bytes
+) -> None:
+    """The recipient said yes: tell whoever sent the request."""
+    await push(
+        [user_id_to_string(sender_id)],
+        {
+            "type": "SOCIAL_NOTIFICATION",
+            "kind": "FRIEND_ACCEPTED",
+            "request_id": request_id,
+            "user": accepter,
+        },
+    )
 
 
 async def reset_online_status() -> None:
@@ -109,12 +177,7 @@ async def send(user: User, message: object) -> None:
         "type": "CHAT_MESSAGE",
         **chat_message_response(row, user.username).model_dump(mode="json"),
     }
-    for recipient in set(recipients):
-        for socket in list(sockets.get(recipient, ())):
-            try:
-                await socket.send_json(out)
-            except (WebSocketDisconnect, RuntimeError):
-                pass  # that socket's own loop notices the drop and cleans up
+    await push(recipients, out)
 
 
 @router.websocket("/chat")

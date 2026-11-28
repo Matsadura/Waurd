@@ -15,6 +15,19 @@ export type PaginatedResponse<T> = {
 	pages: number;
 };
 
+function timeAgo(value: string): string {
+	const minutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60000));
+
+	if (minutes < 1) return 'just now';
+	if (minutes < 60) return `${minutes} min ago`;
+
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours} hours ago`;
+
+	const days = Math.floor(hours / 24);
+	return `${days} days ago`;
+}
+
 export function toFriend(user: FriendResponse): Friend {
 	return {
 		id: user.id,
@@ -23,13 +36,6 @@ export function toFriend(user: FriendResponse): Friend {
 			? `${PUBLIC_BACKEND_URL}${user.avatar_url}`
 			: (user.avatar_url ?? undefined),
 		online: user.is_online,
-		lastSeen: user.last_seen_at
-			? new Date(user.last_seen_at).toLocaleString('en-US', {
-					month: 'short',
-					day: 'numeric',
-					hour: 'numeric',
-					minute: '2-digit'
-				})
-			: undefined
+		lastSeen: user.last_seen_at ? timeAgo(user.last_seen_at) : undefined
 	};
 }

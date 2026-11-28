@@ -2,6 +2,7 @@
 	import './layout.css';
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
+	import { PUBLIC_BACKEND_URL } from '$app/env/public';
 	import favicon from '#lib/assets/favicon.svg';
 	import Frame from '#lib/components/ui/Frame.svelte';
 
@@ -11,6 +12,19 @@
 		if (nav.type === 'popstate' && window.location.pathname !== page.url.pathname) {
 			window.history.replaceState(window.history.state, '', page.url.href);
 		}
+	});
+
+	const userId = $derived(page.data.user?.id);
+
+	$effect(() => {
+		if (!userId) return;
+
+		const url = new URL('/ws/chat', PUBLIC_BACKEND_URL);
+		url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+
+		const socket = new WebSocket(url);
+
+		return () => socket.close();
 	});
 </script>
 

@@ -17,7 +17,7 @@ export type MatchResponse = {
 };
 
 export function toProfileMatch(match: MatchResponse, userId: string): Match {
-    // Determine whether the current user is Player 1 or Player 2 to pick their Elo values and calculate the net change
+	// Determine whether the current user is Player 1 or Player 2 to pick their Elo values and calculate the net change
 	const isPlayer1 = match.player1_id === userId;
 
 	const before = isPlayer1 ? match.player1_elo_before : match.player2_elo_before;

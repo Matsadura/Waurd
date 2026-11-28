@@ -319,3 +319,143 @@ class TestChatHistory:
         assert (
             await alice_client.get(f"/chat/matches/{uuid.uuid4()}")
         ).status_code == 404
+
+
+def no_message(socket, seconds: float = 0.3) -> bool:  # type: ignore[no-untyped-def]
+    """True if nothing arrives on the socket for a short while."""
+    result: dict = {}
+    reader = threading.Thread(
+        target=lambda: result.setdefault("message", socket.receive_json()), daemon=True
+    )
+    reader.start()
+    reader.join(seconds)
+    return "message" not in result
+
+
+def log_in(client, user) -> dict:  # type: ignore[no-untyped-def]
+    """Log the test client in (same event loop as the sockets); returns the CSRF header."""
+    from conftest import PASSWORD
+
+    response = client.post(
+        "/api/v1/auth/login", json={"email": user.email, "password": PASSWORD}
+    )
+    assert response.status_code == 200, response.text
+    return {"X-CSRF-Token": client.cookies["csrf_token"]}
+
+
+class TestNotifications:
+    def test_the_recipient_hears_about_a_new_friend_request(
+        self, client, alice, bob
+    ) -> None:  # type: ignore[no-untyped-def]
+        csrf = log_in(client, alice)
+        with connect(client, bob) as bob_ws:
+            online(1)
+
+            sent = client.post(
+                "/api/v1/friends/requests", json={"username": "bob"}, headers=csrf
+            ).json()
+
+            assert receive(bob_ws) == {
+                "type": "SOCIAL_NOTIFICATION",
+                "kind": "FRIEND_REQUEST",
+                "request_id": sent["id"],
+                "user": {"id": uid(alice), "username": "alice", "avatar_url": None},
+            }
+
+    def test_the_sender_hears_when_it_is_accepted(
+        self, client, alice, bob, make_friendship
+    ) -> None:  # type: ignore[no-untyped-def]
+        request = asyncio.run(make_friendship(alice, bob, FriendshipStatus.PENDING))
+        csrf = log_in(client, bob)
+        with connect(client, alice) as alice_ws:
+            online(1)
+
+            client.patch(
+                f"/api/v1/friends/requests/{request.id}",
+                json={"action": "ACCEPTED"},
+                headers=csrf,
+            )
+
+            message = receive(alice_ws)
+        assert (
+            message["kind"],
+            message["request_id"],
+            message["user"]["username"],
+        ) == (
+            "FRIEND_ACCEPTED",
+            request.id,
+            "bob",
+        )
+
+    def test_a_declined_request_sends_nothing(
+        self, client, alice, bob, make_friendship
+    ) -> None:  # type: ignore[no-untyped-def]
+        request = asyncio.run(make_friendship(alice, bob, FriendshipStatus.PENDING))
+        csrf = log_in(client, bob)
+        with connect(client, alice) as alice_ws:
+            online(1)
+
+            client.patch(
+                f"/api/v1/friends/requests/{request.id}",
+                json={"action": "DECLINED"},
+                headers=csrf,
+            )
+
+            assert no_message(alice_ws)
+
+    def test_friends_hear_when_you_come_online_and_leave(
+        self, client, alice, bob, make_friendship
+    ) -> None:  # type: ignore[no-untyped-def]
+        asyncio.run(make_friendship(alice, bob, FriendshipStatus.ACCEPTED))
+        with connect(client, alice) as alice_ws:
+            online(1)
+            with connect(client, bob):
+                came = receive(alice_ws)
+            left = receive(alice_ws)
+
+        assert came == {
+            "type": "PRESENCE_UPDATE",
+            "user_id": uid(bob),
+            "is_online": True,
+            "last_seen_at": None,
+        }
+        assert (left["user_id"], left["is_online"]) == (uid(bob), False)
+        assert left["last_seen_at"] is not None
+
+    def test_only_friends_hear_it(
+        self, client, alice, bob, carol, make_friendship
+    ) -> None:  # type: ignore[no-untyped-def]
+        asyncio.run(make_friendship(alice, bob, FriendshipStatus.PENDING))
+        with connect(client, alice) as alice_ws, connect(client, carol) as carol_ws:
+            online(2)
+            with connect(client, bob):
+                online(3)
+                assert no_message(alice_ws)  # only a pending request
+                assert no_message(carol_ws)  # a stranger
+
+    def test_a_second_tab_does_not_announce_again(
+        self, client, alice, bob, make_friendship
+    ) -> None:  # type: ignore[no-untyped-def]
+        asyncio.run(make_friendship(alice, bob, FriendshipStatus.ACCEPTED))
+        with connect(client, alice) as alice_ws, connect(client, bob):
+            online(2)
+            assert receive(alice_ws)["is_online"] is True
+            with connect(client, bob):  # bob opens another tab
+                wait_until(lambda: len(chat_ws.sockets[uid(bob)]) == 2)
+                assert no_message(alice_ws)
+
+
+async def test_accepted_friend_ids_cover_both_directions(
+    session_maker, alice, bob, carol, make_user, make_friendship
+) -> None:
+    from backend.repositories.friendship import FriendshipRepository
+
+    dave = await make_user(username="dave")
+    await make_friendship(alice, bob, FriendshipStatus.ACCEPTED)
+    await make_friendship(carol, alice, FriendshipStatus.ACCEPTED)
+    await make_friendship(alice, dave, FriendshipStatus.PENDING)
+
+    async with session_maker() as db:
+        ids = await FriendshipRepository(db).accepted_friend_ids(alice.id)
+
+    assert set(ids) == {bob.id, carol.id}

@@ -84,13 +84,13 @@
 	}
 
 	.card[data-type='power'] {
-		--card-bg: #36070a;
-		--card-outer-border: #8a2c21;
+		--card-bg: #063528;
+		--card-outer-border: var(--color-green-800);
 	}
 
 	.card[data-type='skill'] {
-		--card-bg: #063528;
-		--card-outer-border: var(--color-green-800);
+		--card-bg: #36070a;
+		--card-outer-border: #8a2c21;
 	}
 
 	.card__frame {

@@ -6,11 +6,13 @@
 	import Hand from './Hand.svelte';
 	import PileButton from './PileButton.svelte';
 	import CastButton from './CastButton.svelte';
+	import PassButton from './PassButton.svelte';
 	import PerksRack from '#lib/components/arena/PerksRack.svelte';
 	import PerksButton from './PerksButton.svelte';
 	import PlayerHUD from './PlayerHUD.svelte';
 	import TurnBanner from './TurnBanner.svelte';
 	import GlyphsList from '#lib/components/arena/GlyphsList.svelte';
+	import Notice from '#lib/components/ui/Notice.svelte';
 
 	let { data } = $props();
 
@@ -55,8 +57,12 @@
 			/>
 		</div>
 		<Slots />
+		{#if arena.battle.error}
+			<Notice variant="danger" class="mx-auto mt-3">{arena.battle.error}</Notice>
+		{/if}
 		<div class="mt-4 mr-10 flex w-fit gap-4 self-end lg:mr-32">
 			<CastButton />
+			<PassButton />
 			<PerksButton />
 		</div>
 

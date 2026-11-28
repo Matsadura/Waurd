@@ -2,7 +2,6 @@ import { getContext, setContext } from 'svelte';
 import { BattleSocket, type HandGlyph, type ServerGlyph } from './battleSocket.svelte';
 
 type ElementList = (HTMLElement | undefined)[];
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export const FEEL = {
 	CardWidth: 'w-[18%] md:w-[11%] lg:w-[9%]',
@@ -30,6 +29,7 @@ export class Arena {
 	glyphs = $derived<HandGlyph[]>(this.battle.state?.you.hand ?? []);
 	drawPile = $derived<ServerGlyph[]>(this.battle.state?.you.draw_pile ?? []);
 	discardPile = $derived<ServerGlyph[]>(this.battle.state?.you.discard_pile ?? []);
+	draft = $derived(this.battle.state?.you.draft ?? null);
 	slots = $state<(number | null)[]>(Array(this.slotCount).fill(null));
 	hand = $derived<HandGlyph[]>(this.glyphs.filter((g) => !this.slots.includes(g.position)));
 
@@ -77,40 +77,68 @@ export class Arena {
 			}
 		});
 
-		// Reset placed slots whenever a new turn starts
+		// Reset placed slots and submit phase whenever a new turn starts
 		$effect(() => {
 			this.turnNumber;
+			this.turn;
 			this.slots = Array(this.slotCount).fill(null);
-		});
-	}
-
-	async playWrongErrorAnimatino() { }
-
-	constructSlotWord() {
-		let word = '';
-		this.slots.forEach((position) => {
-			if (position !== null) {
-				const glyph = this.glyph(position);
-				if (glyph !== undefined) {
-					word += glyph.letter;
-				}
-			}
-		});
-		return word;
-	}
-
-	async playSubmitAnimation() {
-		if (this.phase === 'idle') {
-			this.phase = 'checking';
-			await sleep(1000);
-			if (Math.random() > 0.5) {
-				this.phase = 'valid';
-			} else {
-				this.phase = 'invalid';
-			}
-			await sleep(300);
 			this.phase = 'idle';
-			console.log(this.constructSlotWord());
+		});
+
+		// Temporary: auto-pick the first offered perk
+		$effect(() => {
+			if (
+				this.turn === 'me' &&
+				this.draft !== null &&
+				this.battle.status === 'connected' &&
+				this.battle.error === null
+			) {
+				const firstPerk = this.draft.options[0];
+				const perkIds = firstPerk !== undefined ? [firstPerk.perk_id] : [];
+				this.battle.send({ type: 'SELECT_PERKS', perk_ids: perkIds });
+			}
+		});
+
+		// Shake slots when the server rejects an action
+		$effect(() => {
+			if (this.battle.error !== null) {
+				this.phase = 'invalid';
+				const timer = setTimeout(() => {
+					this.phase = 'idle';
+				}, 350);
+
+				return () => {
+					clearTimeout(timer);
+				};
+			}
+		});
+	}
+
+	castWord() {
+		const positions = this.slots.filter((position): position is number => position !== null);
+
+		if (this.turn !== 'me') {
+			this.battle.error = "It's not your turn.";
+		} else if (this.battle.status !== 'connected') {
+			this.battle.error = 'Cannot cast word: not connected.';
+		} else if (positions.length === 0) {
+			this.battle.error = 'Place at least one glyph to cast a word.';
+		} else if (this.phase === 'idle') {
+			this.phase = 'checking';
+			this.battle.error = null;
+			this.battle.send({ type: 'CAST_WORD', positions });
+		}
+	}
+
+	passTurn() {
+		if (this.turn !== 'me') {
+			this.battle.error = "It's not your turn.";
+		} else if (this.battle.status !== 'connected') {
+			this.battle.error = 'Cannot pass turn: not connected.';
+		} else if (this.phase === 'idle') {
+			this.phase = 'checking';
+			this.battle.error = null;
+			this.battle.send({ type: 'PASS_TURN' });
 		}
 	}
 
@@ -152,6 +180,7 @@ export class Arena {
 		if (slot >= 0 && slot < this.slotCount) {
 			this.remove(position);
 			this.slots[slot] = position;
+			this.battle.error = null;
 		}
 	}
 
@@ -162,6 +191,7 @@ export class Arena {
 		const i = this.slots.indexOf(position);
 		if (i >= 0) {
 			this.slots[i] = null;
+			this.battle.error = null;
 		}
 	}
 

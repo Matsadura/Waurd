@@ -3,16 +3,38 @@ import { PUBLIC_BACKEND_URL } from '$app/env/public';
 export type GlyphType = 'power' | 'skill';
 export type GlyphEffectType = 'damage' | 'heal' | 'defense' | 'vulnerable' | 'weak';
 export type EndReason = 'HEALTH_DEPLETED' | 'RESIGNATION' | 'DISCONNECT' | 'TIMEOUT';
+export type PerkRarity = 'common' | 'uncommon' | 'rare' | 'legendary';
+export type PerkTarget = 'damage' | 'heal_defense' | 'any';
 
 export type ServerGlyph = {
 	letter: string;
 	type: GlyphType;
 	effect_type: GlyphEffectType;
 	effect_value: number;
+	bonus?: string | null;
 };
 
 export type HandGlyph = ServerGlyph & {
 	position: number;
+};
+
+export type ServerPerk = {
+	perk_id: string;
+	name: string;
+	rarity: PerkRarity;
+	description: string;
+	target: PerkTarget;
+	durability: number | null;
+};
+
+export type OwnedPerk = ServerPerk & {
+	instance_id: number;
+	durability_left: number | null;
+};
+
+export type PerkDraft = {
+	options: ServerPerk[];
+	rerolls_left: number;
 };
 
 export type BattleState = {
@@ -29,6 +51,8 @@ export type BattleState = {
 		discard_pile?: ServerGlyph[];
 		defense?: number;
 		statuses?: Record<string, number>;
+		perks?: OwnedPerk[];
+		draft?: PerkDraft | null;
 	};
 	opponent: {
 		hp: number;
@@ -37,6 +61,7 @@ export type BattleState = {
 		discard_pile_size?: number;
 		defense?: number;
 		statuses?: Record<string, number>;
+		perk_count?: number;
 	};
 	time_left?: {
 		you: number;
@@ -54,6 +79,9 @@ export type ServerMessage =
 
 export type ClientMessage =
 	| { type: 'CAST_WORD'; positions: number[] }
+	| { type: 'APPLY_PERK'; perk_instance_id: number; position: number }
+	| { type: 'REROLL_PERKS' }
+	| { type: 'SELECT_PERKS'; perk_ids: string[] }
 	| { type: 'PASS_TURN' }
 	| { type: 'RESIGN' };
 
